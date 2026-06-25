@@ -12,7 +12,7 @@ const USERS = [
   { name: 'Ahmad',       email: 'ahmad@usc.co.ke',       role: 'manager'  },
   { name: 'Eng. Suresh', email: 'suresh@usc.co.ke',      role: 'manager'  },
   { name: 'Paul',        email: 'paul@usc.co.ke',        role: 'manager'  },
-  { name: 'Krishnan',    email: 'krishnan@usc.co.ke',    role: 'manager'  },
+  { name: 'Krishina',    email: 'krishnan@usc.co.ke',    role: 'manager'  },
   { name: 'Ashok',       email: 'ashok@usc.co.ke',       role: 'manager'  },
   { name: 'Yalelet',     email: 'yalelet@usc.co.ke',     role: 'staff'    },
   { name: 'Andu',        email: 'andu@usc.co.ke',        role: 'staff'    },
