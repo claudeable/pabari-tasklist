@@ -122,8 +122,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // Fetch fresh user list client-side so View As is never empty
   useEffect(() => {
-    fetch('/api/users')
-      .then(r => r.ok ? r.json() : null)
+    fetch('/api/users', { credentials: 'include' })
+      .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setAllUsers(data) })
       .catch(() => {})
   }, [])
