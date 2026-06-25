@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
   Task, TaskStatus, TaskUpdate,
@@ -96,9 +96,10 @@ interface Props {
   allUsers:     PublicUser[]
 }
 
-export default function TaskBoard({ initialTasks, currentUser, allUsers }: Props) {
+export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers }: Props) {
   // ── State ────────────────────────────────────────────────────────
   const [tasks,         setTasks]         = useState<Task[]>(initialTasks)
+  const [allUsers,      setAllUsers]      = useState<PublicUser[]>(initialUsers)
   const [search,        setSearch]        = useState('')
   const [filterCompany, setFilterCompany] = useState('')
   const [filterSection, setFilterSection] = useState('')
@@ -118,6 +119,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers }: Props
   const [pwError,        setPwError]        = useState('')
   const [pwSuccess,      setPwSuccess]      = useState(false)
   const [pwSaving,       setPwSaving]       = useState(false)
+
+  // Fetch fresh user list client-side so View As is never empty
+  useEffect(() => {
+    fetch('/api/users')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data)) setAllUsers(data) })
+      .catch(() => {})
+  }, [])
 
   const [form, setForm] = useState({
     company:'KISCOL', date:fmtDate(), section:'General', category:'Other',
