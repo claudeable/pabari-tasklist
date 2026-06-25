@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import InactivityGuard from './InactivityGuard'
 import {
   Task, TaskStatus, TaskUpdate,
   STATUS_LABELS, COMPANIES, SECTIONS, PEOPLE, CATEGORIES,
@@ -278,6 +279,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers }: Props
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
+      <InactivityGuard />
 
       {/* TOP NAV */}
       <div style={{background:'#1a3a2a',padding:'0 18px',display:'flex',alignItems:'center',gap:12,height:50,flexShrink:0}}>

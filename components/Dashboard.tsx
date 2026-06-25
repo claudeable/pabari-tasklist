@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import InactivityGuard from './InactivityGuard'
 import {
   ResponsiveContainer, PieChart, Pie, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -108,6 +109,7 @@ export default function Dashboard({ currentUser, stats }: Props) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden',background:'#f9fafb'}}>
+      <InactivityGuard />
 
       {/* TOP NAV */}
       <div style={{background:'#1a3a2a',padding:'0 18px',display:'flex',alignItems:'center',gap:12,height:50,flexShrink:0}}>
