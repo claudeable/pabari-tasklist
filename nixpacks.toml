@@ -1,8 +1,5 @@
 [phases.install]
 cmds = ["npm install --legacy-peer-deps"]
 
-[phases.build]
-cmds = ["npm run build"]
-
 [start]
 cmd = "node scripts/init-data.js && npm run start"
