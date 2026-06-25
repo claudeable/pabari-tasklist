@@ -175,6 +175,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     [base]
   )
 
+  const availablePeople = useMemo(() => {
+    const names = new Set<string>()
+    tasks.forEach(t => {
+      t.responsible.split(/\s*[&/]\s*/).map(n => n.trim()).filter(Boolean).forEach(n => names.add(n))
+    })
+    return Array.from(names).sort()
+  }, [tasks])
+
   const dirAttention = useMemo(() => ({
     pendingReview:  visibleTasks.filter(t => t.status === 'in-review'),
     needsComment:   visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired'),
@@ -189,7 +197,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return list.filter(t => {
       if (!directorFilter && filterSection && t.section     !== filterSection) return false
       if (!directorFilter && filterStatus  && t.status      !== filterStatus)  return false
-      if (filterPerson  && t.responsible !== filterPerson)  return false
+      if (filterPerson  && !nameMatch(t.responsible, filterPerson)) return false
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
@@ -300,23 +308,6 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         )}
         <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
         <div style={{flex:1}}/>
-
-        {/* View As — director / admin only */}
-        {perms.canViewAs && (
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            {viewAs
-              ? <button onClick={()=>setViewAs('')}
-                  style={{background:'#b5833a',color:'white',border:'none',borderRadius:16,padding:'3px 12px',fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
-                  Viewing as {viewAs} &nbsp;✕ Exit
-                </button>
-              : <select value={viewAs} onChange={e=>setViewAs(e.target.value)}
-                  style={{background:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.85)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:4,padding:'3px 7px',fontSize:11,cursor:'pointer'}}>
-                  <option value="">View As…</option>
-                  {viewAsUsers.map(u=><option key={u.id} value={u.name}>{u.name} ({u.role})</option>)}
-                </select>
-            }
-          </div>
-        )}
 
         <span style={{background:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:14}}>{weekNum()}</span>
 
@@ -566,7 +557,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               <select value={filterPerson} onChange={e=>setFilterPerson(e.target.value)}
                 style={{border:'1px solid #d1d5db',borderRadius:4,padding:'5px 8px',fontSize:12,color:'#374151'}}>
                 <option value="">All People</option>
-                {PEOPLE.map(p=><option key={p}>{p}</option>)}
+                {availablePeople.map(p=><option key={p} value={p}>{p}</option>)}
               </select>
             )}
             <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPerson('')}}
