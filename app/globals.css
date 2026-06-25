@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --green-dark:  #1a3a2a;
+  --green-mid:   #2d6a4f;
+  --green-light: #40916c;
+  --green-pale:  #d8f3dc;
+  --gold:        #b5833a;
+  --gold-light:  #f4e4c1;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #f7f8fa;
+  color: #1c2230;
+  font-size: 13px;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4d8df; border-radius: 3px; }
+
+/* status pills */
+.pill { display:inline-flex; align-items:center; font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:10px; white-space:nowrap; }
+.pill-pending   { background:#fef9e7; color:#d68910; }
+.pill-action    { background:#fdecea; color:#c0392b; }
+.pill-review    { background:#d6eaf8; color:#1a5276; }
+.pill-resolved  { background:#d8f3dc; color:#1a3a2a; }
+.pill-expired   { background:#f8d7da; color:#721c24; }
+
+.badge-payment     { background:#fdecea; color:#c0392b; }
+.badge-nonpayment  { background:#fdecea; color:#c0392b; }
+.badge-pay         { background:#d8f3dc; color:#1a3a2a; }
