@@ -11,6 +11,7 @@ export default async function DashboardPage() {
   const session = cookieStore.get('pabari-session')
   const currentUser = session?.value ? await verifyToken(session.value) : null
   if (!currentUser) redirect('/login')
+  if (currentUser.role === 'staff') redirect('/tasks')
 
   const tasks = getTasks()
   const now = Date.now()

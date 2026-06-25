@@ -1,106 +1,114 @@
 [
   {
-    "id": "0bd2bc48-4f3e-429e-bc5c-44cda49103d9",
-    "name": "Pedro",
-    "email": "hpedro@usc.co.ke",
+    "id": "9d0174dd-2a23-40f0-9c3d-674a21504853",
+    "name": "Admin",
+    "email": "admin@usm.co.ke",
     "role": "admin",
-    "password_hash": "$2b$10$0oZ0VkGrZf/jeU5x.UxfE.PkWKMXSGHntCFJ9Tq.kQRwH3f/fEmnK",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$OsB0ygLG5qffK0Ii.OJh1.qOfY/exl9GufEEw0mpi01kqWbXB8m/y",
+    "created_at": "2026-06-25T18:53:43.410Z"
   },
   {
-    "id": "345949f0-ea01-4631-ab84-7d9ec0819bcd",
+    "id": "b831379e-36a7-4b78-a204-d1a6a15523f4",
+    "name": "Pedro",
+    "email": "hpedro@usc.co.ke",
+    "role": "staff",
+    "password_hash": "$2b$10$JX9dP47/w3qfS7LnDLj5eeO5a/vN99SNtsFufVKh28grg4fQj0lNO",
+    "created_at": "2026-06-25T18:53:43.397Z"
+  },
+  {
+    "id": "84810b60-7c78-425a-a374-99f0464fa4bc",
     "name": "Harshil",
     "email": "harshil@usc.co.ke",
     "role": "director",
-    "password_hash": "$2b$10$2kmu8zHcr7QSvuWSg1ODourPJjRaX2WCT.PKUc5ZTQ7ocDP/.GI.S",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$ZS837sIsB9ktxTgzy0eTIeYDRMvRaNzp2jHHjuiSBLbjozaIRjXG6",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "b38c88cf-3ff1-48be-b386-62a6f56e7249",
+    "id": "1bd397ce-f561-45c1-8193-6db24c6d0684",
     "name": "Sabina",
     "email": "sabina@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$.pMi0Xjs1BLq1ZUI37fD/OguFxbnp5NCqaPW9Fvf.q9xOKP2jA00O",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$E5/feBrmj28aRaFP9D91TOCbCTOdwu.NRl12YpmE.8ISBIo4/eLS6",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "e9c8bb30-8412-47ff-b713-7a2e8f32caff",
+    "id": "9b87ac76-cf3a-4e35-82e0-fd4973a24a87",
     "name": "Ahmad",
     "email": "ahmad@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$fa9/jwpQsQ4d49p40NZxs.wXQMHcPxEFE4xdBydAUgdKa6Ue.ZfYO",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$2JXh0eQmP3uD5yU1oUKYpuPQtVddz.rh49ejEmlHBf56BmZkMCBuC",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "a59851fd-ced5-4bfe-8a77-7d5eef749e1f",
+    "id": "bf29486b-2ae0-477c-8074-1a2546a41ea3",
     "name": "Eng. Suresh",
     "email": "suresh@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$REuDU4gMG3G92uZ6QVhccOVIPYr17CbzONMHP2FIHngT7kr79tvz6",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$xgSezCt8DYhUvu80W3NIa.ELsDeJ4924OMxkBeZqdS8UjOVGtKQsm",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "ba9aa730-aaac-4af5-9f85-25f0e5c3b552",
+    "id": "b43dbc7a-0620-4097-ba93-abfc164dcdc7",
     "name": "Paul",
     "email": "paul@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$sXQz5zFAG91j7jhxkrt1neBIIWYUekV6hsK/0R1kMWlZgmMhydhy.",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$fPY43M/uwL.Q7B9H742Sku8KdyxXV8OBQiMn4fdOdDzzNpkENxBGm",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "19e5c3fa-ef4a-4a29-8d32-6a74297e024e",
+    "id": "15e51b0b-8068-42d6-b41f-f496e669a283",
     "name": "Krishnan",
     "email": "krishnan@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$6F2I0zqm2i6g5AWY9NNAfu5i50bkCIWIpVJk/gM/UzcDjEeQ9Kehe",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$QYl6pofsjHnxEQ6mzIpUt.7TwbQvbMAdaIFscdSHWM6nuE5qm0PZC",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "5e8baf3e-7f50-41af-9f96-000250258e78",
+    "id": "a273b952-65bc-4ac2-8e45-888668001a0d",
     "name": "Ashok",
     "email": "ashok@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$yV7ad4ZTZN4KcL.ifALbluBD.iO4ZCTML.cAjkgUtYbD7HIwBAnp6",
-    "created_at": "2026-06-25T14:20:01.369Z"
+    "password_hash": "$2b$10$8P7mimk3BG.RVd1tfHwhC.8tCtOrO2Re7mn5V5tJm6cvEFcL8zosC",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "16555706-46dd-4263-8e6b-680f3ad48295",
+    "id": "d4aefd77-dcac-4c4a-a260-47f35262753b",
     "name": "Yalelet",
     "email": "yalelet@usc.co.ke",
     "role": "staff",
-    "password_hash": "$2b$10$nP.UzGVH/4uKrieygk9Q0enHQcTeLo7QKG3W8.m11kCvqxVgcu0Pe",
-    "created_at": "2026-06-25T14:20:01.369Z"
+    "password_hash": "$2b$10$1ycezVoZ8BWdq13NcZB1KukVylqljk/.EH2Aee7qghSu6D2SEzf1G",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "41423ce8-caa8-469f-91e5-f30678e7bd80",
+    "id": "724e4583-45a0-4816-a3e5-b8d29b01110f",
     "name": "Andu",
     "email": "andu@usc.co.ke",
     "role": "staff",
-    "password_hash": "$2b$10$0.zCXucG4c.Eu5.1yvVC9enyQ1MzS/QqbGRV63fmMk2Y7OFFd2TnO",
-    "created_at": "2026-06-25T14:20:01.308Z"
+    "password_hash": "$2b$10$z.HbdKOugkcbpmMXMBtgd.Lz8ioSmYaFMDmq79I9dwkM0KrrdmUTW",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "821393f0-c3a5-4015-80dd-204ff27351dc",
+    "id": "df3b62b2-837a-4f3d-936f-564047bcc6e3",
     "name": "Yared",
     "email": "yared@usc.co.ke",
     "role": "staff",
-    "password_hash": "$2b$10$4JvkiYCCO6E.LE74wNqQFOxQmSs3IIOQIdqt7iuUpFAecGkkDVMvW",
-    "created_at": "2026-06-25T14:20:01.369Z"
+    "password_hash": "$2b$10$V9uZqVP/ioWo9Z.rh741Zekr.GXn3wkyysDlCeMJAABpeiBZT.2BC",
+    "created_at": "2026-06-25T18:53:43.409Z"
   },
   {
-    "id": "94483932-9e57-42cd-a02b-0bfa1e2b0018",
+    "id": "5b459905-0e3c-4355-b986-44547a98fa46",
     "name": "Benson",
     "email": "benson@usc.co.ke",
     "role": "manager",
-    "password_hash": "$2b$10$.TgiTjD4NJbSD7RE6Yvhl.iyIMM.7pqrmzoIYpi33K1DKwi05lmuW",
-    "created_at": "2026-06-25T14:20:01.369Z"
+    "password_hash": "$2b$10$fKKPECnZLh16szeuUoEhHezj7vFfji0nBP2x8sv/92FvWwU88rz72",
+    "created_at": "2026-06-25T18:53:43.410Z"
   },
   {
-    "id": "615291a3-7209-4105-8d09-8e4740303b87",
+    "id": "e15f10b4-39ce-4cb1-afbd-2b94c6f3e769",
     "name": "Simon",
     "email": "simon@usc.co.ke",
     "role": "staff",
-    "password_hash": "$2b$10$X26OtC9hqO5Ljn4oDG7il.Qxu.Kq5HoXO5r17T1pUJpIaCgSnJgMS",
-    "created_at": "2026-06-25T14:20:01.368Z"
+    "password_hash": "$2b$10$X5xgQnwxogLnpUy0sL73Luhv2zYVledoDp4FVHoPHXJF8MCohpsDi",
+    "created_at": "2026-06-25T18:53:43.410Z"
   }
 ]

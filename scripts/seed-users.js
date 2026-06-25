@@ -5,7 +5,8 @@ const path  = require('path')
 const { randomUUID } = require('crypto')
 
 const USERS = [
-  { name: 'Pedro',       email: 'hpedro@usc.co.ke',      role: 'admin'    },
+  { name: 'Admin',       email: 'admin@usm.co.ke',        role: 'admin'    },
+  { name: 'Pedro',       email: 'hpedro@usc.co.ke',      role: 'staff'    },
   { name: 'Harshil',     email: 'harshil@usc.co.ke',     role: 'director' },
   { name: 'Sabina',      email: 'sabina@usc.co.ke',      role: 'manager'  },
   { name: 'Ahmad',       email: 'ahmad@usc.co.ke',       role: 'manager'  },
