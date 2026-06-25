@@ -19,6 +19,9 @@ const USERS = [
   { name: 'Yared',       email: 'yared@usc.co.ke',       role: 'staff'    },
   { name: 'Benson',      email: 'benson@usc.co.ke',      role: 'manager'  },
   { name: 'Simon',       email: 'simon@usc.co.ke',       role: 'staff'    },
+  { name: 'Binal',       email: 'binal@usc.co.ke',       role: 'manager'  },
+  { name: 'Mungai',      email: 'mungai@usc.co.ke',      role: 'manager'  },
+  { name: 'Lazarus',     email: 'lazarus@usc.co.ke',     role: 'manager'  },
 ]
 
 async function main() {
