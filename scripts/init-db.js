@@ -111,6 +111,9 @@ async function main() {
       )
     `)
 
+    // ── Migrations: add columns to existing tables safely ────────────────────
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium'`)
+
     // ── Indexes ──────────────────────────────────────────────────────────────
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_company    ON tasks(company)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status)`)

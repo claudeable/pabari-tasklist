@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { SessionUser, COMPANIES, SECTIONS, TaskStatus, STATUS_LABELS, Task } from '@/types'
+import { SessionUser, COMPANIES, SECTIONS, TaskStatus, STATUS_LABELS, TaskPriority, PRIORITY_LABELS, PRIORITY_STYLE, Task } from '@/types'
 import { Report } from '@/lib/reports'
 import InactivityGuard from './InactivityGuard'
 
@@ -89,7 +89,7 @@ function generatePDF(tasks: Task[], filters: Record<string, string>, reportName:
 
 export default function ReportsModule({ currentUser, initialReports }: Props) {
   const [reports, setReports]   = useState<Report[]>(initialReports)
-  const [filters, setFilters]   = useState({ company:'', section:'', status:'', person:'' })
+  const [filters, setFilters]   = useState({ company:'', section:'', status:'', priority:'', person:'', dateFrom:'', dateTo:'' })
   const [generating, setGen]    = useState(false)
   const [error, setError]       = useState('')
 
@@ -160,7 +160,7 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
           <div style={{fontWeight:700,fontSize:16,color:'#111',marginBottom:4}}>Generate New Report</div>
           <div style={{fontSize:12,color:'#6b7280',marginBottom:20}}>Select filters then click Generate. The PDF opens immediately and the report is saved to history below.</div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14,marginBottom:20}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14,marginBottom:14}}>
             <div>
               <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Company</label>
               <select value={filters.company} onChange={e=>setF('company',e.target.value)} style={sel}>
@@ -183,11 +183,36 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
               </select>
             </div>
             <div>
+              <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Priority</label>
+              <select value={filters.priority} onChange={e=>setF('priority',e.target.value)} style={sel}>
+                <option value="">All Priorities</option>
+                {(Object.entries(PRIORITY_LABELS) as [TaskPriority, string][]).map(([k,v])=>(
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14,marginBottom:20}}>
+            <div>
               <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Person</label>
               <select value={filters.person} onChange={e=>setF('person',e.target.value)} style={sel}>
                 <option value="">All People</option>
                 {PEOPLE.map(p=><option key={p} value={p}>{p}</option>)}
               </select>
+            </div>
+            <div>
+              <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Date From</label>
+              <input type="date" value={filters.dateFrom} onChange={e=>setF('dateFrom',e.target.value)} style={{...sel,fontFamily:'inherit'}}/>
+            </div>
+            <div>
+              <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Date To</label>
+              <input type="date" value={filters.dateTo} onChange={e=>setF('dateTo',e.target.value)} style={{...sel,fontFamily:'inherit'}}/>
+            </div>
+            <div style={{display:'flex',alignItems:'flex-end'}}>
+              <button onClick={()=>setFilters({company:'',section:'',status:'',priority:'',person:'',dateFrom:'',dateTo:''})}
+                style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'7px 14px',fontSize:12,cursor:'pointer',color:'#6b7280',width:'100%'}}>
+                Clear Filters
+              </button>
             </div>
           </div>
 
@@ -234,8 +259,10 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
                         r.filters.company  && <span key="co"  style={{background:'#eff6ff',color:'#1d4ed8',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:600,marginRight:4}}>{r.filters.company}</span>,
                         r.filters.section  && <span key="sec" style={{background:'#f0fdf4',color:'#166534',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:600,marginRight:4}}>{r.filters.section.split(' - ').pop()}</span>,
                         r.filters.status   && <span key="st"  style={{background:'#fef9ee',color:'#92400e',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:600,marginRight:4}}>{STATUS_LABELS[r.filters.status as TaskStatus]||r.filters.status}</span>,
+                        r.filters.priority && <span key="pr"  style={{background:PRIORITY_STYLE[r.filters.priority as TaskPriority]?.bg||'#f9fafb',color:PRIORITY_STYLE[r.filters.priority as TaskPriority]?.color||'#374151',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:600,marginRight:4}}>{PRIORITY_LABELS[r.filters.priority as TaskPriority]||r.filters.priority} Priority</span>,
                         r.filters.person   && <span key="pe"  style={{background:'#fdf2f8',color:'#7e22ce',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:600,marginRight:4}}>{r.filters.person}</span>,
-                        !r.filters.company && !r.filters.section && !r.filters.status && !r.filters.person && <span key="all" style={{color:'#9ca3af',fontSize:11}}>All tasks</span>,
+                        (r.filters.dateFrom||r.filters.dateTo) && <span key="dt" style={{background:'#f3f4f6',color:'#374151',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:600,marginRight:4}}>{r.filters.dateFrom||'…'} → {r.filters.dateTo||'…'}</span>,
+                        !r.filters.company && !r.filters.section && !r.filters.status && !r.filters.priority && !r.filters.person && !r.filters.dateFrom && !r.filters.dateTo && <span key="all" style={{color:'#9ca3af',fontSize:11}}>All tasks</span>,
                       ]}
                     </td>
                     <td style={{padding:'11px 16px'}}>

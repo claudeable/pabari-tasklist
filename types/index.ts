@@ -21,6 +21,20 @@ export type TaskStatus =
   | 'resolved'
   | 'expired'
 
+export type TaskPriority = 'low' | 'medium' | 'high'
+
+export const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  low:    'Low',
+  medium: 'Medium',
+  high:   'High',
+}
+
+export const PRIORITY_STYLE: Record<TaskPriority, { bg: string; color: string }> = {
+  high:   { bg: '#fef2f2', color: '#dc2626' },
+  medium: { bg: '#fffbeb', color: '#d97706' },
+  low:    { bg: '#f0fdf4', color: '#15803d' },
+}
+
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   'pending-discussion': 'Pending Discussion',
   'action-required':    'Action Required',
@@ -79,6 +93,7 @@ export interface Task {
   responsible: string
   payment: 'Payment' | 'Non-Payment'
   status: TaskStatus
+  priority: TaskPriority
   status_wk: string
   hk_comment: string
   created_at: string

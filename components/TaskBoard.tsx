@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
   Task, TaskStatus, TaskUpdate,
-  STATUS_LABELS, COMPANIES, SECTIONS, PEOPLE, CATEGORIES,
+  STATUS_LABELS, PRIORITY_LABELS, PRIORITY_STYLE, TaskPriority,
+  COMPANIES, SECTIONS, PEOPLE, CATEGORIES,
   SessionUser, PublicUser,
 } from '@/types'
 
@@ -102,9 +103,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [allUsers,      setAllUsers]      = useState<PublicUser[]>(initialUsers)
   const [search,        setSearch]        = useState('')
   const [filterCompany, setFilterCompany] = useState('')
-  const [filterSection, setFilterSection] = useState('')
-  const [filterStatus,  setFilterStatus]  = useState('')
-  const [filterPerson,  setFilterPerson]  = useState('')
+  const [filterSection,   setFilterSection]   = useState('')
+  const [filterStatus,    setFilterStatus]    = useState('')
+  const [filterPriority,  setFilterPriority]  = useState('')
+  const [filterPerson,    setFilterPerson]    = useState('')
 
   const showCompanyCol = filterCompany === ''
   const [expandedRows,  setExpandedRows]  = useState<Set<string>>(new Set())
@@ -127,10 +129,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     const title = filterCompany || 'All Companies'
     const dateStr = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
     const filters = [
-      filterSection && `Section: ${filterSection}`,
-      filterStatus  && `Status: ${STATUS_LABELS[filterStatus as TaskStatus] || filterStatus}`,
-      filterPerson  && `Person: ${filterPerson}`,
-      search        && `Search: "${search}"`,
+      filterSection  && `Section: ${filterSection}`,
+      filterStatus   && `Status: ${STATUS_LABELS[filterStatus as TaskStatus] || filterStatus}`,
+      filterPriority && `Priority: ${PRIORITY_LABELS[filterPriority as TaskPriority] || filterPriority}`,
+      filterPerson   && `Person: ${filterPerson}`,
+      search         && `Search: "${search}"`,
     ].filter(Boolean).join(' · ')
 
     const rows = filtered.map(t => `
@@ -146,7 +149,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           : t.updates || ''
         ).slice(0, 200)}</td>
         <td>${t.responsible || ''}</td>
-        <td>${STATUS_LABELS[t.status]}</td>
+        <td>${STATUS_LABELS[t.status]}${t.priority && t.priority !== 'medium' ? ` · ${PRIORITY_LABELS[t.priority as TaskPriority] || t.priority}` : ''}</td>
       </tr>`).join('')
 
     const companyTh = !filterCompany ? '<th>Company</th>' : ''
@@ -204,6 +207,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     company:'KISCOL', date:fmtDate(), section:'General', category:'Other',
     particulars:'', responsible:currentUser.name,
     payment:'Non-Payment', status:'pending-discussion' as TaskStatus,
+    priority:'medium' as TaskPriority,
     initial_update:'', hk_comment:'', status_wk:'',
   })
 
@@ -267,13 +271,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     if (directorFilter === 'needs-comment')     list = visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired')
     if (directorFilter === 'action-required')   list = visibleTasks.filter(t => t.status === 'action-required')
     return list.filter(t => {
-      if (!directorFilter && filterSection && t.section     !== filterSection) return false
-      if (!directorFilter && filterStatus  && t.status      !== filterStatus)  return false
-      if (filterPerson  && !nameMatch(t.responsible, filterPerson)) return false
+      if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
+      if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
+      if (filterPriority  && t.priority     !== filterPriority)                            return false
+      if (filterPerson    && !nameMatch(t.responsible, filterPerson))                      return false
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [base, visibleTasks, directorFilter, filterSection, filterStatus, filterPerson, search])
+  }, [base, visibleTasks, directorFilter, filterSection, filterStatus, filterPriority, filterPerson, search])
 
   const kpis = useMemo(() => ({
     total:    base.length,
@@ -344,7 +349,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => [...prev, withUpdates])
     setShowAddForm(false)
     setForm(f => ({...f,date:fmtDate(),section:'General',category:'Other',particulars:'',
-      payment:'Non-Payment',status:'pending-discussion',initial_update:'',hk_comment:'',status_wk:''}))
+      payment:'Non-Payment',status:'pending-discussion',priority:'medium',initial_update:'',hk_comment:'',status_wk:''}))
     setSaving(false)
   }
 
@@ -628,6 +633,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               <option value="">All Sections</option>
               {availableSections.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
+            <select value={filterPriority} onChange={e=>setFilterPriority(e.target.value)}
+              style={{border:'1px solid #d1d5db',borderRadius:4,padding:'5px 8px',fontSize:12,color:'#374151'}}>
+              <option value="">All Priorities</option>
+              {(Object.entries(PRIORITY_LABELS) as [TaskPriority, string][]).map(([k,v])=>(
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
             {effectiveRole !== 'staff' && (
               <select value={filterPerson} onChange={e=>setFilterPerson(e.target.value)}
                 style={{border:'1px solid #d1d5db',borderRadius:4,padding:'5px 8px',fontSize:12,color:'#374151'}}>
@@ -635,7 +647,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 {availablePeople.map(p=><option key={p} value={p}>{p}</option>)}
               </select>
             )}
-            <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPerson('')}}
+            <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPriority('');setFilterPerson('')}}
               style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 10px',fontSize:12,cursor:'pointer',color:'#4b5563'}}>
               Reset
             </button>
@@ -663,13 +675,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   {label:'Responsible',key:'responsible',opts:[...PEOPLE]},
                   {label:'Payment',    key:'payment',    opts:['Non-Payment','Payment']},
                   {label:'Status',     key:'status',     opts:Object.keys(STATUS_LABELS)},
+                  {label:'Priority',   key:'priority',   opts:Object.keys(PRIORITY_LABELS)},
                 ] as {label:string;key:string;opts:string[]|null}[]).map(f=>(
                   <div key={f.key}>
                     <label style={{display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:3}}>{f.label}</label>
                     {f.opts
                       ? <select value={(form as any)[f.key]} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))}
                           style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 7px',fontSize:12}}>
-                          {f.opts.map(o=><option key={o} value={o}>{STATUS_LABELS[o as TaskStatus]||o}</option>)}
+                          {f.opts.map(o=><option key={o} value={o}>{STATUS_LABELS[o as TaskStatus]||PRIORITY_LABELS[o as TaskPriority]||o}</option>)}
                         </select>
                       : <input value={(form as any)[f.key]} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))}
                           style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 7px',fontSize:12}}/>
@@ -772,8 +785,15 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       </div>
                       <span style={{fontSize:10.5,color:'#374151'}}>{task.responsible}</span>
                     </div>
-                    <div style={{padding:'9px 6px'}}>
+                    <div style={{padding:'9px 6px',display:'flex',flexDirection:'column',gap:4}}>
                       <span className={STATUS_PILL[task.status]}>{STATUS_LABELS[task.status]}</span>
+                      {task.priority && task.priority !== 'medium' && (
+                        <span style={{display:'inline-block',fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,
+                          background:PRIORITY_STYLE[task.priority]?.bg, color:PRIORITY_STYLE[task.priority]?.color,
+                          textTransform:'uppercase',letterSpacing:'0.5px',alignSelf:'flex-start'}}>
+                          {PRIORITY_LABELS[task.priority]}
+                        </span>
+                      )}
                     </div>
                     <div style={{padding:'9px 6px',display:'flex',gap:3,alignItems:'center'}}>
                       <button onClick={e=>{e.stopPropagation();toggleRow(task.id)}}
@@ -873,6 +893,25 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       {Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
                     </select>
                   : <span className={STATUS_PILL[activeTask.status]}>{STATUS_LABELS[activeTask.status]}</span>
+                }
+              </div>
+
+              {/* Priority */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Priority</div>
+                {perms.canChangeStatus
+                  ? <select value={activeTask.priority||'medium'} onChange={async e=>{
+                        const res = await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({priority:e.target.value})})
+                        if(res.ok){const updated=await res.json();setTasks(ts=>ts.map(t=>t.id===updated.id?updated:t))}
+                      }}
+                      style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
+                      {(Object.entries(PRIORITY_LABELS) as [TaskPriority, string][]).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                    </select>
+                  : <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:8,
+                      background:PRIORITY_STYLE[activeTask.priority||'medium']?.bg,
+                      color:PRIORITY_STYLE[activeTask.priority||'medium']?.color}}>
+                      {PRIORITY_LABELS[activeTask.priority||'medium']}
+                    </span>
                 }
               </div>
 

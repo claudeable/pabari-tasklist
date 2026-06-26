@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
     updates:     body.initial_update ?? '',
     responsible: body.responsible ?? '',
     payment:     body.payment ?? 'Non-Payment',
-    status:      body.status ?? 'pending-discussion',
+    status:      body.status   ?? 'pending-discussion',
+    priority:    body.priority ?? 'medium',
     status_wk:   body.status_wk ?? '',
     hk_comment:  body.hk_comment ?? '',
   })
