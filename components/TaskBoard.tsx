@@ -105,6 +105,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [filterSection, setFilterSection] = useState('')
   const [filterStatus,  setFilterStatus]  = useState('')
   const [filterPerson,  setFilterPerson]  = useState('')
+
+  const showCompanyCol = filterCompany === ''
   const [expandedRows,  setExpandedRows]  = useState<Set<string>>(new Set())
   const [activeTask,    setActiveTask]    = useState<Task | null>(null)
   const [showAddForm,   setShowAddForm]   = useState(false)
@@ -119,6 +121,76 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [pwError,        setPwError]        = useState('')
   const [pwSuccess,      setPwSuccess]      = useState(false)
   const [pwSaving,       setPwSaving]       = useState(false)
+
+  // ── Print / PDF export ───────────────────────────────────────────
+  const handlePrint = () => {
+    const title = filterCompany || 'All Companies'
+    const dateStr = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+    const filters = [
+      filterSection && `Section: ${filterSection}`,
+      filterStatus  && `Status: ${STATUS_LABELS[filterStatus as TaskStatus] || filterStatus}`,
+      filterPerson  && `Person: ${filterPerson}`,
+      search        && `Search: "${search}"`,
+    ].filter(Boolean).join(' · ')
+
+    const rows = filtered.map(t => `
+      <tr>
+        <td>${t.sno}</td>
+        <td>${t.date || ''}</td>
+        ${!filterCompany ? `<td><strong>${t.company}</strong></td>` : ''}
+        <td>${t.section.replace('External Stakeholders - ','Ext. ').replace(' PENDING LIST','')}</td>
+        <td>${t.category || ''}</td>
+        <td><strong>${t.particulars}</strong></td>
+        <td>${(t.task_updates?.[0]
+          ? `${t.task_updates[0].date}: ${t.task_updates[0].text}`
+          : t.updates || ''
+        ).slice(0, 200)}</td>
+        <td>${t.responsible || ''}</td>
+        <td>${STATUS_LABELS[t.status]}</td>
+      </tr>`).join('')
+
+    const companyTh = !filterCompany ? '<th>Company</th>' : ''
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Pabari Group — ${title}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; font-size: 9pt; color: #111; }
+        .header { background: #1a3a2a; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+        .badge { background: #b5833a; color: white; font-weight: 800; font-size: 10pt; padding: 3px 8px; border-radius: 3px; }
+        .header h1 { font-size: 13pt; font-weight: 700; }
+        .meta { padding: 8px 16px; font-size: 8pt; color: #555; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; margin-top: 0; }
+        th { background: #f3f4f6; border: 1px solid #d1d5db; padding: 5px 6px; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
+        td { border: 1px solid #e5e7eb; padding: 5px 6px; font-size: 8pt; vertical-align: top; }
+        tr:nth-child(even) td { background: #fafafa; }
+        .footer { margin-top: 10px; font-size: 7.5pt; color: #999; text-align: right; padding: 0 16px; }
+        @page { size: A4 landscape; margin: 12mm; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style>
+    </head><body>
+      <div class="header">
+        <span class="badge">PABARI</span>
+        <h1>PABARI GROUP &mdash; Pending Task Report</h1>
+      </div>
+      <div class="meta">
+        <span><strong>${title}</strong>${filters ? ' · ' + filters : ''} &nbsp;|&nbsp; ${filtered.length} tasks</span>
+        <span>Generated: ${dateStr}</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>#</th><th>Date</th>${companyTh}<th>Section</th><th>Category</th>
+          <th>Particulars</th><th>Latest Update</th><th>Responsible</th><th>Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="footer">PABARI GROUP · Internal Use Only · ${dateStr}</div>
+      <script>window.onload=()=>window.print()</script>
+    </body></html>`
+
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close() }
+  }
 
   // Fetch fresh user list client-side so View As is never empty
   useEffect(() => {
@@ -566,6 +638,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             </button>
             <div style={{flex:1}}/>
             <span style={{fontSize:11,color:'#9ca3af'}}>{filtered.length} task{filtered.length!==1?'s':''}</span>
+            <button onClick={handlePrint}
+              style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 12px',fontSize:12,cursor:'pointer',color:'#374151',display:'flex',alignItems:'center',gap:5}}>
+              🖨 Print / PDF
+            </button>
           </div>
 
           {/* Add task form */}
@@ -628,8 +704,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
           {/* Task table */}
           <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:6,overflow:'hidden'}}>
-            <div style={{display:'grid',gridTemplateColumns:'38px 72px 108px 96px 165px 1fr 115px 112px 60px',background:'#f9fafb',borderBottom:'1px solid #e5e7eb',padding:'0 6px'}}>
-              {['#','Date','Section','Category','Particulars','Latest Update','Responsible','Status',''].map(h=>(
+            <div style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',background:'#f9fafb',borderBottom:'1px solid #e5e7eb',padding:'0 6px'}}>
+              {(showCompanyCol
+                ? ['#','Date','Company','Section','Category','Particulars','Latest Update','Responsible','Status','']
+                : ['#','Date','Section','Category','Particulars','Latest Update','Responsible','Status','']
+              ).map(h=>(
                 <div key={h} style={{padding:'8px 6px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.5px',textTransform:'uppercase'}}>{h}</div>
               ))}
             </div>
@@ -652,12 +731,17 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               return (
                 <div key={task.id}>
                   <div onClick={()=>setActiveTask(activeTask?.id===task.id?null:task)}
-                    style={{display:'grid',gridTemplateColumns:'38px 72px 108px 96px 165px 1fr 115px 112px 60px',
+                    style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',
                       borderBottom:'1px solid #f3f4f6',padding:'0 6px',cursor:'pointer',
                       borderLeft:`3px solid ${BORDER[task.status]}`,
                       background:activeTask?.id===task.id?'#f8faff':'white'}}>
                     <div style={{padding:'9px 6px',fontSize:11,color:'#9ca3af',fontWeight:700}}>{task.sno}</div>
                     <div style={{padding:'9px 6px',fontSize:11,color:'#6b7280'}}>{task.date}</div>
+                    {showCompanyCol && (
+                      <div style={{padding:'9px 6px'}}>
+                        <span style={{background:'#eff6ff',border:'1px solid #bfdbfe',padding:'2px 6px',borderRadius:8,fontSize:9,fontWeight:700,color:'#1d4ed8',display:'inline-block',lineHeight:1.4}}>{task.company}</span>
+                      </div>
+                    )}
                     <div style={{padding:'9px 6px'}}>
                       <span style={{background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'2px 6px',borderRadius:8,fontSize:9.5,fontWeight:600,color:'#166534',display:'inline-block',lineHeight:1.4}}>
                         {sectionShort(task.section)}
