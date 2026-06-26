@@ -6,7 +6,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const body = await req.json()
-  const task = updateTask(params.id, body)
+  const task = await updateTask(params.id, body)
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }
@@ -15,7 +15,7 @@ export async function DELETE(
   _: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const ok = deleteTask(params.id)
+  const ok = await deleteTask(params.id)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

@@ -8,5 +8,6 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get('pabari-session')?.value
   const user = token ? await verifyToken(token) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  return NextResponse.json(getPublicUsers())
+  const users = await getPublicUsers()
+  return NextResponse.json(users)
 }

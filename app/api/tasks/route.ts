@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTask, addUpdate, getTasks } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
-  return NextResponse.json(getTasks())
+  const tasks = await getTasks()
+  return NextResponse.json(tasks)
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
-  const task = createTask({
+  const task = await createTask({
     sno:         body.sno ?? 0,
     date:        body.date ?? '',
     company:     body.company ?? '',
@@ -24,7 +27,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (body.initial_update) {
-    addUpdate(task.id, {
+    await addUpdate(task.id, {
       date: body.update_date ?? body.date,
       text: body.initial_update,
     })

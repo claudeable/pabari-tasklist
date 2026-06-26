@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs'
 import { getUserByEmail } from '@/lib/users'
 import { signToken } from '@/lib/auth'
 
-// In-memory rate limiter: max 5 attempts per IP per 15 minutes
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
 function isRateLimited(ip: string): boolean {
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 })
   }
 
-  const user = getUserByEmail(email)
+  const user = await getUserByEmail(email)
   if (!user) {
     return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 })
   }

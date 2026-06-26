@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   const body = await req.json()
-  const update = addUpdate(params.id, { date: body.date, text: body.text })
+  const update = await addUpdate(params.id, { date: body.date, text: body.text })
   if (!update) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   return NextResponse.json({ update })
 }

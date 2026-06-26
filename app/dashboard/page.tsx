@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   if (!currentUser) redirect('/login')
   if (currentUser.role === 'staff') redirect('/tasks')
 
-  const tasks = getTasks()
+  const tasks = await getTasks()
   const now = Date.now()
 
   // ── KPI by status ──────────────────────────────────────────────

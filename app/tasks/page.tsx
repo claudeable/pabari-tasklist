@@ -14,8 +14,7 @@ export default async function TasksPage() {
 
   if (!currentUser) redirect('/login')
 
-  const tasks = getTasks()
-  const allUsers = getPublicUsers()
+  const [tasks, allUsers] = await Promise.all([getTasks(), getPublicUsers()])
 
   const sorted = tasks.map(t => ({
     ...t,

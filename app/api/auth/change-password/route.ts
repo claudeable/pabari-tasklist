@@ -19,14 +19,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'New password must be at least 8 characters.' }, { status: 400 })
   }
 
-  const user = getUserByEmail(session.email)
+  const user = await getUserByEmail(session.email)
   if (!user) return NextResponse.json({ error: 'User not found.' }, { status: 404 })
 
   const valid = await bcrypt.compare(currentPassword, user.password_hash)
   if (!valid) return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 })
 
   const newHash = await bcrypt.hash(newPassword, 10)
-  const ok = updateUserPassword(user.id, newHash)
+  const ok = await updateUserPassword(user.id, newHash)
   if (!ok) return NextResponse.json({ error: 'Failed to save new password.' }, { status: 500 })
 
   return NextResponse.json({ ok: true })

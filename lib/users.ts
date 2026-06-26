@@ -1,9 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import { query, queryOne, execute } from './database'
 import { UserRole } from './auth'
-
-const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), 'data')
-const FILE = path.join(DATA_DIR, 'users.json')
 
 export interface StoredUser {
   id: string
@@ -14,29 +10,45 @@ export interface StoredUser {
   created_at: string
 }
 
-export function getUsers(): StoredUser[] {
-  try {
-    return JSON.parse(fs.readFileSync(FILE, 'utf-8')) as StoredUser[]
-  } catch {
-    return []
+function rowToUser(row: Record<string, unknown>): StoredUser {
+  return {
+    id:            String(row.id),
+    name:          String(row.name),
+    email:         String(row.email),
+    role:          row.role as UserRole,
+    password_hash: String(row.password_hash),
+    created_at:    String(row.created_at),
   }
 }
 
-export function getUserByEmail(email: string): StoredUser | undefined {
-  return getUsers().find(u => u.email.toLowerCase() === email.toLowerCase())
+export async function getUsers(): Promise<StoredUser[]> {
+  const rows = await query<Record<string, unknown>>('SELECT * FROM users ORDER BY name')
+  return rows.map(rowToUser)
 }
 
-export function getPublicUsers() {
-  return getUsers().map(({ id, name, email, role }) => ({ id, name, email, role }))
+export async function getUserByEmail(email: string): Promise<StoredUser | undefined> {
+  const row = await queryOne<Record<string, unknown>>(
+    'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
+    [email]
+  )
+  return row ? rowToUser(row) : undefined
 }
 
-export function updateUserPassword(userId: string, newHash: string): boolean {
+export async function getPublicUsers() {
+  const rows = await query<Record<string, unknown>>(
+    'SELECT id, name, email, role FROM users ORDER BY name'
+  )
+  return rows.map(r => ({
+    id:    String(r.id),
+    name:  String(r.name),
+    email: String(r.email),
+    role:  r.role as UserRole,
+  }))
+}
+
+export async function updateUserPassword(userId: string, newHash: string): Promise<boolean> {
   try {
-    const users = getUsers()
-    const idx = users.findIndex(u => u.id === userId)
-    if (idx === -1) return false
-    users[idx].password_hash = newHash
-    fs.writeFileSync(FILE, JSON.stringify(users, null, 2))
+    await execute('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId])
     return true
   } catch {
     return false

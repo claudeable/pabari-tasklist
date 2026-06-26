@@ -1,96 +1,118 @@
-import fs from 'fs'
-import path from 'path'
-import { randomUUID } from 'crypto'
+import { query, queryOne, execute } from './database'
 import { Task, TaskUpdate } from '@/types'
 
-const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), 'data')
-const DATA_FILE = path.join(DATA_DIR, 'tasks.json')
-
-function normalize(t: Record<string, unknown>): Task {
+function rowToTask(row: Record<string, unknown>): Task {
+  const updates = Array.isArray(row.task_updates) ? row.task_updates : []
   return {
-    ...(t as unknown as Task),
-    id:           String(t.id),
-    task_updates: Array.isArray(t.task_updates) ? t.task_updates as TaskUpdate[] : [],
-    updates:      typeof t.updates === 'string' ? t.updates : '',
-    hk_comment:   typeof t.hk_comment === 'string' ? t.hk_comment : '',
-    status_wk:    typeof t.status_wk === 'string' ? t.status_wk : '',
-    date:         typeof t.date === 'string' ? t.date : '',
-    category:     typeof t.category === 'string' ? t.category : '',
-    responsible:  typeof t.responsible === 'string' ? t.responsible : '',
-    section:      typeof t.section === 'string' ? t.section : '',
+    id:           String(row.id),
+    sno:          Number(row.sno) || 0,
+    date:         String(row.date || ''),
+    company:      String(row.company || ''),
+    category:     String(row.category || ''),
+    section:      String(row.section || ''),
+    particulars:  String(row.particulars || ''),
+    updates:      String(row.updates || ''),
+    responsible:  String(row.responsible || ''),
+    payment:      (row.payment as Task['payment']) || 'Non-Payment',
+    status:       (row.status as Task['status']) || 'pending-discussion',
+    status_wk:    String(row.status_wk || ''),
+    hk_comment:   String(row.hk_comment || ''),
+    created_at:   String(row.created_at || ''),
+    updated_at:   String(row.updated_at || ''),
+    task_updates: (updates as Record<string, unknown>[]).map(u => ({
+      id:         String(u.id),
+      task_id:    String(u.task_id),
+      date:       String(u.date || ''),
+      text:       String(u.text || ''),
+      created_at: String(u.created_at || ''),
+    })) as TaskUpdate[],
   }
 }
 
-function read(): Task[] {
-  const raw = fs.readFileSync(DATA_FILE, 'utf-8')
-  const parsed = JSON.parse(raw) as Record<string, unknown>[]
-  return parsed.map(normalize)
+const TASK_SELECT = `
+  SELECT t.*,
+    COALESCE(
+      json_agg(
+        json_build_object('id', tu.id, 'task_id', tu.task_id, 'date', tu.date, 'text', tu.text, 'created_at', tu.created_at)
+        ORDER BY tu.created_at DESC
+      ) FILTER (WHERE tu.id IS NOT NULL),
+      '[]'
+    ) AS task_updates
+  FROM tasks t
+  LEFT JOIN task_updates tu ON tu.task_id = t.id
+`
+
+export async function getTasks(): Promise<Task[]> {
+  const rows = await query<Record<string, unknown>>(
+    `${TASK_SELECT} GROUP BY t.id ORDER BY t.id`
+  )
+  return rows.map(rowToTask)
 }
 
-function write(tasks: Task[]): void {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(tasks, null, 2), 'utf-8')
+export async function getTaskById(id: string): Promise<Task | undefined> {
+  const row = await queryOne<Record<string, unknown>>(
+    `${TASK_SELECT} WHERE t.id = $1 GROUP BY t.id`,
+    [id]
+  )
+  return row ? rowToTask(row) : undefined
 }
 
-export function getTasks(): Task[] {
-  return read()
-}
-
-export function getTaskById(id: string): Task | undefined {
-  return read().find(t => t.id === String(id))
-}
-
-export function createTask(
+export async function createTask(
   data: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'task_updates'>
-): Task {
-  const tasks = read()
+): Promise<Task> {
   const now = new Date().toISOString()
-  const task: Task = {
-    ...data,
-    id:           randomUUID(),
-    task_updates: [],
-    created_at:   now,
-    updated_at:   now,
-  }
-  tasks.push(task)
-  write(tasks)
-  return task
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
+       responsible, payment, status, status_wk, hk_comment, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     RETURNING *`,
+    [data.sno, data.date, data.company, data.category, data.section, data.particulars,
+     data.updates, data.responsible, data.payment, data.status, data.status_wk,
+     data.hk_comment, now, now]
+  )
+  if (!row) throw new Error('Failed to create task')
+  return rowToTask({ ...row, task_updates: [] })
 }
 
-export function updateTask(id: string, updates: Partial<Task>): Task | null {
-  const tasks = read()
-  const idx = tasks.findIndex(t => String(t.id) === String(id))
-  if (idx === -1) return null
-  tasks[idx] = { ...tasks[idx], ...updates, updated_at: new Date().toISOString() }
-  write(tasks)
-  return tasks[idx]
+export async function updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
+  const allowed = ['status', 'hk_comment', 'updates', 'responsible', 'section',
+                   'category', 'particulars', 'date', 'company', 'payment', 'status_wk']
+  const fields = Object.keys(updates).filter(k => allowed.includes(k))
+  if (fields.length === 0) return (await getTaskById(id)) ?? null
+
+  const setClauses = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
+  const values     = fields.map(f => (updates as Record<string, unknown>)[f])
+
+  await execute(
+    `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = $1`,
+    [id, ...values]
+  )
+  return (await getTaskById(id)) ?? null
 }
 
-export function deleteTask(id: string): boolean {
-  const tasks = read()
-  const idx = tasks.findIndex(t => String(t.id) === String(id))
-  if (idx === -1) return false
-  tasks.splice(idx, 1)
-  write(tasks)
-  return true
+export async function deleteTask(id: string): Promise<boolean> {
+  const result = await query('DELETE FROM tasks WHERE id = $1 RETURNING id', [id])
+  return result.length > 0
 }
 
-export function addUpdate(
+export async function addUpdate(
   taskId: string,
   data: { date: string; text: string }
-): TaskUpdate | null {
-  const tasks = read()
-  const idx = tasks.findIndex(t => String(t.id) === String(taskId))
-  if (idx === -1) return null
-  const update: TaskUpdate = {
-    id:         randomUUID(),
-    task_id:    String(taskId),
-    date:       data.date,
-    text:       data.text,
-    created_at: new Date().toISOString(),
+): Promise<TaskUpdate | null> {
+  const task = await queryOne('SELECT id FROM tasks WHERE id = $1', [taskId])
+  if (!task) return null
+
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO task_updates (task_id, date, text) VALUES ($1, $2, $3) RETURNING *`,
+    [taskId, data.date, data.text]
+  )
+  if (!row) return null
+
+  return {
+    id:         String(row.id),
+    task_id:    String(row.task_id),
+    date:       String(row.date || ''),
+    text:       String(row.text || ''),
+    created_at: String(row.created_at || ''),
   }
-  if (!Array.isArray(tasks[idx].task_updates)) tasks[idx].task_updates = []
-  ;(tasks[idx].task_updates as TaskUpdate[]).unshift(update)
-  tasks[idx].updated_at = new Date().toISOString()
-  write(tasks)
-  return update
 }

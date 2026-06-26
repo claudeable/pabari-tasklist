@@ -10,4 +10,4 @@ RUN npm run build
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node scripts/init-data.js && npm run start"]
+CMD ["sh", "-c", "node scripts/init-db.js && npm run start"]
