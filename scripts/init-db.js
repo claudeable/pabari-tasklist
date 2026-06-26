@@ -128,12 +128,14 @@ async function main() {
       if (fs.existsSync(tasksFile)) {
         const tasks = JSON.parse(fs.readFileSync(tasksFile, 'utf8'))
         for (const t of tasks) {
-          await client.query(`
-            INSERT INTO tasks (id, sno, date, company, category, section, particulars,
+          // Let PostgreSQL assign IDs via SERIAL — no explicit id to avoid duplicates
+          const { rows: [inserted] } = await client.query(`
+            INSERT INTO tasks (sno, date, company, category, section, particulars,
               updates, responsible, payment, status, status_wk, hk_comment, created_at, updated_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+            RETURNING id
           `, [
-            t.id, t.sno || 0, t.date || '', t.company, t.category || '',
+            t.sno || 0, t.date || '', t.company, t.category || '',
             t.section || '', t.particulars, t.updates || '', t.responsible || '',
             t.payment || 'Non-Payment', t.status || 'pending-discussion',
             t.status_wk || '', t.hk_comment || '',
@@ -141,19 +143,16 @@ async function main() {
             t.updated_at || new Date().toISOString(),
           ])
 
-          // Seed task_updates if any
+          // Seed task_updates using the new auto-assigned task ID
           if (Array.isArray(t.task_updates) && t.task_updates.length > 0) {
             for (const u of t.task_updates) {
               await client.query(`
-                INSERT INTO task_updates (id, task_id, date, text, created_at)
-                VALUES ($1,$2,$3,$4,$5)
-                ON CONFLICT (id) DO NOTHING
-              `, [u.id || randomUUID(), t.id, u.date || '', u.text || '', u.created_at || new Date().toISOString()])
+                INSERT INTO task_updates (task_id, date, text, created_at)
+                VALUES ($1,$2,$3,$4)
+              `, [inserted.id, u.date || '', u.text || '', u.created_at || new Date().toISOString()])
             }
           }
         }
-        // Reset sequence to avoid ID conflicts
-        await client.query(`SELECT setval('tasks_id_seq', (SELECT MAX(id) FROM tasks))`)
         console.log(`✓ Seeded ${tasks.length} tasks from tasks.json`)
       }
     } else {
