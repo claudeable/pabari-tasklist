@@ -43,7 +43,9 @@ export async function middleware(req: NextRequest) {
   const isProtected =
     pathname.startsWith('/tasks') ||
     pathname.startsWith('/api/tasks') ||
-    pathname.startsWith('/dashboard')
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/reports') ||
+    pathname.startsWith('/api/reports')
 
   if (!isProtected) return NextResponse.next()
 
@@ -61,5 +63,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/tasks/:path*', '/api/tasks/:path*', '/dashboard/:path*', '/dashboard'],
+  matcher: ['/tasks/:path*', '/api/tasks/:path*', '/dashboard/:path*', '/dashboard',
+            '/reports/:path*', '/reports', '/api/reports/:path*'],
 }

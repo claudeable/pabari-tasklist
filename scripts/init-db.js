@@ -100,6 +100,17 @@ async function main() {
       )
     `)
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name         VARCHAR(255) NOT NULL,
+        generated_by VARCHAR(100) NOT NULL,
+        filters      JSONB DEFAULT '{}',
+        task_count   INTEGER DEFAULT 0,
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
     // ── Indexes ──────────────────────────────────────────────────────────────
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_company    ON tasks(company)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status)`)
