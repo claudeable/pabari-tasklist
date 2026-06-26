@@ -6,9 +6,17 @@ const { randomUUID } = require('crypto')
 const fs   = require('fs')
 const path = require('path')
 
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is not set.')
+  console.error('Add a PostgreSQL service in Railway and link DATABASE_URL to this service.')
+  process.exit(1)
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: !process.env.DATABASE_URL.includes('localhost')
+    ? { rejectUnauthorized: false }
+    : false,
 })
 
 const USERS = [
@@ -31,7 +39,23 @@ const USERS = [
   { name: 'Lazarus',     email: 'lazarus@usc.co.ke',     role: 'manager'  },
 ]
 
+async function waitForDb(retries = 10, delayMs = 3000) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const client = await pool.connect()
+      client.release()
+      console.log('✓ Connected to PostgreSQL')
+      return
+    } catch (err) {
+      console.log(`Waiting for database... attempt ${i}/${retries}`)
+      if (i === retries) throw err
+      await new Promise(r => setTimeout(r, delayMs))
+    }
+  }
+}
+
 async function main() {
+  await waitForDb()
   const client = await pool.connect()
   try {
     // ── Create tables ────────────────────────────────────────────────────────
