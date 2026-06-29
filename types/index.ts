@@ -44,7 +44,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 }
 
 export const COMPANIES = [
-  'KISCOL', 'BYTEWISE', 'WELWYN', 'DR.PHARMA', 'PIL',
+  'BYTEWISE', 'WELWYN', 'DR.PHARMA', 'PIL',
   'MERCURY', 'MALI CREDIT', 'MALEE', 'GHPL', 'UNIFRESH',
   'PDL', 'USM', 'MAXITOWER', 'EURO TOWERS', 'EPPL',
   'BERLIN_BNK', 'IIGENTRA',

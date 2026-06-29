@@ -204,7 +204,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }, [])
 
   const [form, setForm] = useState({
-    company:'KISCOL', date:fmtDate(), section:'General', category:'Other',
+    company:'BYTEWISE', date:fmtDate(), section:'General', category:'Other',
     particulars:'', responsible:currentUser.name,
     payment:'Non-Payment', status:'pending-discussion' as TaskStatus,
     priority:'medium' as TaskPriority,
