@@ -20,23 +20,36 @@ const pool = new Pool({
 })
 
 const USERS = [
-  { name: 'Admin',       email: 'admin@usm.co.ke',       role: 'admin'    },
-  { name: 'Pedro',       email: 'hpedro@usc.co.ke',      role: 'staff'    },
-  { name: 'Harshil',     email: 'harshil@usc.co.ke',     role: 'director' },
-  { name: 'Sabina',      email: 'sabina@usc.co.ke',      role: 'manager'  },
-  { name: 'Ahmad',       email: 'ahmad@usc.co.ke',       role: 'manager'  },
-  { name: 'Eng. Suresh', email: 'suresh@usc.co.ke',      role: 'manager'  },
-  { name: 'Paul',        email: 'paul@usc.co.ke',        role: 'manager'  },
-  { name: 'Krishina',    email: 'krishnan@usc.co.ke',    role: 'manager'  },
-  { name: 'Ashok',       email: 'ashok@usc.co.ke',       role: 'manager'  },
-  { name: 'Yalelet',     email: 'yalelet@usc.co.ke',     role: 'staff'    },
-  { name: 'Andu',        email: 'andu@usc.co.ke',        role: 'staff'    },
-  { name: 'Yared',       email: 'yared@usc.co.ke',       role: 'staff'    },
-  { name: 'Benson',      email: 'benson@usc.co.ke',      role: 'manager'  },
-  { name: 'Simon',       email: 'simon@usc.co.ke',       role: 'staff'    },
-  { name: 'Binal',       email: 'binal@usc.co.ke',       role: 'manager'  },
-  { name: 'Mungai',      email: 'mungai@usc.co.ke',      role: 'manager'  },
-  { name: 'Lazarus',     email: 'lazarus@usc.co.ke',     role: 'manager'  },
+  { name: 'Admin',       email: 'admin@usm.co.ke',           role: 'admin'    },
+  { name: 'Pedro',       email: 'hpedro@usc.co.ke',          role: 'staff'    },
+  { name: 'Harshil',     email: 'hkotecha@kwale-group.com',  role: 'director' },
+  { name: 'Sabina',      email: 'smutua@kwale-group.com',    role: 'manager'  },
+  { name: 'Ahmad',       email: 'ahmad@usc.co.ke',           role: 'manager'  },
+  { name: 'Eng. Suresh', email: 'ssuresh@kwale-group.com',   role: 'manager'  },
+  { name: 'Paul',        email: 'pmureithi@usm.co.ke',       role: 'manager'  },
+  { name: 'Krishina',    email: 'rkrishnan@usm.co.ke',       role: 'manager'  },
+  { name: 'Ashok',       email: 'sashok@usm.co.ke',          role: 'manager'  },
+  { name: 'Yalelet',     email: 'yaynalem@usm.co.ke',        role: 'staff'    },
+  { name: 'Andu',        email: 'andu@usc.co.ke',            role: 'staff'    },
+  { name: 'Yared',       email: 'yyigezu@usm.co.ke',         role: 'staff'    },
+  { name: 'Benson',      email: 'benson@usc.co.ke',          role: 'manager'  },
+  { name: 'Simon',       email: 'sithibu@kwale-group.com',   role: 'staff'    },
+  { name: 'Binal',       email: 'binal@usc.co.ke',           role: 'manager'  },
+  { name: 'Mungai',      email: 'mungai@usc.co.ke',          role: 'manager'  },
+  { name: 'Lazarus',     email: 'lazarus@usc.co.ke',         role: 'manager'  },
+]
+
+// Email changes: old placeholder → real email (for users already in the DB)
+const EMAIL_MIGRATIONS = [
+  { from: 'harshil@usc.co.ke',  to: 'hkotecha@kwale-group.com' },
+  { from: 'sabina@usc.co.ke',   to: 'smutua@kwale-group.com'   },
+  { from: 'suresh@usc.co.ke',   to: 'ssuresh@kwale-group.com'  },
+  { from: 'paul@usc.co.ke',     to: 'pmureithi@usm.co.ke'      },
+  { from: 'krishnan@usc.co.ke', to: 'rkrishnan@usm.co.ke'      },
+  { from: 'ashok@usc.co.ke',    to: 'sashok@usm.co.ke'         },
+  { from: 'yalelet@usc.co.ke',  to: 'yaynalem@usm.co.ke'       },
+  { from: 'yared@usc.co.ke',    to: 'yyigezu@usm.co.ke'        },
+  { from: 'simon@usc.co.ke',    to: 'sithibu@kwale-group.com'  },
 ]
 
 async function waitForDb(retries = 10, delayMs = 3000) {
@@ -128,6 +141,15 @@ async function main() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_task_updates_task ON task_updates(task_id)`)
 
     console.log('✓ Tables and indexes ready')
+
+    // ── Migrate old placeholder emails to real emails ────────────────────────
+    for (const m of EMAIL_MIGRATIONS) {
+      const { rows: [{ count }] } = await client.query(`SELECT COUNT(*) FROM users WHERE email = $1`, [m.from])
+      if (parseInt(count) > 0) {
+        await client.query(`UPDATE users SET email = $1 WHERE email = $2`, [m.to, m.from])
+        console.log(`✓ Updated email ${m.from} → ${m.to}`)
+      }
+    }
 
     // ── Seed users (upsert — update role/name, never overwrite password) ─────
     const hash = await bcrypt.hash('changeme123', 10)
