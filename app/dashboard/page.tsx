@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { getTasks } from '@/lib/db'
+import { getUsers } from '@/lib/users'
 import Dashboard from '@/components/Dashboard'
 
 export const dynamic = 'force-dynamic'
@@ -13,14 +14,39 @@ export default async function DashboardPage() {
   if (!currentUser) redirect('/login')
   if (currentUser.role === 'staff') redirect('/tasks')
 
-  const tasks = await getTasks()
-  const now = Date.now()
+  const [tasks, users] = await Promise.all([getTasks(), getUsers()])
+
+  // ── Name → department map ───────────────────────────────────────
+  const nameToDept: Record<string, string> = {}
+  for (const u of users) {
+    nameToDept[u.name.toLowerCase()] = u.department
+    nameToDept[u.name.split(' ')[0].toLowerCase()] = u.department
+  }
 
   // ── KPI by status ──────────────────────────────────────────────
   const byStatus: Record<string, number> = {}
   for (const t of tasks) {
     byStatus[t.status] = (byStatus[t.status] || 0) + 1
   }
+
+  // ── By department (open + pending review) ──────────────────────
+  const deptMap: Record<string, { open: number; pendingReview: number }> = {}
+  for (const t of tasks) {
+    if (t.status === 'resolved' || t.status === 'expired') continue
+    const names = t.responsible.split(/\s*[&/]\s*/).map((n: string) => n.trim()).filter(Boolean)
+    for (const name of names) {
+      const dept = nameToDept[name.toLowerCase()] || nameToDept[name.split(' ')[0].toLowerCase()] || null
+      if (!dept || dept === 'System' || dept === 'Director') continue
+      if (!deptMap[dept]) deptMap[dept] = { open: 0, pendingReview: 0 }
+      deptMap[dept].open++
+      if (t.status === 'awaiting-hod-approval' || t.status === 'awaiting-hk-approval') {
+        deptMap[dept].pendingReview++
+      }
+    }
+  }
+  const byDepartment = Object.entries(deptMap)
+    .map(([dept, v]) => ({ dept, ...v }))
+    .sort((a, b) => b.open - a.open)
 
   // ── By company ─────────────────────────────────────────────────
   const companyMap: Record<string, { total: number; action: number; pending: number; review: number; resolved: number; expired: number }> = {}
@@ -59,11 +85,12 @@ export default async function DashboardPage() {
     <Dashboard
       currentUser={currentUser}
       stats={{
-        total:    tasks.length,
-        open:     tasks.filter(t => t.status !== 'resolved' && t.status !== 'expired').length,
+        total:        tasks.length,
+        open:         tasks.filter(t => t.status !== 'resolved' && t.status !== 'expired').length,
         byStatus,
         byCompany,
         byPerson,
+        byDepartment,
       }}
     />
   )

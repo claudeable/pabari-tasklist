@@ -50,12 +50,14 @@ interface CompanyRow {
   company: string; total: number; action: number; pending: number; review: number; resolved: number; expired: number
 }
 interface PersonRow { name: string; open: number; action: number }
+interface DeptRow   { dept: string; open: number; pendingReview: number }
 interface Stats {
   total: number
   open: number
   byStatus: Record<string, number>
   byCompany: CompanyRow[]
   byPerson: PersonRow[]
+  byDepartment: DeptRow[]
 }
 interface Props { currentUser: SessionUser; stats: Stats }
 
@@ -98,13 +100,14 @@ export default function Dashboard({ currentUser, stats }: Props) {
     Action: p.action,
   }))
 
+  const awaitingApproval = (stats.byStatus['awaiting-hod-approval'] || 0) + (stats.byStatus['awaiting-hk-approval'] || 0)
   const kpis = [
-    { label: 'Total Tasks',      val: stats.total,                                col: '#1e40af', sub: 'across all companies' },
-    { label: 'Open / Active',    val: stats.open,                                 col: '#92400e', sub: 'not resolved or expired' },
-    { label: 'Action Required',  val: stats.byStatus['action-required']   || 0,   col: '#b91c1c', sub: 'need immediate action' },
-    { label: 'Pending Review',   val: stats.byStatus['pending-discussion'] || 0,   col: '#d97706', sub: 'awaiting discussion' },
-    { label: 'In Review',        val: stats.byStatus['in-review']          || 0,   col: '#1d4ed8', sub: 'work in progress' },
-    { label: 'Resolved',         val: stats.byStatus['resolved']           || 0,   col: '#15803d', sub: 'completed items' },
+    { label: 'Total Tasks',       val: stats.total,                                col: '#1e40af', sub: 'across all companies' },
+    { label: 'Open / Active',     val: stats.open,                                 col: '#92400e', sub: 'not resolved or expired' },
+    { label: 'Action Required',   val: stats.byStatus['action-required']   || 0,   col: '#b91c1c', sub: 'need immediate action' },
+    { label: 'Pending Discussion',val: stats.byStatus['pending-discussion'] || 0,   col: '#d97706', sub: 'awaiting discussion' },
+    { label: 'Awaiting Approval', val: awaitingApproval,                            col: '#7c3aed', sub: 'HOD + HK pending review' },
+    { label: 'Resolved',          val: stats.byStatus['resolved']           || 0,   col: '#15803d', sub: 'completed items' },
   ]
 
   return (
@@ -198,6 +201,40 @@ export default function Dashboard({ currentUser, stats }: Props) {
             </div>
           ))}
         </div>
+
+        {/* DEPARTMENT BREAKDOWN */}
+        {stats.byDepartment.length > 0 && (() => {
+          const deptData = stats.byDepartment.map(d => ({
+            name: d.dept.replace(' & Corporate','').replace(' / Hospitality','').replace(' Operations',''),
+            full: d.dept,
+            Open:    d.open,
+            Pending: d.pendingReview,
+          }))
+          const chartH = Math.max(deptData.length * 42 + 20, 120)
+          return (
+            <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:'18px 16px',marginBottom:14}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#111827'}}>Tasks by Department</div>
+                <div style={{display:'flex',gap:14,fontSize:10.5,color:'#6b7280'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:10,height:10,borderRadius:2,background:'#93c5fd',display:'inline-block'}}/> Open Tasks</span>
+                  <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:10,height:10,borderRadius:2,background:'#a78bfa',display:'inline-block'}}/> Pending Review</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={chartH}>
+                <BarChart data={deptData} layout="vertical" margin={{left:4,right:32,top:0,bottom:0}} barCategoryGap="30%" barGap={3}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6"/>
+                  <XAxis type="number" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:11,fontWeight:500}} width={130} axisLine={false} tickLine={false} interval={0}/>
+                  <Tooltip contentStyle={{fontSize:11,borderRadius:6}}
+                    formatter={(v,n) => [v, n==='Pending'?'Pending Review':'Open Tasks']}
+                    labelFormatter={(_,p) => p?.[0]?.payload?.full || ''}/>
+                  <Bar dataKey="Open"    fill="#93c5fd" name="Open"    radius={[0,3,3,0]}/>
+                  <Bar dataKey="Pending" fill="#a78bfa" name="Pending" radius={[0,3,3,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )
+        })()}
 
         {/* ROW 1: Pie + People workload */}
         <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gap:14,marginBottom:14}}>
