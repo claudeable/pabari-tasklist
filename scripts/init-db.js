@@ -150,13 +150,6 @@ async function main() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to      VARCHAR(255) DEFAULT ''`)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS companies       JSONB        DEFAULT '["ALL"]'`)
 
-    // ── Remove KISCOL tasks (moved to its own standalone ERP) ─────────────────
-    const { rows: [{ count: kiscolCount }] } = await client.query(`SELECT COUNT(*) FROM tasks WHERE company = 'KISCOL'`)
-    if (parseInt(kiscolCount) > 0) {
-      await client.query(`DELETE FROM tasks WHERE company = 'KISCOL'`)
-      console.log(`✓ Removed ${kiscolCount} KISCOL tasks`)
-    }
-
     // ── Indexes ──────────────────────────────────────────────────────────────
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_company     ON tasks(company)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status      ON tasks(status)`)
