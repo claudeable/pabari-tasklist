@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import * as XLSX from 'xlsx'
 import { SessionUser, COMPANIES, SECTIONS, TaskStatus, STATUS_LABELS, TaskPriority, PRIORITY_LABELS, PRIORITY_STYLE, Task } from '@/types'
 import { Report } from '@/lib/reports'
 import InactivityGuard from './InactivityGuard'
@@ -87,32 +88,79 @@ function generatePDF(tasks: Task[], filters: Record<string, string>, reportName:
   if (w) { w.document.write(html); w.document.close() }
 }
 
+function generateExcel(tasks: Task[], filters: Record<string, string>, reportName: string) {
+  const rows = tasks.map(t => ({
+    '#':           t.sno,
+    'Date':        t.date,
+    'Company':     t.company,
+    'Section':     t.section,
+    'Category':    t.category,
+    'Particulars': t.particulars,
+    'Latest Update': t.task_updates?.[0]
+      ? `${t.task_updates[0].date}: ${t.task_updates[0].text}`
+      : t.updates || '',
+    'Responsible': t.responsible,
+    'Payment':     t.payment,
+    'Status':      STATUS_LABELS[t.status] || t.status,
+    'Priority':    PRIORITY_LABELS[t.priority as TaskPriority] || t.priority || '',
+    'Due Date':    t.due_date || '',
+    'Recurrence':  t.recurrence && t.recurrence !== 'none' ? t.recurrence : '',
+    'HK Comment':  t.hk_comment || '',
+    'HOD Comment': t.hod_comment || '',
+  }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Tasks')
+  const colWidths = [6,12,12,28,14,50,60,16,12,20,10,14,12,16,40,40]
+  ws['!cols'] = colWidths.map(w => ({ wch: w }))
+  XLSX.writeFile(wb, `${reportName}.xlsx`)
+}
+
 export default function ReportsModule({ currentUser, initialReports }: Props) {
   const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
   const [reports, setReports]   = useState<Report[]>(initialReports)
   const [filters, setFilters]   = useState({ company: isKiscolOnly ? 'KISCOL' : '', section:'', status:'', priority:'', person:'', dateFrom:'', dateTo:'' })
   const [generating, setGen]    = useState(false)
+  const [genExcel,   setGenEx]  = useState(false)
   const [error, setError]       = useState('')
 
   const setF = (k: string, v: string) => setFilters(f => ({ ...f, [k]: v }))
 
+  const fetchTasks = async () => {
+    const res  = await fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(filters),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed')
+    return data
+  }
+
   const handleGenerate = async () => {
     setGen(true); setError('')
     try {
-      const res  = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(filters),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed')
+      const data = await fetchTasks()
       setReports(prev => [data.report, ...prev])
       generatePDF(data.tasks, filters, data.report.name)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to generate report')
     } finally {
       setGen(false)
+    }
+  }
+
+  const handleExcel = async () => {
+    setGenEx(true); setError('')
+    try {
+      const data = await fetchTasks()
+      setReports(prev => [data.report, ...prev])
+      generateExcel(data.tasks, filters, data.report.name)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to generate Excel')
+    } finally {
+      setGenEx(false)
     }
   }
 
@@ -222,11 +270,18 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
 
           {error && <div style={{color:'#dc2626',fontSize:12,marginBottom:12}}>{error}</div>}
 
-          <button onClick={handleGenerate} disabled={generating}
-            style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:5,
-              padding:'9px 22px',fontSize:13,fontWeight:600,cursor:'pointer',opacity:generating?0.7:1}}>
-            {generating ? 'Generating…' : '⬇ Generate & Download PDF'}
-          </button>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={handleGenerate} disabled={generating||genExcel}
+              style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:5,
+                padding:'9px 22px',fontSize:13,fontWeight:600,cursor:'pointer',opacity:generating?0.7:1}}>
+              {generating ? 'Generating…' : '⬇ PDF'}
+            </button>
+            <button onClick={handleExcel} disabled={generating||genExcel}
+              style={{background:'#166534',color:'white',border:'none',borderRadius:5,
+                padding:'9px 22px',fontSize:13,fontWeight:600,cursor:'pointer',opacity:genExcel?0.7:1}}>
+              {genExcel ? 'Generating…' : '⬇ Excel (.xlsx)'}
+            </button>
+          </div>
         </div>
 
         {/* REPORTS HISTORY */}

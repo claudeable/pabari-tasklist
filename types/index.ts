@@ -123,6 +123,16 @@ export interface TaskUpdate {
   created_at: string
 }
 
+export type Recurrence = 'none' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly'
+
+export const RECURRENCE_OPTIONS: { value: Recurrence; label: string; days: number }[] = [
+  { value: 'none',        label: 'No Recurrence', days: 0  },
+  { value: 'weekly',      label: 'Weekly',         days: 7  },
+  { value: 'fortnightly', label: 'Fortnightly',    days: 14 },
+  { value: 'monthly',     label: 'Monthly',        days: 30 },
+  { value: 'quarterly',   label: 'Quarterly',      days: 90 },
+]
+
 export interface Task {
   id:              string
   sno:             number
@@ -143,6 +153,8 @@ export interface Task {
   status_wk:       string
   hk_comment:      string
   hod_comment:     string
+  due_date:        string   // YYYY-MM-DD, '' if not set
+  recurrence:      Recurrence
   created_at:      string
   updated_at:      string
   task_updates?:   TaskUpdate[]

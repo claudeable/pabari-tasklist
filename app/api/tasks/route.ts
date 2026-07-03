@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
     status_wk:       body.status_wk ?? '',
     hk_comment:      body.hk_comment ?? '',
     hod_comment:     body.hod_comment ?? '',
+    due_date:        body.due_date ?? '',
+    recurrence:      body.recurrence ?? 'none',
   })
 
   if (body.initial_update) {

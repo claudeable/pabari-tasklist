@@ -154,6 +154,8 @@ async function main() {
 
     // ── Column migrations (safe to re-run) ───────────────────────────────────
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority        VARCHAR(20)  DEFAULT 'medium'`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date        DATE`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence      VARCHAR(20)  DEFAULT 'none'`)
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hod_comment     TEXT`)
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approval_type   VARCHAR(50)  DEFAULT ''`)
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50)  DEFAULT ''`)

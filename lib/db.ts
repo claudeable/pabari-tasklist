@@ -1,5 +1,5 @@
 import { query, queryOne, execute } from './database'
-import { Task, TaskUpdate, TaskPriority } from '@/types'
+import { Task, TaskUpdate, TaskPriority, Recurrence } from '@/types'
 
 function rowToTask(row: Record<string, unknown>): Task {
   const updates = Array.isArray(row.task_updates) ? row.task_updates : []
@@ -23,6 +23,8 @@ function rowToTask(row: Record<string, unknown>): Task {
     status_wk:       String(row.status_wk || ''),
     hk_comment:      String(row.hk_comment || ''),
     hod_comment:     String(row.hod_comment || ''),
+    due_date:        row.due_date ? String(row.due_date).slice(0, 10) : '',
+    recurrence:      (row.recurrence as Recurrence) || 'none',
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
     task_updates: (updates as Record<string, unknown>[]).map(u => ({
@@ -69,12 +71,14 @@ export async function createTask(
   const now = new Date().toISOString()
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
-       responsible, payment, status, priority, approval_type, status_wk, hk_comment, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       responsible, payment, status, priority, approval_type, status_wk, hk_comment,
+       due_date, recurrence, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
     [data.sno, data.date, data.company, data.category, data.section, data.particulars,
      data.updates, data.responsible, data.payment, data.status, data.priority ?? 'medium',
-     data.approval_type ?? '', data.status_wk, data.hk_comment, now, now]
+     data.approval_type ?? '', data.status_wk, data.hk_comment,
+     data.due_date || null, data.recurrence || 'none', now, now]
   )
   if (!row) throw new Error('Failed to create task')
   return rowToTask({ ...row, task_updates: [] })
@@ -83,13 +87,14 @@ export async function createTask(
 const AUDIT_FIELDS = new Set([
   'status', 'priority', 'hk_comment', 'hod_comment', 'status_wk', 'responsible',
   'section', 'category', 'particulars', 'date', 'company', 'payment',
-  'approval_type', 'approval_status', 'approved_by',
+  'approval_type', 'approval_status', 'approved_by', 'due_date', 'recurrence',
 ])
 
 export async function updateTask(id: string, updates: Partial<Task>, changedBy = 'System'): Promise<Task | null> {
   const allowed = ['status', 'priority', 'hk_comment', 'hod_comment', 'updates', 'responsible',
                    'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk',
-                   'approval_type', 'approval_status', 'approved_by', 'approved_at']
+                   'approval_type', 'approval_status', 'approved_by', 'approved_at',
+                   'due_date', 'recurrence']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
 

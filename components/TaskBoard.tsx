@@ -6,7 +6,7 @@ import {
   Task, TaskStatus, TaskUpdate, ApprovalType,
   STATUS_LABELS, STATUS_OPTIONS_BY_ROLE, PRIORITY_LABELS, PRIORITY_STYLE, TaskPriority,
   COMPANIES, SECTIONS, KISCOL_SECTIONS, PEOPLE, CATEGORIES,
-  SessionUser, PublicUser,
+  SessionUser, PublicUser, Recurrence, RECURRENCE_OPTIONS,
 } from '@/types'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -77,6 +77,28 @@ function weekNum() {
   const d = new Date(), s = new Date(d.getFullYear(), 0, 1)
   return `WK-${Math.ceil(((d.getTime()-s.getTime())/86400000+s.getDay()+1)/7)}`
 }
+function dueDateStatus(due: string): 'overdue' | 'soon' | 'ok' | 'none' {
+  if (!due) return 'none'
+  const today = new Date(); today.setHours(0,0,0,0)
+  const d = new Date(due); d.setHours(0,0,0,0)
+  const diff = Math.ceil((d.getTime()-today.getTime())/86400000)
+  if (diff < 0)  return 'overdue'
+  if (diff <= 7) return 'soon'
+  return 'ok'
+}
+function fmtDueDate(due: string): string {
+  if (!due) return ''
+  const d = new Date(due)
+  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()}`
+}
+function daysOverdue(due: string): number {
+  if (!due) return 0
+  const today = new Date(); today.setHours(0,0,0,0)
+  const d = new Date(due); d.setHours(0,0,0,0)
+  return Math.ceil((today.getTime()-d.getTime())/86400000)
+}
+
 function sectionShort(s: string) {
   return (s || '')
     .replace('External Stakeholders - Non-Payment','Ext. Non-Pay')
@@ -234,6 +256,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     priority:'medium' as TaskPriority,
     approval_type: '' as ApprovalType,
     initial_update:'', hk_comment:'', status_wk:'',
+    due_date:'', recurrence:'none' as Recurrence,
   })
 
   // ── Roles & permissions ──────────────────────────────────────────
@@ -326,6 +349,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     pending:  base.filter(t=>t.status==='pending-discussion').length,
     review:   base.filter(t=>t.status==='in-review').length,
     resolved: base.filter(t=>t.status==='resolved').length,
+    overdue:  base.filter(t=>t.status!=='resolved'&&t.status!=='expired'&&dueDateStatus(t.due_date)==='overdue').length,
   }), [base])
 
   // ── Pending My Review & Resolved tabs ────────────────────────────
@@ -443,7 +467,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => [...prev, withUpdates])
     setShowAddForm(false)
     setForm(f => ({...f,date:fmtDate(),section:'General',category:'Other',particulars:'',
-      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:''}))
+      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:'',due_date:'',recurrence:'none' as Recurrence}))
     setSaving(false)
   }
 
@@ -820,15 +844,16 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         <div style={{flex:1,overflowY:'auto',padding:'15px 17px',background:'#f9fafb'}}>
 
           {/* KPI strip */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:13}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10,marginBottom:13}}>
             {[
               {label:'Total',           val:kpis.total,    col:'#1e40af'},
               {label:'Action Required', val:kpis.action,   col:'#b91c1c'},
               {label:'Pending',         val:kpis.pending,  col:'#b45309'},
               {label:'In Review',       val:kpis.review,   col:'#1d4ed8'},
               {label:'Resolved',        val:kpis.resolved, col:'#15803d'},
+              {label:'Overdue',         val:kpis.overdue,  col:kpis.overdue>0?'#dc2626':'#9ca3af'},
             ].map(k=>(
-              <div key={k.label} style={{background:'white',border:'1px solid #e5e7eb',borderRadius:6,padding:'10px 13px'}}>
+              <div key={k.label} style={{background:k.label==='Overdue'&&kpis.overdue>0?'#fef2f2':'white',border:k.label==='Overdue'&&kpis.overdue>0?'1px solid #fecaca':'1px solid #e5e7eb',borderRadius:6,padding:'10px 13px'}}>
                 <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'0.5px',color:'#9ca3af',fontWeight:600}}>{k.label}</div>
                 <div style={{fontSize:26,fontWeight:800,color:k.col,lineHeight:1.1,marginTop:2}}>{k.val}</div>
               </div>
@@ -900,6 +925,18 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     }
                   </div>
                 ))}
+                <div>
+                  <label style={{display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:3}}>Due Date</label>
+                  <input type="date" value={form.due_date} onChange={e=>setForm(v=>({...v,due_date:e.target.value}))}
+                    style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 7px',fontSize:12}}/>
+                </div>
+                <div>
+                  <label style={{display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:3}}>Recurrence</label>
+                  <select value={form.recurrence} onChange={e=>setForm(v=>({...v,recurrence:e.target.value as Recurrence}))}
+                    style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 7px',fontSize:12}}>
+                    {RECURRENCE_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
                 <div style={{gridColumn:'1/-1'}}>
                   <label style={{display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:3}}>Particulars</label>
                   <input value={form.particulars} onChange={e=>setForm(v=>({...v,particulars:e.target.value}))} placeholder="Task description…"
@@ -1028,6 +1065,18 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                           {PRIORITY_LABELS[task.priority]}
                         </span>
                       )}
+                      {task.due_date && task.status !== 'resolved' && task.status !== 'expired' && (() => {
+                        const ds = dueDateStatus(task.due_date)
+                        const cfg = ds==='overdue'?{bg:'#fef2f2',color:'#dc2626',border:'#fecaca'}
+                                  : ds==='soon'   ?{bg:'#fffbeb',color:'#d97706',border:'#fde68a'}
+                                  :                {bg:'#f0fdf4',color:'#15803d',border:'#bbf7d0'}
+                        return (
+                          <span style={{display:'inline-block',fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,
+                            background:cfg.bg,color:cfg.color,border:`1px solid ${cfg.border}`,alignSelf:'flex-start',letterSpacing:'0.3px'}}>
+                            {ds==='overdue'?'OVERDUE':'Due'} {fmtDueDate(task.due_date)}
+                          </span>
+                        )
+                      })()}
                     </div>
                     <div style={{padding:'9px 6px',display:'flex',gap:3,alignItems:'center'}}>
                       <button onClick={e=>{e.stopPropagation();toggleRow(task.id)}}
@@ -1106,6 +1155,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             </div>
 
             <div style={{padding:'12px 14px',flex:1,overflowY:'auto'}}>
+              {/* Overdue alert */}
+              {activeTask.due_date && activeTask.status !== 'resolved' && activeTask.status !== 'expired' &&
+               dueDateStatus(activeTask.due_date) === 'overdue' && (
+                <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:5,padding:'8px 11px',marginBottom:10,fontSize:12,color:'#dc2626',fontWeight:600}}>
+                  OVERDUE by {daysOverdue(activeTask.due_date)} day{daysOverdue(activeTask.due_date)!==1?'s':''} — due {fmtDueDate(activeTask.due_date)}
+                </div>
+              )}
+              {activeTask.due_date && activeTask.status !== 'resolved' && activeTask.status !== 'expired' &&
+               dueDateStatus(activeTask.due_date) === 'soon' && (
+                <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:5,padding:'8px 11px',marginBottom:10,fontSize:12,color:'#d97706',fontWeight:600}}>
+                  Due soon — {fmtDueDate(activeTask.due_date)}
+                </div>
+              )}
+
               {[
                 {l:'Date',        v:activeTask.date},
                 {l:'Responsible', v:activeTask.responsible},
@@ -1117,6 +1180,40 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <div style={{fontSize:12,color:'#111827'}}>{r.v}</div>
                 </div>
               ))}
+
+              {/* Due Date — editable */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Due Date</div>
+                {perms.canChangeStatus
+                  ? <input type="date" value={activeTask.due_date||''} onChange={async e=>{
+                      const val = e.target.value
+                      await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({due_date:val||null})})
+                      setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,due_date:val}:t))
+                      setActiveTask(p=>p?{...p,due_date:val}:p)
+                    }}
+                    style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}/>
+                  : <span style={{fontSize:12,color:dueDateStatus(activeTask.due_date)==='overdue'?'#dc2626':dueDateStatus(activeTask.due_date)==='soon'?'#d97706':'#111827',fontWeight:dueDateStatus(activeTask.due_date)!=='none'?600:400}}>
+                      {activeTask.due_date ? fmtDueDate(activeTask.due_date) : '—'}
+                    </span>
+                }
+              </div>
+
+              {/* Recurrence — editable */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Recurs</div>
+                {perms.canChangeStatus
+                  ? <select value={activeTask.recurrence||'none'} onChange={async e=>{
+                      const val = e.target.value as Recurrence
+                      await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({recurrence:val})})
+                      setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,recurrence:val}:t))
+                      setActiveTask(p=>p?{...p,recurrence:val}:p)
+                    }}
+                    style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
+                    {RECURRENCE_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  : <span style={{fontSize:12,color:'#111827'}}>{RECURRENCE_OPTIONS.find(o=>o.value===activeTask.recurrence)?.label||'No Recurrence'}</span>
+                }
+              </div>
 
               {/* Status — read-only for staff */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
