@@ -135,6 +135,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [pwSuccess,      setPwSuccess]      = useState(false)
   const [pwSaving,       setPwSaving]       = useState(false)
 
+  interface AuditEntry { id:string; changed_by:string; field:string|null; old_value:string|null; new_value:string|null; changed_at:string }
+  const [taskAudit, setTaskAudit] = useState<AuditEntry[]>([])
+
   // ── Print / PDF export ───────────────────────────────────────────
   const handlePrint = () => {
     const title = filterCompany || 'All Companies'
@@ -213,6 +216,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       .then(data => { if (Array.isArray(data)) setAllUsers(data) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!activeTask) { setTaskAudit([]); return }
+    fetch(`/api/tasks/${activeTask.id}/audit`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setTaskAudit(Array.isArray(data) ? data : []))
+      .catch(() => setTaskAudit([]))
+  }, [activeTask?.id])
 
   const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
   const [form, setForm] = useState({
@@ -1320,6 +1331,51 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       {panelAppUpds.length===0 && panelParsed.length===0 && !activeTask.updates?.trim() && (
                         <div style={{fontSize:12,color:'#9ca3af',fontStyle:'italic'}}>No updates recorded</div>
                       )}
+                    </div>
+                  </>
+                )
+              })()}
+
+              {/* CHANGE LOG */}
+              {taskAudit.length > 0 && (() => {
+                const FIELD_LABEL: Record<string,string> = {
+                  status:'Status', priority:'Priority', hk_comment:'HK Comment',
+                  hod_comment:'HOD Comment', status_wk:'Status WK', responsible:'Responsible',
+                  section:'Section', category:'Category', particulars:'Particulars',
+                  date:'Date', company:'Company', payment:'Payment',
+                  approval_status:'Approval', approved_by:'Approved By', approval_type:'Approval Type',
+                }
+                const fmtVal = (field: string|null, val: string|null) => {
+                  if (!val) return '—'
+                  if (field === 'status') return STATUS_LABELS[val as TaskStatus] || val
+                  if (val.length > 80) return val.slice(0, 80) + '…'
+                  return val
+                }
+                const fmtTs = (ts: string) => {
+                  const d = new Date(ts)
+                  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) +
+                    ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
+                }
+                return (
+                  <>
+                    <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',margin:'14px 0 5px',paddingBottom:4,borderBottom:'1px solid #f3f4f6'}}>
+                      Change Log ({taskAudit.length})
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      {taskAudit.map(entry => (
+                        <div key={entry.id} style={{background:'#f9fafb',border:'1px solid #f3f4f6',borderRadius:5,padding:'6px 9px'}}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                            <span style={{fontSize:10,fontWeight:700,color:'#1a3a2a'}}>{entry.changed_by}</span>
+                            <span style={{fontSize:9.5,color:'#9ca3af'}}>{fmtTs(entry.changed_at)}</span>
+                          </div>
+                          <div style={{fontSize:11,color:'#374151'}}>
+                            <span style={{fontWeight:600,color:'#6b7280'}}>{FIELD_LABEL[entry.field||'']||entry.field}: </span>
+                            <span style={{color:'#dc2626',textDecoration:'line-through',marginRight:4}}>{fmtVal(entry.field, entry.old_value)}</span>
+                            <span style={{color:'#9ca3af',marginRight:4}}>→</span>
+                            <span style={{color:'#15803d',fontWeight:600}}>{fmtVal(entry.field, entry.new_value)}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </>
                 )

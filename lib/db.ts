@@ -80,12 +80,21 @@ export async function createTask(
   return rowToTask({ ...row, task_updates: [] })
 }
 
-export async function updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
+const AUDIT_FIELDS = new Set([
+  'status', 'priority', 'hk_comment', 'hod_comment', 'status_wk', 'responsible',
+  'section', 'category', 'particulars', 'date', 'company', 'payment',
+  'approval_type', 'approval_status', 'approved_by',
+])
+
+export async function updateTask(id: string, updates: Partial<Task>, changedBy = 'System'): Promise<Task | null> {
   const allowed = ['status', 'priority', 'hk_comment', 'hod_comment', 'updates', 'responsible',
                    'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk',
                    'approval_type', 'approval_status', 'approved_by', 'approved_at']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
+
+  const current = await getTaskById(id)
+  if (!current) return null
 
   const setClauses = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
   const values     = fields.map(f => (updates as Record<string, unknown>)[f])
@@ -94,7 +103,49 @@ export async function updateTask(id: string, updates: Partial<Task>): Promise<Ta
     `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = $1`,
     [id, ...values]
   )
+
+  for (const field of fields) {
+    if (!AUDIT_FIELDS.has(field)) continue
+    const oldVal = String((current as unknown as Record<string, unknown>)[field] ?? '')
+    const newVal = String((updates as Record<string, unknown>)[field] ?? '')
+    if (oldVal !== newVal) {
+      await execute(
+        `INSERT INTO task_audit (task_id, changed_by, action, field, old_value, new_value)
+         VALUES ($1, $2, 'update', $3, $4, $5)`,
+        [id, changedBy, field, oldVal, newVal]
+      )
+    }
+  }
+
   return (await getTaskById(id)) ?? null
+}
+
+export interface AuditEntry {
+  id: string
+  task_id: string
+  changed_by: string
+  action: string
+  field: string | null
+  old_value: string | null
+  new_value: string | null
+  changed_at: string
+}
+
+export async function getTaskAudit(taskId: string): Promise<AuditEntry[]> {
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM task_audit WHERE task_id = $1 ORDER BY changed_at DESC LIMIT 100`,
+    [taskId]
+  )
+  return rows.map(r => ({
+    id:         String(r.id),
+    task_id:    String(r.task_id),
+    changed_by: String(r.changed_by),
+    action:     String(r.action),
+    field:      r.field     ? String(r.field)     : null,
+    old_value:  r.old_value ? String(r.old_value) : null,
+    new_value:  r.new_value ? String(r.new_value) : null,
+    changed_at: String(r.changed_at),
+  }))
 }
 
 export async function deleteTask(id: string): Promise<boolean> {

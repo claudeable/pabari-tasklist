@@ -129,6 +129,19 @@ async function main() {
     `)
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS task_audit (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id     INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+        changed_by  VARCHAR(100) NOT NULL,
+        action      VARCHAR(20)  NOT NULL,
+        field       VARCHAR(100),
+        old_value   TEXT,
+        new_value   TEXT,
+        changed_at  TIMESTAMPTZ  DEFAULT NOW()
+      )
+    `)
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name         VARCHAR(255) NOT NULL,
@@ -155,6 +168,7 @@ async function main() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status      ON tasks(status)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_responsible ON tasks(responsible)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_task_updates_task ON task_updates(task_id)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_task_audit_task   ON task_audit(task_id)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_reports_to  ON users(reports_to)`)
 
     console.log('✓ Tables, columns and indexes ready')
