@@ -124,6 +124,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [hkDraft,       setHkDraft]       = useState('')
   const [hodEditId,     setHodEditId]     = useState<string|null>(null)
   const [hodDraft,      setHodDraft]      = useState('')
+  const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
+  const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'>('active')
   const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|''>('')
   const [showChangePw,   setShowChangePw]   = useState(false)
@@ -368,6 +370,16 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => prev.map(t => t.id===taskId ? {...t,hk_comment:comment} : t))
     setActiveTask(p => p?.id===taskId ? {...p,hk_comment:comment} : p)
     setHkEditId(null); setHkDraft('')
+  }
+
+  async function saveStatusWk(taskId: string, text: string) {
+    await fetch(`/api/tasks/${taskId}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status_wk: text }),
+    })
+    setTasks(prev => prev.map(t => t.id===taskId ? {...t,status_wk:text} : t))
+    setActiveTask(p => p?.id===taskId ? {...p,status_wk:text} : p)
+    setSwkEditId(null); setSwkDraft('')
   }
 
   async function postUpdate() {
@@ -1084,13 +1096,34 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 }
               </div>
 
-              {/* Status WK */}
-              {activeTask.status_wk && <>
-                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',margin:'12px 0 5px',paddingBottom:4,borderBottom:'1px solid #f3f4f6'}}>
+              {/* Status WK — editable */}
+              <>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',margin:'12px 0 5px',paddingBottom:4,borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   Status {weekNum()}
+                  {perms.canPostUpdate(activeTask) && swkEditId !== activeTask.id && (
+                    <button onClick={()=>{setSwkEditId(activeTask.id);setSwkDraft(activeTask.status_wk||'')}}
+                      style={{fontSize:9.5,color:'#1d4ed8',cursor:'pointer',border:'none',background:'none',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px'}}>
+                      Edit
+                    </button>
+                  )}
                 </div>
-                <div style={{fontSize:12,color:'#1e40af',background:'#eff6ff',padding:'7px 10px',borderRadius:5,lineHeight:1.45}}>{activeTask.status_wk}</div>
-              </>}
+                {swkEditId === activeTask.id
+                  ? <div>
+                      <textarea value={swkDraft} onChange={e=>setSwkDraft(e.target.value)} rows={3}
+                        placeholder="Enter this week's status update…"
+                        style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'7px 8px',fontSize:12,resize:'none',fontFamily:'inherit',marginBottom:5}}/>
+                      <div style={{display:'flex',gap:5,justifyContent:'flex-end'}}>
+                        <button onClick={()=>{setSwkEditId(null);setSwkDraft('')}}
+                          style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'4px 10px',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                        <button onClick={()=>saveStatusWk(activeTask.id,swkDraft)}
+                          style={{background:'#1d4ed8',color:'white',border:'none',borderRadius:4,padding:'4px 12px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Save</button>
+                      </div>
+                    </div>
+                  : <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'8px 11px',fontSize:12,color:activeTask.status_wk?'#1e40af':'#9ca3af',minHeight:34,lineHeight:1.45}}>
+                      {activeTask.status_wk || 'No status update yet — click Edit to add one.'}
+                    </div>
+                }
+              </>
 
               {/* HK Comment — editable for admin/director */}
               <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',margin:'12px 0 5px',paddingBottom:4,borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
