@@ -8,11 +8,18 @@ export interface StoredUser {
   role:          UserRole
   department:    string
   reports_to:    string
+  companies:     string[]
   password_hash: string
   created_at:    string
 }
 
 function rowToUser(row: Record<string, unknown>): StoredUser {
+  let companies: string[] = ['ALL']
+  if (Array.isArray(row.companies)) {
+    companies = row.companies as string[]
+  } else if (typeof row.companies === 'string') {
+    try { companies = JSON.parse(row.companies) } catch { companies = ['ALL'] }
+  }
   return {
     id:            String(row.id),
     name:          String(row.name),
@@ -20,6 +27,7 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
     role:          row.role as UserRole,
     department:    String(row.department || ''),
     reports_to:    String(row.reports_to || ''),
+    companies,
     password_hash: String(row.password_hash),
     created_at:    String(row.created_at),
   }
@@ -42,16 +50,22 @@ export async function getUserByEmail(email: string): Promise<StoredUser | undefi
 
 export async function getPublicUsers() {
   const rows = await query<Record<string, unknown>>(
-    'SELECT id, name, email, role, department, reports_to FROM users ORDER BY name'
+    'SELECT id, name, email, role, department, reports_to, companies FROM users ORDER BY name'
   )
-  return rows.map(r => ({
-    id:         String(r.id),
-    name:       String(r.name),
-    email:      String(r.email),
-    role:       r.role as UserRole,
-    department: String(r.department || ''),
-    reports_to: String(r.reports_to || ''),
-  }))
+  return rows.map(r => {
+    let companies: string[] = ['ALL']
+    if (Array.isArray(r.companies)) companies = r.companies as string[]
+    else if (typeof r.companies === 'string') { try { companies = JSON.parse(r.companies) } catch { /**/ } }
+    return {
+      id:         String(r.id),
+      name:       String(r.name),
+      email:      String(r.email),
+      role:       r.role as UserRole,
+      department: String(r.department || ''),
+      reports_to: String(r.reports_to || ''),
+      companies,
+    }
+  })
 }
 
 export async function getSubordinates(email: string): Promise<string[]> {

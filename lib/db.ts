@@ -14,11 +14,15 @@ function rowToTask(row: Record<string, unknown>): Task {
     updates:      String(row.updates || ''),
     responsible:  String(row.responsible || ''),
     payment:      (row.payment as Task['payment']) || 'Non-Payment',
-    status:       (row.status as Task['status']) || 'pending-discussion',
-    priority:     (row.priority as TaskPriority) || 'medium',
-    status_wk:    String(row.status_wk || ''),
-    hk_comment:   String(row.hk_comment || ''),
-    hod_comment:  String(row.hod_comment || ''),
+    status:          (row.status as Task['status']) || 'pending-discussion',
+    priority:        (row.priority as TaskPriority) || 'medium',
+    approval_type:   (row.approval_type as Task['approval_type']) || '',
+    approval_status: String(row.approval_status || ''),
+    approved_by:     String(row.approved_by || ''),
+    approved_at:     String(row.approved_at || ''),
+    status_wk:       String(row.status_wk || ''),
+    hk_comment:      String(row.hk_comment || ''),
+    hod_comment:     String(row.hod_comment || ''),
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
     task_updates: (updates as Record<string, unknown>[]).map(u => ({
@@ -65,12 +69,12 @@ export async function createTask(
   const now = new Date().toISOString()
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
-       responsible, payment, status, priority, status_wk, hk_comment, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       responsible, payment, status, priority, approval_type, status_wk, hk_comment, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      RETURNING *`,
     [data.sno, data.date, data.company, data.category, data.section, data.particulars,
      data.updates, data.responsible, data.payment, data.status, data.priority ?? 'medium',
-     data.status_wk, data.hk_comment, now, now]
+     data.approval_type ?? '', data.status_wk, data.hk_comment, now, now]
   )
   if (!row) throw new Error('Failed to create task')
   return rowToTask({ ...row, task_updates: [] })
@@ -78,7 +82,8 @@ export async function createTask(
 
 export async function updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
   const allowed = ['status', 'priority', 'hk_comment', 'hod_comment', 'updates', 'responsible',
-                   'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk']
+                   'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk',
+                   'approval_type', 'approval_status', 'approved_by', 'approved_at']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
 

@@ -20,27 +20,28 @@ const pool = new Pool({
 
 // ── All 21 users with departments and reporting lines ─────────────────────────
 const USERS = [
-  { name: 'Admin',       email: 'admin@usm.co.ke',          role: 'admin',    department: 'System',                 reports_to: '' },
-  { name: 'Harshil',    email: 'hkotecha@kwale-group.com', role: 'director', department: 'Director',               reports_to: '' },
-  { name: 'Paul',       email: 'pmureithi@usm.co.ke',      role: 'manager',  department: 'Group Operations',       reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Sabina',     email: 'smutua@kwale-group.com',   role: 'manager',  department: 'Group Operations',       reports_to: 'pmureithi@usm.co.ke' },
-  { name: 'Ashok',      email: 'sashok@usm.co.ke',         role: 'manager',  department: 'International Operations',reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Andu',       email: 'ateferi@kwale-group.com',  role: 'manager',  department: 'Finance',                reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Yared',      email: 'yyigezu@usm.co.ke',        role: 'staff',    department: 'Finance',                reports_to: 'ateferi@kwale-group.com' },
-  { name: 'Yalelet',    email: 'yaynalem@usm.co.ke',       role: 'staff',    department: 'Finance',                reports_to: 'ateferi@kwale-group.com' },
-  { name: 'Lulie',      email: 'laynalem@usm.co.ke',       role: 'staff',    department: 'Finance',                reports_to: 'ateferi@kwale-group.com' },
-  { name: 'Duran',      email: 'dligaga@usm.co.ke',        role: 'staff',    department: 'Finance',                reports_to: 'ateferi@kwale-group.com' },
-  { name: 'Juma',       email: 'johasa@usm.co.ke',         role: 'staff',    department: 'Finance',                reports_to: 'ateferi@kwale-group.com' },
-  { name: 'Benson',     email: 'benson@usm.co.ke',         role: 'manager',  department: 'Legal & Corporate',      reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Ahmad',      email: 'ahmad@usm.co.ke',          role: 'manager',  department: 'KISCOL',                 reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Eng. Suresh',email: 'ssuresh@kwale-group.com',  role: 'manager',  department: 'KISCOL',                 reports_to: 'ahmad@usm.co.ke' },
-  { name: 'Mungai',     email: 'mungai@usm.co.ke',         role: 'manager',  department: 'Logistics',              reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Binal',      email: 'bpabari@usm.co.ke',        role: 'manager',  department: 'GHPL / Hospitality',     reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Krishina',   email: 'rkrishnan@usm.co.ke',      role: 'manager',  department: 'Project Management',     reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Lazarus',    email: 'lazarus@usm.co.ke',        role: 'manager',  department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Simon',      email: 'sithibu@kwale-group.com',  role: 'staff',    department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Pedro',      email: 'hpedro@usm.co.ke',         role: 'staff',    department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
-  { name: 'Duncan',     email: 'dmumo@usm.co.ke',          role: 'staff',    department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
+  // companies: ['ALL'] = sees all companies; ['KISCOL'] = KISCOL only
+  { name: 'Admin',       email: 'admin@usm.co.ke',          role: 'admin',    department: 'System',                  reports_to: '',                        companies: ['ALL']     },
+  { name: 'Harshil',    email: 'hkotecha@kwale-group.com', role: 'director', department: 'Director',                reports_to: '',                        companies: ['ALL']     },
+  { name: 'Paul',       email: 'pmureithi@usm.co.ke',      role: 'manager',  department: 'Group Operations',        reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Sabina',     email: 'smutua@kwale-group.com',   role: 'staff',    department: 'KISCOL',                  reports_to: 'ahmad@usm.co.ke',         companies: ['KISCOL']  },
+  { name: 'Ashok',      email: 'sashok@usm.co.ke',         role: 'manager',  department: 'International Operations', reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Andu',       email: 'ateferi@kwale-group.com',  role: 'manager',  department: 'Finance',                 reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Yared',      email: 'yyigezu@usm.co.ke',        role: 'staff',    department: 'Finance',                 reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
+  { name: 'Yalelet',    email: 'yaynalem@usm.co.ke',       role: 'staff',    department: 'KISCOL',                  reports_to: 'ahmad@usm.co.ke',         companies: ['KISCOL']  },
+  { name: 'Lulie',      email: 'laynalem@usm.co.ke',       role: 'staff',    department: 'Finance',                 reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
+  { name: 'Duran',      email: 'dligaga@usm.co.ke',        role: 'staff',    department: 'Finance',                 reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
+  { name: 'Juma',       email: 'johasa@usm.co.ke',         role: 'staff',    department: 'Finance',                 reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
+  { name: 'Benson',     email: 'benson@usm.co.ke',         role: 'manager',  department: 'Legal & Corporate',       reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Ahmad',      email: 'ahmad@usm.co.ke',          role: 'ceo',      department: 'KISCOL',                  reports_to: 'hkotecha@kwale-group.com', companies: ['KISCOL']  },
+  { name: 'Eng. Suresh',email: 'ssuresh@kwale-group.com',  role: 'staff',    department: 'KISCOL',                  reports_to: 'ahmad@usm.co.ke',         companies: ['KISCOL']  },
+  { name: 'Mungai',     email: 'mungai@usm.co.ke',         role: 'manager',  department: 'Logistics',               reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Binal',      email: 'bpabari@usm.co.ke',        role: 'manager',  department: 'GHPL / Hospitality',      reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Krishina',   email: 'rkrishnan@usm.co.ke',      role: 'manager',  department: 'Project Management',      reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Lazarus',    email: 'lazarus@usm.co.ke',        role: 'manager',  department: 'Administration',          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Simon',      email: 'sithibu@kwale-group.com',  role: 'staff',    department: 'Administration',          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Pedro',      email: 'hpedro@usm.co.ke',         role: 'staff',    department: 'Administration',          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Duncan',     email: 'dmumo@usm.co.ke',          role: 'staff',    department: 'Administration',          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
 ]
 
 // Old placeholder emails → real emails
@@ -139,10 +140,15 @@ async function main() {
     `)
 
     // ── Column migrations (safe to re-run) ───────────────────────────────────
-    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority    VARCHAR(20) DEFAULT 'medium'`)
-    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hod_comment TEXT`)
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department  VARCHAR(100) DEFAULT ''`)
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to  VARCHAR(255) DEFAULT ''`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority        VARCHAR(20)  DEFAULT 'medium'`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hod_comment     TEXT`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approval_type   VARCHAR(50)  DEFAULT ''`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50)  DEFAULT ''`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approved_by     VARCHAR(255) DEFAULT ''`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approved_at     TIMESTAMPTZ`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department      VARCHAR(100) DEFAULT ''`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to      VARCHAR(255) DEFAULT ''`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS companies       JSONB        DEFAULT '["ALL"]'`)
 
     // ── Remove KISCOL tasks (moved to its own standalone ERP) ─────────────────
     const { rows: [{ count: kiscolCount }] } = await client.query(`SELECT COUNT(*) FROM tasks WHERE company = 'KISCOL'`)
@@ -173,14 +179,15 @@ async function main() {
     const hash = await bcrypt.hash('changeme123', 10)
     for (const u of USERS) {
       await client.query(`
-        INSERT INTO users (id, name, email, role, department, reports_to, password_hash)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        INSERT INTO users (id, name, email, role, department, reports_to, companies, password_hash)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
         ON CONFLICT (email) DO UPDATE
           SET name       = EXCLUDED.name,
               role       = EXCLUDED.role,
               department = EXCLUDED.department,
-              reports_to = EXCLUDED.reports_to
-      `, [randomUUID(), u.name, u.email, u.role, u.department, u.reports_to, hash])
+              reports_to = EXCLUDED.reports_to,
+              companies  = EXCLUDED.companies
+      `, [randomUUID(), u.name, u.email, u.role, u.department, u.reports_to, JSON.stringify(u.companies), hash])
     }
     console.log(`✓ Upserted ${USERS.length} users`)
 

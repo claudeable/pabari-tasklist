@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     role:       user.role,
     department: user.department,
     reports_to: user.reports_to,
+    companies:  user.companies,
   })
 
   const res = NextResponse.json({ ok: true, name: user.name, role: user.role })

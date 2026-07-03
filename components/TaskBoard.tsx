@@ -3,9 +3,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
-  Task, TaskStatus, TaskUpdate,
+  Task, TaskStatus, TaskUpdate, ApprovalType,
   STATUS_LABELS, STATUS_OPTIONS_BY_ROLE, PRIORITY_LABELS, PRIORITY_STYLE, TaskPriority,
-  COMPANIES, SECTIONS, PEOPLE, CATEGORIES,
+  COMPANIES, SECTIONS, KISCOL_SECTIONS, PEOPLE, CATEGORIES,
   SessionUser, PublicUser,
 } from '@/types'
 
@@ -90,6 +90,7 @@ function sectionShort(s: string) {
 const ROLE_BADGE: Record<string, {bg:string;color:string;label:string}> = {
   admin:    { bg:'#1a3a2a', color:'white',   label:'ADMIN'    },
   director: { bg:'#b5833a', color:'white',   label:'DIRECTOR' },
+  ceo:      { bg:'#7c3aed', color:'white',   label:'CEO'      },
   manager:  { bg:'#1d4ed8', color:'white',   label:'MANAGER'  },
   staff:    { bg:'#f3f4f6', color:'#374151', label:'STAFF'    },
 }
@@ -213,11 +214,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       .catch(() => {})
   }, [])
 
+  const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
   const [form, setForm] = useState({
-    company:'BYTEWISE', date:fmtDate(), section:'General', category:'Other',
+    company: isKiscolOnly ? 'KISCOL' : 'BYTEWISE',
+    date:fmtDate(), section:'General', category:'Other',
     particulars:'', responsible:currentUser.name,
     payment:'Non-Payment', status:'pending-discussion' as TaskStatus,
     priority:'medium' as TaskPriority,
+    approval_type: '' as ApprovalType,
     initial_update:'', hk_comment:'', status_wk:'',
   })
 
@@ -237,18 +241,25 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [currentUser.role, effectiveRole, effectiveName])
 
-  // ── Visible tasks (role-based) ───────────────────────────────────
+  // ── Visible tasks (role + company access) ────────────────────────
   const visibleTasks = useMemo(() => {
+    // Apply company access gate first
+    const accessible = currentUser.companies.includes('ALL')
+      ? tasks
+      : tasks.filter(t => currentUser.companies.includes(t.company))
+
     if (effectiveRole === 'staff') {
-      return tasks.filter(t => nameMatch(t.responsible, effectiveName))
+      return accessible.filter(t => nameMatch(t.responsible, effectiveName))
+    }
+    if (effectiveRole === 'ceo') {
+      return accessible // CEO (Ahmad) sees all their company's tasks
     }
     if (effectiveRole === 'manager') {
-      // HOD sees own tasks + tasks of their direct reports
       const myNames = [currentUser.name, ...subordinates]
-      return tasks.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+      return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
     }
-    return tasks // director / admin see everything
-  }, [tasks, effectiveRole, effectiveName, currentUser.name, subordinates])
+    return accessible // director / admin see everything in their accessible companies
+  }, [tasks, effectiveRole, effectiveName, currentUser.name, currentUser.companies, subordinates])
 
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {
@@ -263,10 +274,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     [visibleTasks, filterCompany]
   )
 
-  const availableSections = useMemo(() =>
-    Array.from(new Set(base.map(t => t.section).filter(Boolean))).sort(),
-    [base]
-  )
+  const availableSections = useMemo(() => {
+    const fromTasks = Array.from(new Set(base.map(t => t.section).filter(Boolean))).sort()
+    if (isKiscolOnly) return fromTasks.filter(s => (KISCOL_SECTIONS as readonly string[]).includes(s))
+    return fromTasks
+  }, [base, isKiscolOnly])
 
   const availablePeople = useMemo(() => {
     const names = new Set<string>()
@@ -309,6 +321,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const pendingMyReview = useMemo(() => {
     if (currentUser.role === 'director' || currentUser.role === 'admin') {
       return visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
+    }
+    if (currentUser.role === 'ceo') {
+      // CEO (Ahmad) sees KISCOL tasks staff has submitted for his review
+      return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
     }
     if (currentUser.role === 'manager') {
       return visibleTasks.filter(t =>
@@ -416,7 +432,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => [...prev, withUpdates])
     setShowAddForm(false)
     setForm(f => ({...f,date:fmtDate(),section:'General',category:'Other',particulars:'',
-      payment:'Non-Payment',status:'pending-discussion',priority:'medium',initial_update:'',hk_comment:'',status_wk:''}))
+      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:''}))
     setSaving(false)
   }
 
@@ -447,11 +463,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
         <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
         <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-        {currentUser.role !== 'staff' && (
+        {currentUser.role !== 'staff' && !isKiscolOnly && (
           <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
         )}
         <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
-        {currentUser.role !== 'staff' && (
+        {currentUser.role !== 'staff' && !isKiscolOnly && (
           <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
         )}
         {currentUser.role === 'admin' && (
@@ -599,7 +615,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
       {/* COMPANY TAB BAR */}
       <div style={{background:'white',borderBottom:'2px solid #e5e7eb',display:'flex',alignItems:'stretch',overflowX:'auto',flexShrink:0,scrollbarWidth:'none'}}>
-        {[{label:'ALL',key:''}, ...COMPANIES.map(c=>({label:c,key:c}))].map(({label,key})=>{
+        {(isKiscolOnly
+          ? [{label:'KISCOL',key:'KISCOL'}]
+          : [{label:'ALL',key:''}, ...COMPANIES.map(c=>({label:c,key:c}))]
+        ).map(({label,key})=>{
           const active = filterCompany===key
           const cnt = key==='' ? visibleTasks.length : (companyCounts[key]||0)
           return (
@@ -650,7 +669,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   )}
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
-                  {(currentUser.role==='manager') && (
+                  {(currentUser.role==='manager' || currentUser.role==='ceo') && (
                     <>
                       <button onClick={()=>approveTask(task)}
                         style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
@@ -886,6 +905,29 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     <label style={{display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:3}}>HK Comment</label>
                     <input value={form.hk_comment} onChange={e=>setForm(v=>({...v,hk_comment:e.target.value}))}
                       style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 7px',fontSize:12}}/>
+                  </div>
+                )}
+                {/* Approval type — only for KISCOL tasks created by CEO/Director */}
+                {form.company === 'KISCOL' && (currentUser.role === 'ceo' || currentUser.role === 'director' || currentUser.role === 'admin') && (
+                  <div style={{gridColumn:'1/-1',background:'#faf5ff',border:'1px solid #e9d5ff',borderRadius:5,padding:'10px 12px'}}>
+                    <label style={{display:'block',fontSize:10,fontWeight:700,color:'#7c3aed',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:8}}>
+                      Approval Required?
+                    </label>
+                    <div style={{display:'flex',gap:16}}>
+                      {([
+                        { val:'no_approval',  label:'No Approval Needed',   desc:'Staff updates → mark done → Harshil can browse' },
+                        { val:'ceo_approval', label:'Requires CEO Approval', desc:'Staff updates → CEO approves → Harshil review' },
+                      ] as {val:ApprovalType;label:string;desc:string}[]).map(opt=>(
+                        <label key={opt.val} style={{display:'flex',gap:8,alignItems:'flex-start',cursor:'pointer',flex:1,background:form.approval_type===opt.val?'#ede9fe':'white',border:`1px solid ${form.approval_type===opt.val?'#7c3aed':'#e5e7eb'}`,borderRadius:5,padding:'8px 10px'}}>
+                          <input type="radio" name="approval_type" value={opt.val} checked={form.approval_type===opt.val}
+                            onChange={()=>setForm(v=>({...v,approval_type:opt.val}))} style={{marginTop:2,accentColor:'#7c3aed'}}/>
+                          <div>
+                            <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{opt.label}</div>
+                            <div style={{fontSize:10.5,color:'#9ca3af',marginTop:2}}>{opt.desc}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1202,6 +1244,37 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     </button>
                   )}
                 </>
+              )}
+
+              {/* CEO (Ahmad) approval buttons for KISCOL ceo_approval tasks */}
+              {currentUser.role === 'ceo' && activeTask.company === 'KISCOL' &&
+               activeTask.approval_type === 'ceo_approval' &&
+               activeTask.status !== 'resolved' && activeTask.status !== 'expired' &&
+               activeTask.status !== 'awaiting-hk-approval' && (
+                <div style={{marginTop:12,padding:'10px 12px',background:'#faf5ff',border:'1px solid #e9d5ff',borderRadius:6}}>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',color:'#7c3aed',letterSpacing:'0.5px',marginBottom:8}}>
+                    CEO Approval Required
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button onClick={()=>approveTask(activeTask)}
+                      style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                      ✓ Approve & Resolve
+                    </button>
+                    <button onClick={()=>escalateToHK(activeTask)}
+                      style={{flex:1,background:'white',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                      ↑ Escalate to HK
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* KISCOL approval_type badge (read-only) */}
+              {activeTask.company === 'KISCOL' && activeTask.approval_type && (
+                <div style={{marginTop:10,display:'flex',gap:6,alignItems:'center',fontSize:11,color:'#6b7280'}}>
+                  <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.4px',background:'#faf5ff',color:'#7c3aed',border:'1px solid #e9d5ff',padding:'2px 7px',borderRadius:8}}>
+                    {activeTask.approval_type === 'ceo_approval' ? 'CEO Approval Flow' : 'No Approval Needed'}
+                  </span>
+                </div>
               )}
 
               {/* Update history */}

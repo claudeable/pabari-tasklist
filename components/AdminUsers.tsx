@@ -9,10 +9,11 @@ interface UserRow {
 }
 interface Props { currentUser: SessionUser; initialUsers: UserRow[] }
 
-const ROLES: UserRole[] = ['admin','director','manager','staff']
+const ROLES: UserRole[] = ['admin','director','ceo','manager','staff']
 const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
   admin:    { bg:'#1a3a2a', color:'white'   },
   director: { bg:'#b5833a', color:'white'   },
+  ceo:      { bg:'#7c3aed', color:'white'   },
   manager:  { bg:'#1d4ed8', color:'white'   },
   staff:    { bg:'#f3f4f6', color:'#374151' },
 }

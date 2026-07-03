@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'director' | 'manager' | 'staff'
+export type UserRole = 'admin' | 'director' | 'ceo' | 'manager' | 'staff'
 
 export interface SessionUser {
   id:         string
@@ -7,6 +7,7 @@ export interface SessionUser {
   role:       UserRole
   department: string
   reports_to: string
+  companies:  string[]   // ['ALL'] or ['KISCOL'] etc.
 }
 
 export interface PublicUser {
@@ -16,6 +17,7 @@ export interface PublicUser {
   role:       UserRole
   department: string
   reports_to: string
+  companies:  string[]
 }
 
 export type TaskStatus =
@@ -28,6 +30,7 @@ export type TaskStatus =
   | 'expired'
 
 export type TaskPriority = 'low' | 'medium' | 'high'
+export type ApprovalType = 'ceo_approval' | 'no_approval' | ''
 
 export const PRIORITY_LABELS: Record<TaskPriority, string> = {
   low:    'Low',
@@ -51,9 +54,9 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   'expired':              'Expired',
 }
 
-// Statuses available per role when editing a task
 export const STATUS_OPTIONS_BY_ROLE: Record<UserRole, TaskStatus[]> = {
   staff:    ['pending-discussion','action-required','in-review','awaiting-hod-approval'],
+  ceo:      ['pending-discussion','action-required','in-review','awaiting-hk-approval','resolved','expired'],
   manager:  ['pending-discussion','action-required','in-review','awaiting-hod-approval','awaiting-hk-approval','resolved'],
   director: ['pending-discussion','action-required','in-review','awaiting-hod-approval','awaiting-hk-approval','resolved','expired'],
   admin:    ['pending-discussion','action-required','in-review','awaiting-hod-approval','awaiting-hk-approval','resolved','expired'],
@@ -77,7 +80,7 @@ export const COMPANIES = [
   'BYTEWISE', 'WELWYN', 'DR.PHARMA', 'PIL',
   'MERCURY', 'MALI CREDIT', 'MALEE', 'GHPL', 'UNIFRESH',
   'PDL', 'USM', 'MAXITOWER', 'EURO TOWERS', 'EPPL',
-  'BERLIN_BNK', 'IIGENTRA',
+  'BERLIN_BNK', 'IIGENTRA', 'KISCOL',
 ] as const
 
 export const SECTIONS = [
@@ -89,6 +92,15 @@ export const SECTIONS = [
   'Internal Non-Payment',
   'Put on Hold',
   'General',
+] as const
+
+// Sections visible to KISCOL-only users
+export const KISCOL_SECTIONS = [
+  'External Stakeholders - Non-Payment',
+  'External Stakeholders - Payment',
+  'Outgrowers',
+  'Staff - Salary',
+  'Put on Hold',
 ] as const
 
 export const CATEGORIES = [
@@ -112,22 +124,26 @@ export interface TaskUpdate {
 }
 
 export interface Task {
-  id:          string
-  sno:         number
-  date:        string
-  company:     string
-  section:     string
-  category:    string
-  particulars: string
-  updates:     string
-  responsible: string
-  payment:     'Payment' | 'Non-Payment'
-  status:      TaskStatus
-  priority:    TaskPriority
-  status_wk:   string
-  hk_comment:  string
-  hod_comment: string
-  created_at:  string
-  updated_at:  string
-  task_updates?: TaskUpdate[]
+  id:              string
+  sno:             number
+  date:            string
+  company:         string
+  section:         string
+  category:        string
+  particulars:     string
+  updates:         string
+  responsible:     string
+  payment:         'Payment' | 'Non-Payment'
+  status:          TaskStatus
+  priority:        TaskPriority
+  approval_type:   ApprovalType
+  approval_status: string   // 'pending' | 'approved' | ''
+  approved_by:     string
+  approved_at:     string
+  status_wk:       string
+  hk_comment:      string
+  hod_comment:     string
+  created_at:      string
+  updated_at:      string
+  task_updates?:   TaskUpdate[]
 }
