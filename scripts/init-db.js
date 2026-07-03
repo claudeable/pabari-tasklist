@@ -216,7 +216,42 @@ async function main() {
         console.log(`✓ Seeded ${tasks.length} tasks from tasks.json`)
       }
     } else {
-      console.log(`✓ Tasks table already has ${count} rows — skipping seed`)
+      console.log(`✓ Tasks table already has ${count} rows — skipping full seed`)
+    }
+
+    // ── Re-seed KISCOL tasks if missing (safe — only runs when count = 0) ─────
+    const KISCOL_SECTION_MAP = {
+      'EXTERNAL STAKEHOLDERS - NON-PAYMENT PENDING LIST': 'External Stakeholders - Non-Payment',
+      'EXTERNAL STAKEHOLDERS - PAYMENT PENDING LIST':     'External Stakeholders - Payment',
+      'OUTGROWERS FOLLOW-UPS':                            'Outgrowers',
+      'STAFF - SALARY FOLLOW-UPS':                        'Staff - Salary',
+      'STAFF - NON-SALARY':                               'Staff - Non-Salary',
+      'PUT ON HOLD':                                      'Put on Hold',
+    }
+    const { rows: [{ count: kiscolCount }] } = await client.query(`SELECT COUNT(*) FROM tasks WHERE company = 'KISCOL'`)
+    if (parseInt(kiscolCount) === 0) {
+      const tasksFile = path.join(__dirname, '..', 'data', 'tasks.json')
+      if (fs.existsSync(tasksFile)) {
+        const allTasks = JSON.parse(fs.readFileSync(tasksFile, 'utf8'))
+        const kiscolTasks = allTasks.filter(t => t.company === 'KISCOL')
+        for (const t of kiscolTasks) {
+          await client.query(`
+            INSERT INTO tasks (sno, date, company, category, section, particulars,
+              updates, responsible, payment, status, status_wk, hk_comment, created_at, updated_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          `, [
+            t.sno || 0, t.date || '', t.company, t.category || '',
+            KISCOL_SECTION_MAP[t.section] || t.section || '', t.particulars, t.updates || '', t.responsible || '',
+            t.payment || 'Non-Payment', t.status || 'pending-discussion',
+            t.status_wk || '', t.hk_comment || '',
+            t.created_at || new Date().toISOString(),
+            t.updated_at || new Date().toISOString(),
+          ])
+        }
+        console.log(`✓ Re-seeded ${kiscolTasks.length} KISCOL tasks`)
+      }
+    } else {
+      console.log(`✓ KISCOL already has ${kiscolCount} tasks — skipping`)
     }
 
     console.log('✓ Database initialization complete')
