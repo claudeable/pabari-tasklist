@@ -62,9 +62,6 @@ export default function LoginForm() {
             fontSize: 12, padding: '5px 11px', borderRadius: 4, letterSpacing: '1px',
             display: 'inline-block', marginBottom: 12,
           }}>PABARI</span>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#1a3a2a', letterSpacing: '0.2px' }}>
-            PABARI GROUP
-          </div>
           <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
             Sign in to your account
           </div>

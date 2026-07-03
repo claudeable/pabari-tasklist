@@ -58,7 +58,11 @@ export async function POST(req: NextRequest) {
   if (user.role === 'staff') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const filters = await req.json()
-  const allTasks = await getTasks()
+  const rawTasks = await getTasks()
+  const userCompanies = Array.isArray(user.companies) ? user.companies : ['ALL']
+  const allTasks = userCompanies.includes('ALL')
+    ? rawTasks
+    : rawTasks.filter(t => userCompanies.includes(t.company))
 
   const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null
   const toDate   = filters.dateTo   ? new Date(filters.dateTo)   : null

@@ -12,11 +12,12 @@ export default async function DashboardPage() {
   const session = cookieStore.get('pabari-session')
   const currentUser = session?.value ? await verifyToken(session.value) : null
   if (!currentUser) redirect('/login')
-  // Staff and KISCOL-only users go straight to the task board
   if (currentUser.role === 'staff') redirect('/tasks')
-  if (currentUser.role === 'ceo') redirect('/tasks')
 
-  const [tasks, users] = await Promise.all([getTasks(), getUsers()])
+  const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
+
+  const [allTasks, users] = await Promise.all([getTasks(), getUsers()])
+  const tasks = isKiscolOnly ? allTasks.filter(t => t.company === 'KISCOL') : allTasks
 
   // ── Name → department map ───────────────────────────────────────
   const nameToDept: Record<string, string> = {}

@@ -88,8 +88,9 @@ function generatePDF(tasks: Task[], filters: Record<string, string>, reportName:
 }
 
 export default function ReportsModule({ currentUser, initialReports }: Props) {
+  const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
   const [reports, setReports]   = useState<Report[]>(initialReports)
-  const [filters, setFilters]   = useState({ company:'', section:'', status:'', priority:'', person:'', dateFrom:'', dateTo:'' })
+  const [filters, setFilters]   = useState({ company: isKiscolOnly ? 'KISCOL' : '', section:'', status:'', priority:'', person:'', dateFrom:'', dateTo:'' })
   const [generating, setGen]    = useState(false)
   const [error, setError]       = useState('')
 
@@ -144,7 +145,6 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
       {/* NAV */}
       <div style={{background:'#1a3a2a',padding:'0 18px',display:'flex',alignItems:'center',gap:12,height:50,flexShrink:0}}>
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
-        <span style={{fontSize:13,fontWeight:700,color:'white'}}>PABARI GROUP</span>
         <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
         <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
         <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
@@ -163,10 +163,14 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14,marginBottom:14}}>
             <div>
               <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Company</label>
-              <select value={filters.company} onChange={e=>setF('company',e.target.value)} style={sel}>
-                <option value="">All Companies</option>
-                {COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
+              {isKiscolOnly ? (
+                <div style={{...sel, background:'#f9fafb', color:'#1a3a2a', fontWeight:600}}>KISCOL</div>
+              ) : (
+                <select value={filters.company} onChange={e=>setF('company',e.target.value)} style={sel}>
+                  <option value="">All Companies</option>
+                  {COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
             </div>
             <div>
               <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Section</label>
