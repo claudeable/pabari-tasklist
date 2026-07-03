@@ -4,18 +4,20 @@ import { useState, useMemo, useEffect } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
   Task, TaskStatus, TaskUpdate,
-  STATUS_LABELS, PRIORITY_LABELS, PRIORITY_STYLE, TaskPriority,
+  STATUS_LABELS, STATUS_OPTIONS_BY_ROLE, PRIORITY_LABELS, PRIORITY_STYLE, TaskPriority,
   COMPANIES, SECTIONS, PEOPLE, CATEGORIES,
   SessionUser, PublicUser,
 } from '@/types'
 
 // ── Helpers ────────────────────────────────────────────────────────
 const STATUS_PILL: Record<TaskStatus, string> = {
-  'pending-discussion': 'pill pill-pending',
-  'action-required':    'pill pill-action',
-  'in-review':          'pill pill-review',
-  'resolved':           'pill pill-resolved',
-  'expired':            'pill pill-expired',
+  'pending-discussion':    'pill pill-pending',
+  'action-required':       'pill pill-action',
+  'in-review':             'pill pill-review',
+  'awaiting-hod-approval': 'pill pill-hod',
+  'awaiting-hk-approval':  'pill pill-hk',
+  'resolved':              'pill pill-resolved',
+  'expired':               'pill pill-expired',
 }
 const AVATAR_COLORS: Record<string, string> = {
   harshil: '#b5833a', sabina: '#6c5ce7', ahmad: '#e17055',
@@ -25,11 +27,13 @@ const AVATAR_COLORS: Record<string, string> = {
   rajveer: '#a29bfe', pedro: '#2d3436',
 }
 const BORDER: Record<TaskStatus, string> = {
-  'action-required':    '#dc2626',
-  'pending-discussion': '#d97706',
-  'in-review':          '#1d4ed8',
-  'resolved':           '#15803d',
-  'expired':            '#7f1d1d',
+  'action-required':       '#dc2626',
+  'pending-discussion':    '#d97706',
+  'in-review':             '#1d4ed8',
+  'awaiting-hod-approval': '#5b21b6',
+  'awaiting-hk-approval':  '#9d174d',
+  'resolved':              '#15803d',
+  'expired':               '#7f1d1d',
 }
 
 function nameMatch(responsible: string, name: string): boolean {
@@ -92,12 +96,13 @@ const ROLE_BADGE: Record<string, {bg:string;color:string;label:string}> = {
 
 // ── Component ──────────────────────────────────────────────────────
 interface Props {
-  initialTasks: Task[]
-  currentUser:  SessionUser
-  allUsers:     PublicUser[]
+  initialTasks:  Task[]
+  currentUser:   SessionUser
+  allUsers:      PublicUser[]
+  subordinates?: string[]
 }
 
-export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers }: Props) {
+export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers, subordinates = [] }: Props) {
   // ── State ────────────────────────────────────────────────────────
   const [tasks,         setTasks]         = useState<Task[]>(initialTasks)
   const [allUsers,      setAllUsers]      = useState<PublicUser[]>(initialUsers)
@@ -117,6 +122,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [viewAs,        setViewAs]        = useState('')   // name of person being viewed as
   const [hkEditId,      setHkEditId]      = useState<string|null>(null)
   const [hkDraft,       setHkDraft]       = useState('')
+  const [hodEditId,     setHodEditId]     = useState<string|null>(null)
+  const [hodDraft,      setHodDraft]      = useState('')
+  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'>('active')
   const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|''>('')
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
@@ -229,9 +237,16 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // ── Visible tasks (role-based) ───────────────────────────────────
   const visibleTasks = useMemo(() => {
-    if (effectiveRole !== 'staff') return tasks
-    return tasks.filter(t => nameMatch(t.responsible, effectiveName))
-  }, [tasks, effectiveRole, effectiveName])
+    if (effectiveRole === 'staff') {
+      return tasks.filter(t => nameMatch(t.responsible, effectiveName))
+    }
+    if (effectiveRole === 'manager') {
+      // HOD sees own tasks + tasks of their direct reports
+      const myNames = [currentUser.name, ...subordinates]
+      return tasks.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+    }
+    return tasks // director / admin see everything
+  }, [tasks, effectiveRole, effectiveName, currentUser.name, subordinates])
 
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {
@@ -281,12 +296,31 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }, [base, visibleTasks, directorFilter, filterSection, filterStatus, filterPriority, filterPerson, search])
 
   const kpis = useMemo(() => ({
-    total:    base.length,
+    total:    base.filter(t=>t.status!=='resolved').length,
     action:   base.filter(t=>t.status==='action-required').length,
     pending:  base.filter(t=>t.status==='pending-discussion').length,
     review:   base.filter(t=>t.status==='in-review').length,
     resolved: base.filter(t=>t.status==='resolved').length,
   }), [base])
+
+  // ── Pending My Review & Resolved tabs ────────────────────────────
+  const pendingMyReview = useMemo(() => {
+    if (currentUser.role === 'director' || currentUser.role === 'admin') {
+      return visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
+    }
+    if (currentUser.role === 'manager') {
+      return visibleTasks.filter(t =>
+        t.status === 'awaiting-hod-approval' &&
+        subordinates.some(s => nameMatch(t.responsible, s))
+      )
+    }
+    return []
+  }, [visibleTasks, currentUser.role, subordinates])
+
+  const resolvedTasks = useMemo(() =>
+    visibleTasks.filter(t => t.status === 'resolved'),
+    [visibleTasks]
+  )
 
   // ── Actions ──────────────────────────────────────────────────────
   function toggleRow(id: string) {
@@ -303,6 +337,27 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     })
     setTasks(prev => prev.map(t => t.id===task.id ? {...t,status} : t))
     if (activeTask?.id===task.id) setActiveTask(p => p ? {...p,status} : p)
+  }
+
+  async function saveHODComment(taskId: string, text: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ hod_comment: text }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setTasks(prev => prev.map(t => t.id===taskId ? updated : t))
+      if (activeTask?.id===taskId) setActiveTask(updated)
+    }
+    setHodEditId(null); setHodDraft('')
+  }
+
+  async function approveTask(task: Task) {
+    await changeStatus(task, 'resolved')
+  }
+
+  async function escalateToHK(task: Task) {
+    await changeStatus(task, 'awaiting-hk-approval')
   }
 
   async function saveHKComment(taskId: string, comment: string) {
@@ -386,6 +441,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
         {currentUser.role !== 'staff' && (
           <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
+        )}
+        {currentUser.role === 'admin' && (
+          <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>
         )}
         <div style={{flex:1}}/>
 
@@ -504,6 +562,29 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         </div>
       )}
 
+      {/* MAIN TABS — Active / Pending My Review / Resolved */}
+      <div style={{background:'white',borderBottom:'1px solid #e5e7eb',display:'flex',alignItems:'center',padding:'0 20px',gap:4,flexShrink:0}}>
+        {([
+          { key:'active',         label:'Active Tasks',       count: visibleTasks.filter(t=>t.status!=='resolved').length },
+          ...(currentUser.role==='staff' ? [] : [
+            { key:'pending-review', label:'Pending My Review', count: pendingMyReview.length },
+          ]),
+          { key:'resolved',       label:'Resolved',           count: resolvedTasks.length },
+        ] as {key:typeof activeMainTab;label:string;count:number}[]).map(tab=>(
+          <button key={tab.key} onClick={()=>setActiveMainTab(tab.key)}
+            style={{border:'none',borderBottom:activeMainTab===tab.key?'2px solid #1a3a2a':'2px solid transparent',
+              background:'transparent',padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,
+              color:activeMainTab===tab.key?'#1a3a2a':'#6b7280',fontWeight:activeMainTab===tab.key?700:400,fontSize:12.5}}>
+            {tab.label}
+            <span style={{background:activeMainTab===tab.key?'#1a3a2a':'#f3f4f6',
+              color:activeMainTab===tab.key?'white':'#9ca3af',
+              fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:10}}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* COMPANY TAB BAR */}
       <div style={{background:'white',borderBottom:'2px solid #e5e7eb',display:'flex',alignItems:'stretch',overflowX:'auto',flexShrink:0,scrollbarWidth:'none'}}>
         {[{label:'ALL',key:''}, ...COMPANIES.map(c=>({label:c,key:c}))].map(({label,key})=>{
@@ -525,8 +606,96 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         })}
       </div>
 
+      {/* PENDING MY REVIEW TAB */}
+      {activeMainTab === 'pending-review' && (
+        <div style={{flex:1,overflow:'auto',padding:20}}>
+          {pendingMyReview.length === 0 ? (
+            <div style={{textAlign:'center',color:'#9ca3af',paddingTop:60,fontSize:13}}>
+              No tasks awaiting your approval.
+            </div>
+          ) : pendingMyReview.map(task => (
+            <div key={task.id} style={{background:'white',border:`1px solid ${BORDER[task.status]||'#e5e7eb'}`,borderLeft:`4px solid ${BORDER[task.status]||'#e5e7eb'}`,borderRadius:6,padding:16,marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:5}}>
+                    <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
+                    <span className={STATUS_PILL[task.status]}>{STATUS_LABELS[task.status]}</span>
+                    {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{PRIORITY_LABELS[task.priority]}</span>}
+                  </div>
+                  <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
+                  <div style={{fontSize:11,color:'#6b7280',marginBottom:6}}>
+                    Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}
+                  </div>
+                  {task.task_updates?.[0] && (
+                    <div style={{fontSize:11,color:'#374151',background:'#f9fafb',padding:'6px 10px',borderRadius:4}}>
+                      <strong>{task.task_updates[0].date}:</strong> {task.task_updates[0].text}
+                    </div>
+                  )}
+                  {task.hod_comment && (
+                    <div style={{fontSize:11,color:'#374151',background:'#fdf4ff',border:'1px solid #e9d5ff',padding:'6px 10px',borderRadius:4,marginTop:6}}>
+                      <strong style={{color:'#5b21b6'}}>HOD Note:</strong> {task.hod_comment}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+                  {(currentUser.role==='manager') && (
+                    <>
+                      <button onClick={()=>approveTask(task)}
+                        style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        ✓ Approve
+                      </button>
+                      <button onClick={()=>escalateToHK(task)}
+                        style={{background:'white',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        ↑ Escalate to HK
+                      </button>
+                    </>
+                  )}
+                  {(currentUser.role==='director'||currentUser.role==='admin') && (
+                    <button onClick={()=>approveTask(task)}
+                      style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                      ✓ Approve & Resolve
+                    </button>
+                  )}
+                  <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                    style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:5,padding:'7px 16px',fontSize:12,cursor:'pointer'}}>
+                    View Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* RESOLVED TAB */}
+      {activeMainTab === 'resolved' && (
+        <div style={{flex:1,overflow:'auto',padding:20}}>
+          <div style={{marginBottom:12}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resolved tasks…"
+              style={{border:'1px solid #d1d5db',borderRadius:4,padding:'6px 10px',fontSize:13,width:280,outline:'none'}}/>
+            <span style={{marginLeft:12,fontSize:12,color:'#9ca3af'}}>{resolvedTasks.filter(t=>!search||JSON.stringify(t).toLowerCase().includes(search.toLowerCase())).length} resolved</span>
+          </div>
+          {resolvedTasks.filter(t=>!search||JSON.stringify(t).toLowerCase().includes(search.toLowerCase())).map(task => (
+            <div key={task.id} style={{background:'white',border:'1px solid #e5e7eb',borderLeft:'4px solid #15803d',borderRadius:6,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
+                  <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
+                  <span className="pill pill-resolved">Resolved</span>
+                </div>
+                <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
+                <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
+              </div>
+              <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
+                View
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* BODY */}
-      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+      {activeMainTab === 'active' && <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
         {/* SIDEBAR */}
         <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8}}>
@@ -890,7 +1059,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 {perms.canChangeStatus
                   ? <select value={activeTask.status} onChange={e=>changeStatus(activeTask,e.target.value as TaskStatus)}
                       style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
-                      {Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                      {STATUS_OPTIONS_BY_ROLE[currentUser.role].map(k=><option key={k} value={k}>{STATUS_LABELS[k]}</option>)}
                     </select>
                   : <span className={STATUS_PILL[activeTask.status]}>{STATUS_LABELS[activeTask.status]}</span>
                 }
@@ -949,6 +1118,58 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     {activeTask.hk_comment || (perms.canHKComment ? 'No comment — click Edit to add one.' : '—')}
                   </div>
               }
+
+              {/* HOD Comment — editable for managers (and director/admin) */}
+              {(currentUser.role === 'manager' || currentUser.role === 'director' || currentUser.role === 'admin') && (
+                <>
+                  <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',margin:'12px 0 5px',paddingBottom:4,borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    HOD Comment
+                    {hodEditId !== activeTask.id && (
+                      <button onClick={()=>{setHodEditId(activeTask.id);setHodDraft(activeTask.hod_comment||'')}}
+                        style={{fontSize:9.5,color:'#5b21b6',cursor:'pointer',border:'none',background:'none',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px'}}>
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                  {hodEditId === activeTask.id
+                    ? <div>
+                        <textarea value={hodDraft} onChange={e=>setHodDraft(e.target.value)} rows={3}
+                          placeholder="Enter HOD comment…"
+                          style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'7px 8px',fontSize:12,resize:'none',fontFamily:'inherit',marginBottom:5}}/>
+                        <div style={{display:'flex',gap:5,justifyContent:'flex-end'}}>
+                          <button onClick={()=>{setHodEditId(null);setHodDraft('')}}
+                            style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'4px 10px',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                          <button onClick={()=>saveHODComment(activeTask.id,hodDraft)}
+                            style={{background:'#5b21b6',color:'white',border:'none',borderRadius:4,padding:'4px 12px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Save</button>
+                        </div>
+                      </div>
+                    : <div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:5,padding:'8px 11px',fontSize:12,color:activeTask.hod_comment?'#374151':'#9ca3af',minHeight:34}}>
+                        {activeTask.hod_comment || 'No HOD comment yet — click Edit to add one.'}
+                      </div>
+                  }
+                  {/* Approval buttons when task is awaiting HOD approval */}
+                  {activeTask.status === 'awaiting-hod-approval' && currentUser.role === 'manager' &&
+                    subordinates.some(s => nameMatch(activeTask.responsible, s)) && (
+                    <div style={{display:'flex',gap:6,marginTop:10}}>
+                      <button onClick={()=>approveTask(activeTask)}
+                        style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        ✓ Approve & Resolve
+                      </button>
+                      <button onClick={()=>escalateToHK(activeTask)}
+                        style={{flex:1,background:'white',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        ↑ Escalate to HK
+                      </button>
+                    </div>
+                  )}
+                  {/* HK approval button */}
+                  {activeTask.status === 'awaiting-hk-approval' && (currentUser.role === 'director' || currentUser.role === 'admin') && (
+                    <button onClick={()=>approveTask(activeTask)}
+                      style={{width:'100%',marginTop:10,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'8px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                      ✓ Approve & Resolve
+                    </button>
+                  )}
+                </>
+              )}
 
               {/* Update history */}
               {(() => {
@@ -1017,7 +1238,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             )}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* STATUS BAR */}
       <div style={{background:'#1a3a2a',color:'rgba(255,255,255,0.55)',fontSize:10.5,padding:'5px 20px',display:'flex',gap:14,alignItems:'center',flexShrink:0}}>

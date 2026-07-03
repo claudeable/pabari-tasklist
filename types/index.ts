@@ -1,23 +1,29 @@
 export type UserRole = 'admin' | 'director' | 'manager' | 'staff'
 
 export interface SessionUser {
-  id: string
-  name: string
-  email: string
-  role: UserRole
+  id:         string
+  name:       string
+  email:      string
+  role:       UserRole
+  department: string
+  reports_to: string
 }
 
 export interface PublicUser {
-  id: string
-  name: string
-  email: string
-  role: UserRole
+  id:         string
+  name:       string
+  email:      string
+  role:       UserRole
+  department: string
+  reports_to: string
 }
 
 export type TaskStatus =
   | 'pending-discussion'
   | 'action-required'
   | 'in-review'
+  | 'awaiting-hod-approval'
+  | 'awaiting-hk-approval'
   | 'resolved'
   | 'expired'
 
@@ -36,12 +42,36 @@ export const PRIORITY_STYLE: Record<TaskPriority, { bg: string; color: string }>
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
-  'pending-discussion': 'Pending Discussion',
-  'action-required':    'Action Required',
-  'in-review':          'In Review',
-  'resolved':           'Resolved',
-  'expired':            'Expired',
+  'pending-discussion':   'Pending Discussion',
+  'action-required':      'Action Required',
+  'in-review':            'In Review',
+  'awaiting-hod-approval':'Awaiting HOD Approval',
+  'awaiting-hk-approval': 'Awaiting HK Approval',
+  'resolved':             'Resolved',
+  'expired':              'Expired',
 }
+
+// Statuses available per role when editing a task
+export const STATUS_OPTIONS_BY_ROLE: Record<UserRole, TaskStatus[]> = {
+  staff:    ['pending-discussion','action-required','in-review','awaiting-hod-approval'],
+  manager:  ['pending-discussion','action-required','in-review','awaiting-hod-approval','awaiting-hk-approval','resolved'],
+  director: ['pending-discussion','action-required','in-review','awaiting-hod-approval','awaiting-hk-approval','resolved','expired'],
+  admin:    ['pending-discussion','action-required','in-review','awaiting-hod-approval','awaiting-hk-approval','resolved','expired'],
+}
+
+export const DEPARTMENTS = [
+  'Group Operations',
+  'International Operations',
+  'Finance',
+  'Legal & Corporate',
+  'KISCOL',
+  'Logistics',
+  'GHPL / Hospitality',
+  'Project Management',
+  'Administration',
+  'Director',
+  'System',
+] as const
 
 export const COMPANIES = [
   'BYTEWISE', 'WELWYN', 'DR.PHARMA', 'PIL',
@@ -67,36 +97,37 @@ export const CATEGORIES = [
 ] as const
 
 export const PEOPLE = [
-  'Harshil', 'Sabina', 'Ahmad', 'Ashok', 'Paul', 'Krishnan',
-  'Yalelet', 'Eng. Suresh', 'Benson', 'Andu', 'Yared', 'Simon',
-  'Rajveer', 'Paul & Yared', 'Paul & Sabina', 'Krishnan & Yalelet',
-  'Andu & Krishnan', 'Paul & Benson',
+  'Ahmad', 'Andu', 'Ashok', 'Benson', 'Binal', 'Duncan',
+  'Duran', 'Eng. Suresh', 'Harshil', 'Juma', 'Krishina',
+  'Lazarus', 'Lulie', 'Mungai', 'Paul', 'Pedro',
+  'Sabina', 'Simon', 'Yalelet', 'Yared',
 ] as const
 
 export interface TaskUpdate {
-  id: string
-  task_id: string
-  date: string
-  text: string
+  id:         string
+  task_id:    string
+  date:       string
+  text:       string
   created_at: string
 }
 
 export interface Task {
-  id: string
-  sno: number
-  date: string
-  company: string
-  section: string
-  category: string
+  id:          string
+  sno:         number
+  date:        string
+  company:     string
+  section:     string
+  category:    string
   particulars: string
-  updates: string
+  updates:     string
   responsible: string
-  payment: 'Payment' | 'Non-Payment'
-  status: TaskStatus
-  priority: TaskPriority
-  status_wk: string
-  hk_comment: string
-  created_at: string
-  updated_at: string
+  payment:     'Payment' | 'Non-Payment'
+  status:      TaskStatus
+  priority:    TaskPriority
+  status_wk:   string
+  hk_comment:  string
+  hod_comment: string
+  created_at:  string
+  updated_at:  string
   task_updates?: TaskUpdate[]
 }

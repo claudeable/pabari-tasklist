@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
-import { getPublicUsers } from '@/lib/users'
+import { getPublicUsers, getSubordinates } from '@/lib/users'
 import { getTasks } from '@/lib/db'
 import TaskBoard from '@/components/TaskBoard'
 
@@ -9,12 +9,16 @@ export const dynamic = 'force-dynamic'
 
 export default async function TasksPage() {
   const cookieStore = cookies()
-  const session = cookieStore.get('pabari-session')
+  const session     = cookieStore.get('pabari-session')
   const currentUser = session?.value ? await verifyToken(session.value) : null
 
   if (!currentUser) redirect('/login')
 
-  const [tasks, allUsers] = await Promise.all([getTasks(), getPublicUsers()])
+  const [tasks, allUsers, subordinates] = await Promise.all([
+    getTasks(),
+    getPublicUsers(),
+    getSubordinates(currentUser.email),
+  ])
 
   const sorted = tasks.map(t => ({
     ...t,
@@ -28,6 +32,7 @@ export default async function TasksPage() {
       initialTasks={sorted}
       currentUser={currentUser}
       allUsers={allUsers}
+      subordinates={subordinates}
     />
   )
 }

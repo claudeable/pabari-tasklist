@@ -8,7 +8,6 @@ const path = require('path')
 
 if (!process.env.DATABASE_URL) {
   console.error('ERROR: DATABASE_URL environment variable is not set.')
-  console.error('Add a PostgreSQL service in Railway and link DATABASE_URL to this service.')
   process.exit(1)
 }
 
@@ -19,27 +18,32 @@ const pool = new Pool({
     : false,
 })
 
+// ── All 21 users with departments and reporting lines ─────────────────────────
 const USERS = [
-  { name: 'Admin',       email: 'admin@usm.co.ke',           role: 'admin'    },
-  { name: 'Pedro',       email: 'hpedro@usc.co.ke',          role: 'staff'    },
-  { name: 'Harshil',     email: 'hkotecha@kwale-group.com',  role: 'director' },
-  { name: 'Sabina',      email: 'smutua@kwale-group.com',    role: 'manager'  },
-  { name: 'Ahmad',       email: 'ahmad@usc.co.ke',           role: 'manager'  },
-  { name: 'Eng. Suresh', email: 'ssuresh@kwale-group.com',   role: 'manager'  },
-  { name: 'Paul',        email: 'pmureithi@usm.co.ke',       role: 'manager'  },
-  { name: 'Krishina',    email: 'rkrishnan@usm.co.ke',       role: 'manager'  },
-  { name: 'Ashok',       email: 'sashok@usm.co.ke',          role: 'manager'  },
-  { name: 'Yalelet',     email: 'yaynalem@usm.co.ke',        role: 'staff'    },
-  { name: 'Andu',        email: 'andu@usc.co.ke',            role: 'staff'    },
-  { name: 'Yared',       email: 'yyigezu@usm.co.ke',         role: 'staff'    },
-  { name: 'Benson',      email: 'benson@usc.co.ke',          role: 'manager'  },
-  { name: 'Simon',       email: 'sithibu@kwale-group.com',   role: 'staff'    },
-  { name: 'Binal',       email: 'binal@usc.co.ke',           role: 'manager'  },
-  { name: 'Mungai',      email: 'mungai@usc.co.ke',          role: 'manager'  },
-  { name: 'Lazarus',     email: 'lazarus@usc.co.ke',         role: 'manager'  },
+  { name: 'Admin',       email: 'admin@usm.co.ke',          role: 'admin',    department: 'System',                 reports_to: '' },
+  { name: 'Harshil',    email: 'hkotecha@kwale-group.com', role: 'director', department: 'Director',               reports_to: '' },
+  { name: 'Paul',       email: 'pmureithi@usm.co.ke',      role: 'manager',  department: 'Group Operations',       reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Sabina',     email: 'smutua@kwale-group.com',   role: 'manager',  department: 'Group Operations',       reports_to: 'pmureithi@usm.co.ke' },
+  { name: 'Ashok',      email: 'sashok@usm.co.ke',         role: 'manager',  department: 'International Operations',reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Andu',       email: 'andu@usc.co.ke',           role: 'manager',  department: 'Finance',                reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Yared',      email: 'yyigezu@usm.co.ke',        role: 'staff',    department: 'Finance',                reports_to: 'andu@usc.co.ke' },
+  { name: 'Yalelet',    email: 'yaynalem@usm.co.ke',       role: 'staff',    department: 'Finance',                reports_to: 'andu@usc.co.ke' },
+  { name: 'Lulie',      email: 'laynalem@usm.co.ke',       role: 'staff',    department: 'Finance',                reports_to: 'andu@usc.co.ke' },
+  { name: 'Duran',      email: 'dligaga@usm.co.ke',        role: 'staff',    department: 'Finance',                reports_to: 'andu@usc.co.ke' },
+  { name: 'Juma',       email: 'johasa@usm.co.ke',         role: 'staff',    department: 'Finance',                reports_to: 'andu@usc.co.ke' },
+  { name: 'Benson',     email: 'benson@usc.co.ke',         role: 'manager',  department: 'Legal & Corporate',      reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Ahmad',      email: 'ahmad@usc.co.ke',          role: 'manager',  department: 'KISCOL',                 reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Eng. Suresh',email: 'ssuresh@kwale-group.com',  role: 'manager',  department: 'KISCOL',                 reports_to: 'ahmad@usc.co.ke' },
+  { name: 'Mungai',     email: 'mungai@usc.co.ke',         role: 'manager',  department: 'Logistics',              reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Binal',      email: 'binal@usc.co.ke',          role: 'manager',  department: 'GHPL / Hospitality',     reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Krishina',   email: 'rkrishnan@usm.co.ke',      role: 'manager',  department: 'Project Management',     reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Lazarus',    email: 'lazarus@usc.co.ke',        role: 'manager',  department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Simon',      email: 'sithibu@kwale-group.com',  role: 'staff',    department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Pedro',      email: 'hpedro@usc.co.ke',         role: 'staff',    department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
+  { name: 'Duncan',     email: 'dmumo@usm.co.ke',          role: 'staff',    department: 'Administration',         reports_to: 'hkotecha@kwale-group.com' },
 ]
 
-// Email changes: old placeholder → real email (for users already in the DB)
+// Old placeholder emails → real emails
 const EMAIL_MIGRATIONS = [
   { from: 'harshil@usc.co.ke',  to: 'hkotecha@kwale-group.com' },
   { from: 'sabina@usc.co.ke',   to: 'smutua@kwale-group.com'   },
@@ -78,6 +82,8 @@ async function main() {
         name          VARCHAR(100) NOT NULL,
         email         VARCHAR(255) UNIQUE NOT NULL,
         role          VARCHAR(20)  NOT NULL,
+        department    VARCHAR(100) DEFAULT '',
+        reports_to    VARCHAR(255) DEFAULT '',
         password_hash VARCHAR(255) NOT NULL,
         created_at    TIMESTAMPTZ  DEFAULT NOW()
       )
@@ -98,6 +104,7 @@ async function main() {
         status      VARCHAR(50)  DEFAULT 'pending-discussion',
         status_wk   TEXT,
         hk_comment  TEXT,
+        hod_comment TEXT,
         created_at  TIMESTAMPTZ  DEFAULT NOW(),
         updated_at  TIMESTAMPTZ  DEFAULT NOW()
       )
@@ -124,10 +131,13 @@ async function main() {
       )
     `)
 
-    // ── Migrations: add columns to existing tables safely ────────────────────
-    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium'`)
+    // ── Column migrations (safe to re-run) ───────────────────────────────────
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority    VARCHAR(20) DEFAULT 'medium'`)
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hod_comment TEXT`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department  VARCHAR(100) DEFAULT ''`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to  VARCHAR(255) DEFAULT ''`)
 
-    // ── Remove KISCOL (moved to its own standalone ERP) ───────────────────────
+    // ── Remove KISCOL tasks (moved to its own standalone ERP) ─────────────────
     const { rows: [{ count: kiscolCount }] } = await client.query(`SELECT COUNT(*) FROM tasks WHERE company = 'KISCOL'`)
     if (parseInt(kiscolCount) > 0) {
       await client.query(`DELETE FROM tasks WHERE company = 'KISCOL'`)
@@ -135,32 +145,35 @@ async function main() {
     }
 
     // ── Indexes ──────────────────────────────────────────────────────────────
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_company    ON tasks(company)`)
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_company     ON tasks(company)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status      ON tasks(status)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_responsible ON tasks(responsible)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_task_updates_task ON task_updates(task_id)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_reports_to  ON users(reports_to)`)
 
-    console.log('✓ Tables and indexes ready')
+    console.log('✓ Tables, columns and indexes ready')
 
-    // ── Migrate old placeholder emails to real emails ────────────────────────
+    // ── Migrate old placeholder emails → real emails ──────────────────────────
     for (const m of EMAIL_MIGRATIONS) {
       const { rows: [{ count }] } = await client.query(`SELECT COUNT(*) FROM users WHERE email = $1`, [m.from])
       if (parseInt(count) > 0) {
         await client.query(`UPDATE users SET email = $1 WHERE email = $2`, [m.to, m.from])
-        console.log(`✓ Updated email ${m.from} → ${m.to}`)
+        console.log(`✓ Email migrated: ${m.from} → ${m.to}`)
       }
     }
 
-    // ── Seed users (upsert — update role/name, never overwrite password) ─────
+    // ── Upsert all users (name/role/dept/reports_to; never overwrites password) ─
     const hash = await bcrypt.hash('changeme123', 10)
     for (const u of USERS) {
       await client.query(`
-        INSERT INTO users (id, name, email, role, password_hash)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users (id, name, email, role, department, reports_to, password_hash)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
         ON CONFLICT (email) DO UPDATE
-          SET name = EXCLUDED.name,
-              role = EXCLUDED.role
-      `, [randomUUID(), u.name, u.email, u.role, hash])
+          SET name       = EXCLUDED.name,
+              role       = EXCLUDED.role,
+              department = EXCLUDED.department,
+              reports_to = EXCLUDED.reports_to
+      `, [randomUUID(), u.name, u.email, u.role, u.department, u.reports_to, hash])
     }
     console.log(`✓ Upserted ${USERS.length} users`)
 
@@ -171,7 +184,6 @@ async function main() {
       if (fs.existsSync(tasksFile)) {
         const tasks = JSON.parse(fs.readFileSync(tasksFile, 'utf8'))
         for (const t of tasks) {
-          // Let PostgreSQL assign IDs via SERIAL — no explicit id to avoid duplicates
           const { rows: [inserted] } = await client.query(`
             INSERT INTO tasks (sno, date, company, category, section, particulars,
               updates, responsible, payment, status, status_wk, hk_comment, created_at, updated_at)
@@ -185,8 +197,6 @@ async function main() {
             t.created_at || new Date().toISOString(),
             t.updated_at || new Date().toISOString(),
           ])
-
-          // Seed task_updates using the new auto-assigned task ID
           if (Array.isArray(t.task_updates) && t.task_updates.length > 0) {
             for (const u of t.task_updates) {
               await client.query(`

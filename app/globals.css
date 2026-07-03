@@ -32,6 +32,8 @@ body {
 .pill-review    { background:#d6eaf8; color:#1a5276; }
 .pill-resolved  { background:#d8f3dc; color:#1a3a2a; }
 .pill-expired   { background:#f8d7da; color:#721c24; }
+.pill-hod       { background:#ede9fe; color:#5b21b6; }
+.pill-hk        { background:#fce7f3; color:#9d174d; }
 
 .badge-payment     { background:#fdecea; color:#c0392b; }
 .badge-nonpayment  { background:#fdecea; color:#c0392b; }

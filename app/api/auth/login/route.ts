@@ -44,10 +44,12 @@ export async function POST(req: NextRequest) {
   }
 
   const token = await signToken({
-    id:    user.id,
-    name:  user.name,
-    email: user.email,
-    role:  user.role,
+    id:         user.id,
+    name:       user.name,
+    email:      user.email,
+    role:       user.role,
+    department: user.department,
+    reports_to: user.reports_to,
   })
 
   const res = NextResponse.json({ ok: true, name: user.name, role: user.role })

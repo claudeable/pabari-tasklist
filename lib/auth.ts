@@ -3,10 +3,12 @@ import { SignJWT, jwtVerify } from 'jose'
 export type UserRole = 'admin' | 'director' | 'manager' | 'staff'
 
 export interface SessionUser {
-  id: string
-  name: string
-  email: string
-  role: UserRole
+  id:         string
+  name:       string
+  email:      string
+  role:       UserRole
+  department: string
+  reports_to: string
 }
 
 const secret = () =>
@@ -15,7 +17,10 @@ const secret = () =>
   )
 
 export async function signToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ id: user.id, name: user.name, email: user.email, role: user.role })
+  return new SignJWT({
+    id: user.id, name: user.name, email: user.email, role: user.role,
+    department: user.department, reports_to: user.reports_to,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')

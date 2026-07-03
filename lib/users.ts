@@ -2,12 +2,14 @@ import { query, queryOne, execute } from './database'
 import { UserRole } from './auth'
 
 export interface StoredUser {
-  id: string
-  name: string
-  email: string
-  role: UserRole
+  id:            string
+  name:          string
+  email:         string
+  role:          UserRole
+  department:    string
+  reports_to:    string
   password_hash: string
-  created_at: string
+  created_at:    string
 }
 
 function rowToUser(row: Record<string, unknown>): StoredUser {
@@ -16,13 +18,17 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
     name:          String(row.name),
     email:         String(row.email),
     role:          row.role as UserRole,
+    department:    String(row.department || ''),
+    reports_to:    String(row.reports_to || ''),
     password_hash: String(row.password_hash),
     created_at:    String(row.created_at),
   }
 }
 
 export async function getUsers(): Promise<StoredUser[]> {
-  const rows = await query<Record<string, unknown>>('SELECT * FROM users ORDER BY name')
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM users ORDER BY name'
+  )
   return rows.map(rowToUser)
 }
 
@@ -36,21 +42,67 @@ export async function getUserByEmail(email: string): Promise<StoredUser | undefi
 
 export async function getPublicUsers() {
   const rows = await query<Record<string, unknown>>(
-    'SELECT id, name, email, role FROM users ORDER BY name'
+    'SELECT id, name, email, role, department, reports_to FROM users ORDER BY name'
   )
   return rows.map(r => ({
-    id:    String(r.id),
-    name:  String(r.name),
-    email: String(r.email),
-    role:  r.role as UserRole,
+    id:         String(r.id),
+    name:       String(r.name),
+    email:      String(r.email),
+    role:       r.role as UserRole,
+    department: String(r.department || ''),
+    reports_to: String(r.reports_to || ''),
   }))
 }
 
-export async function updateUserPassword(userId: string, newHash: string): Promise<boolean> {
+export async function getSubordinates(email: string): Promise<string[]> {
+  const rows = await query<Record<string, unknown>>(
+    'SELECT name FROM users WHERE LOWER(reports_to) = LOWER($1)',
+    [email]
+  )
+  return rows.map(r => String(r.name))
+}
+
+export async function createUser(data: {
+  name: string; email: string; role: UserRole
+  department: string; reports_to: string; password_hash: string
+}): Promise<StoredUser> {
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO users (name, email, role, department, reports_to, password_hash)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [data.name, data.email, data.role, data.department, data.reports_to, data.password_hash]
+  )
+  if (!row) throw new Error('Failed to create user')
+  return rowToUser(row)
+}
+
+export async function updateUser(id: string, data: {
+  name?: string; email?: string; role?: UserRole
+  department?: string; reports_to?: string
+}): Promise<StoredUser | null> {
+  const allowed = ['name', 'email', 'role', 'department', 'reports_to']
+  const fields  = Object.keys(data).filter(k => allowed.includes(k))
+  if (!fields.length) return null
+  const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
+  const values = fields.map(f => (data as Record<string, unknown>)[f])
+  const row = await queryOne<Record<string, unknown>>(
+    `UPDATE users SET ${set} WHERE id = $1 RETURNING *`,
+    [id, ...values]
+  )
+  return row ? rowToUser(row) : null
+}
+
+export async function resetUserPassword(id: string, hash: string): Promise<boolean> {
   try {
-    await execute('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId])
+    await execute('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, id])
     return true
-  } catch {
-    return false
-  }
+  } catch { return false }
+}
+
+export async function updateUserPassword(userId: string, newHash: string): Promise<boolean> {
+  return resetUserPassword(userId, newHash)
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  const rows = await query('DELETE FROM users WHERE id = $1 RETURNING id', [id])
+  return rows.length > 0
 }

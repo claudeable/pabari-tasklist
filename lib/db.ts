@@ -18,6 +18,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     priority:     (row.priority as TaskPriority) || 'medium',
     status_wk:    String(row.status_wk || ''),
     hk_comment:   String(row.hk_comment || ''),
+    hod_comment:  String(row.hod_comment || ''),
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
     task_updates: (updates as Record<string, unknown>[]).map(u => ({
@@ -76,8 +77,8 @@ export async function createTask(
 }
 
 export async function updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
-  const allowed = ['status', 'priority', 'hk_comment', 'updates', 'responsible', 'section',
-                   'category', 'particulars', 'date', 'company', 'payment', 'status_wk']
+  const allowed = ['status', 'priority', 'hk_comment', 'hod_comment', 'updates', 'responsible',
+                   'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
 

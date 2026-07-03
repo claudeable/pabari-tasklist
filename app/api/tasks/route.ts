@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     priority:    body.priority ?? 'medium',
     status_wk:   body.status_wk ?? '',
     hk_comment:  body.hk_comment ?? '',
+    hod_comment: body.hod_comment ?? '',
   })
 
   if (body.initial_update) {
