@@ -145,8 +145,9 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
             <div style={{fontSize:20,fontWeight:700,color:'#1a3a2a',marginBottom:4}}>Request Submitted</div>
             <div style={{fontSize:14,color:'#9ca3af',fontWeight:600,marginBottom:12}}>{success.reqNo}</div>
             <p style={{color:'#6b7280',fontSize:14,marginBottom:24,lineHeight:1.6}}>
-              Your petty cash request has been sent to Krishna for review.
-              After approval, it will go to your HOD, then to Andu (Finance).
+              {formType === 'kiscol'
+                ? 'Your KISCOL petty cash request has been sent to Suresh for review. After his approval, it goes to Ahmad for final sign-off.'
+                : 'Your petty cash request has been sent to Krishna for review. After approval, it will go to your HOD, then to Andu (Finance).'}
             </p>
             <p style={{color:'#d97706',fontSize:13,fontWeight:600,marginBottom:24,padding:'10px 14px',background:'#fef3c7',borderRadius:6,lineHeight:1.5}}>
               Reminder: After payment, the legal receipt must be returned to Finance within 48 hours — otherwise it will be recovered from payroll.
@@ -314,13 +315,20 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
           {/* Approval chain (read-only preview) */}
           <div style={{...sectionStyle,background:'#f9fafb'}}>
             <div style={{fontSize:14,fontWeight:700,color:'#374151',marginBottom:14}}>Approval Chain</div>
-            <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)',gap:10}}>
-              {[
-                { label:'Raised By',              name: currentUser.name, role:'Employee' },
-                { label:'Checked By HOS',          name:'Krishna',          role:'Head of Section' },
-                { label:'Verified & Approved By HOD', name: hodName || '(your manager)', role:'Head of Department' },
-                { label:'Approved By Finance HOD', name:'Andu',             role:'Finance HOD' },
-              ].map(step => (
+            <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr 1fr' : formType === 'kiscol' ? 'repeat(3,1fr)' : 'repeat(4,1fr)',gap:10}}>
+              {(formType === 'kiscol'
+                ? [
+                    { label:'Raised By',      name: currentUser.name, role:'Employee' },
+                    { label:'Checked By',     name:'Suresh',          role:'KISCOL HOD' },
+                    { label:'Final Approval', name:'Ahmad',           role:'KISCOL Head' },
+                  ]
+                : [
+                    { label:'Raised By',              name: currentUser.name,            role:'Employee' },
+                    { label:'Checked By HOS',          name:'Krishna',                   role:'Head of Section' },
+                    { label:'Verified & Approved By HOD', name: hodName || '(your HOD)', role:'Head of Department' },
+                    { label:'Approved By Finance HOD', name:'Andu',                      role:'Finance HOD' },
+                  ]
+              ).map(step => (
                 <div key={step.label} style={{padding:'10px 12px',background:'white',borderRadius:6,border:'1px solid #e5e7eb'}}>
                   <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:4}}>{step.label}</div>
                   <div style={{fontSize:13,fontWeight:600,color:'#1a3a2a'}}>{step.name}</div>

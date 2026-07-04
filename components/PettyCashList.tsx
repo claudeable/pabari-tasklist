@@ -13,6 +13,8 @@ type Tab = 'mine' | 'pending_hos' | 'pending_hod' | 'pending_finance' | 'all'
 
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
+const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
+const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
 
 const STATUS_STYLE: Record<PettyCashStatus, { bg: string; color: string }> = {
   pending_hos:     { bg: '#fef3c7', color: '#92400e' },
@@ -32,11 +34,13 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
   const [modalNotes,     setModalNotes]     = useState('')
   const [saving,         setSaving]         = useState(false)
 
-  const uid      = Number(currentUser.id)
-  const isAdmin  = currentUser.role === 'admin'
-  const isHOS    = currentUser.email === HOS_EMAIL
+  const uid       = Number(currentUser.id)
+  const isAdmin   = currentUser.role === 'admin'
+  const isHOS     = currentUser.email === HOS_EMAIL
   const isFinance = currentUser.email === FINANCE_EMAIL
-  const canSeeAll = isAdmin || currentUser.role === 'director' || isHOS || isFinance
+  const isSuresh  = currentUser.email === SURESH_EMAIL
+  const isAhmad   = currentUser.email === AHMAD_EMAIL
+  const canSeeAll = isAdmin || currentUser.role === 'director' || isHOS || isFinance || isSuresh || isAhmad
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -45,24 +49,34 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const myRequests    = requests.filter(r => r.employee_id === uid)
-  const pendingHOS    = requests.filter(r => r.status === 'pending_hos')
-  const pendingHOD    = requests.filter(r => r.status === 'pending_hod' && (isAdmin || r.hod_id === uid))
-  const pendingFin    = requests.filter(r => r.status === 'pending_finance')
+  const myRequests = requests.filter(r => r.employee_id === uid)
+
+  // Requests needing the current user's action
+  const needsMyAction = requests.filter(r => {
+    if (r.form_type === 'kiscol') {
+      if (r.status === 'pending_hos') return isAdmin || isSuresh
+      if (r.status === 'pending_hod') return isAdmin || isAhmad
+      return false
+    } else {
+      if (r.status === 'pending_hos')     return isAdmin || isHOS
+      if (r.status === 'pending_hod')     return isAdmin || r.hod_id === uid
+      if (r.status === 'pending_finance') return isAdmin || isFinance
+      return false
+    }
+  })
+
+  const canApproveAnything = isAdmin || isHOS || isFinance || isSuresh || isAhmad
+    || requests.some(r => r.status === 'pending_hod' && r.hod_id === uid)
 
   const tabs: { key: Tab; label: string; count: number; visible: boolean }[] = [
-    { key: 'mine',            label: 'My Requests',        count: myRequests.length, visible: true },
-    { key: 'pending_hos',     label: 'Pending HOS',        count: pendingHOS.length, visible: isAdmin || isHOS },
-    { key: 'pending_hod',     label: 'Pending HOD',        count: pendingHOD.length, visible: isAdmin || pendingHOD.length > 0 },
-    { key: 'pending_finance', label: 'Pending Finance',    count: pendingFin.length, visible: isAdmin || isFinance },
-    { key: 'all',             label: 'All Requests',       count: requests.length,   visible: canSeeAll },
+    { key: 'mine',            label: 'My Requests',      count: myRequests.length,    visible: true },
+    { key: 'pending_hos',     label: 'Needs My Approval',count: needsMyAction.length, visible: canApproveAnything },
+    { key: 'all',             label: 'All Requests',     count: requests.length,      visible: canSeeAll },
   ]
 
   const displayed =
-    activeTab === 'mine'            ? myRequests :
-    activeTab === 'pending_hos'     ? pendingHOS :
-    activeTab === 'pending_hod'     ? pendingHOD :
-    activeTab === 'pending_finance' ? pendingFin :
+    activeTab === 'mine'        ? myRequests :
+    activeTab === 'pending_hos' ? needsMyAction :
     requests
 
   async function handleAction() {
@@ -184,10 +198,12 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
             {displayed.map(req => {
               const isExpanded = expandedId === req.id
               const st = STATUS_STYLE[req.status]
-              const canHOS     = (isAdmin || isHOS)    && req.status === 'pending_hos'
-              const canHOD     = (isAdmin || req.hod_id === uid) && req.status === 'pending_hod'
-              const canFinance = (isAdmin || isFinance) && req.status === 'pending_finance'
+              const isKiscol = req.form_type === 'kiscol'
+              const canHOS     = req.status === 'pending_hos' && (isAdmin || (isKiscol ? isSuresh : isHOS))
+              const canHOD     = req.status === 'pending_hod' && (isAdmin || (isKiscol ? isAhmad : req.hod_id === uid))
+              const canFinance = !isKiscol && req.status === 'pending_finance' && (isAdmin || isFinance)
               const canAct     = canHOS || canHOD || canFinance
+              const approveAction = canHOS ? 'hos_approve' : canHOD ? 'hod_approve' : 'finance_approve'
 
               return (
                 <div key={req.id} style={{background:'white',borderRadius:8,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden',border:'1px solid #f0f0f0'}}>
@@ -265,11 +281,17 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                       <div style={{marginBottom:14}}>
                         <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Approval Status</div>
                         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                          {[
-                            { label:'HOS (Krishna)',   done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
-                            { label:`HOD (${req.hod_name || 'HOD'})`, done: !!req.hod_approved_at, pending: req.status === 'pending_hod' },
-                            { label:'Finance (Andu)',  done: !!req.finance_approved_at, pending: req.status === 'pending_finance' },
-                          ].map(step => (
+                          {(isKiscol
+                            ? [
+                                { label:'Suresh',  done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
+                                { label:'Ahmad',   done: !!req.hod_approved_at,     pending: req.status === 'pending_hod' },
+                              ]
+                            : [
+                                { label:'Krishna (HOS)',              done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
+                                { label: req.hod_name || 'HOD',      done: !!req.hod_approved_at,     pending: req.status === 'pending_hod' },
+                                { label:'Andu (Finance)',             done: !!req.finance_approved_at, pending: req.status === 'pending_finance' },
+                              ]
+                          ).map(step => (
                             <div key={step.label} style={{padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:600,
                               background: step.done ? '#d1fae5' : step.pending ? '#fef3c7' : '#f3f4f6',
                               color:      step.done ? '#065f46' : step.pending ? '#92400e' : '#9ca3af'}}>
@@ -289,7 +311,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                       {/* Action buttons */}
                       {canAct && (
                         <div style={{display:'flex',gap:8,marginTop:4}}>
-                          <button onClick={()=>{setModal({id:req.id,action: canHOS?'hos_approve':canHOD?'hod_approve':'finance_approve'});setModalNotes('')}}
+                          <button onClick={()=>{setModal({id:req.id,action:approveAction});setModalNotes('')}}
                             style={{background:'#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
                             Approve
                           </button>

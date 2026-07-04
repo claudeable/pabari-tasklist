@@ -6,9 +6,10 @@ import { query } from '@/lib/database'
 
 export const dynamic = 'force-dynamic'
 
-// Krishna is HOS, Andu is Finance HOD
-const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
-const FINANCE_EMAIL = 'ateferi@kwale-group.com'
+const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS (Krishna)
+const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance (Andu)
+const SURESH_EMAIL  = 'ssuresh@kwale-group.com' // KISCOL HOS
+const AHMAD_EMAIL   = 'ahmad@usm.co.ke'         // KISCOL final approver
 
 export async function GET() {
   const cookieStore = cookies()
@@ -18,6 +19,7 @@ export async function GET() {
 
   const canSeeAll = user.role === 'admin' || user.role === 'director'
     || user.email === HOS_EMAIL || user.email === FINANCE_EMAIL
+    || user.email === SURESH_EMAIL || user.email === AHMAD_EMAIL
 
   const requests = canSeeAll
     ? await getAllPettyCashRequests()
@@ -45,18 +47,22 @@ export async function POST(req: NextRequest) {
     if (!hasKiscol) return NextResponse.json({ error: 'Not authorized for KISCOL form.' }, { status: 403 })
   }
 
-  // Determine HOD from user's reports_to
+  // For KISCOL: Ahmad is always the final approver (hod slot)
+  // For general: HOD comes from user's reports_to
   let hod_id: number | null = null
   let hod_name = ''
-  if (user.reports_to) {
+  if (form_type === 'kiscol') {
+    const rows = await query<Record<string, unknown>>(
+      'SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)',
+      [AHMAD_EMAIL]
+    )
+    if (rows.length > 0) { hod_id = Number(rows[0].id); hod_name = String(rows[0].name) }
+  } else if (user.reports_to) {
     const rows = await query<Record<string, unknown>>(
       'SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)',
       [user.reports_to]
     )
-    if (rows.length > 0) {
-      hod_id   = Number(rows[0].id)
-      hod_name = String(rows[0].name)
-    }
+    if (rows.length > 0) { hod_id = Number(rows[0].id); hod_name = String(rows[0].name) }
   }
 
   const year = new Date(request_date).getFullYear()

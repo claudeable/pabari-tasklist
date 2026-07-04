@@ -198,6 +198,14 @@ export async function approveHOD(id: number, approver_id: number): Promise<void>
   )
 }
 
+export async function approveHODFinal(id: number, approver_id: number): Promise<void> {
+  // Used for KISCOL: Ahmad's approval goes directly to 'approved'
+  await execute(
+    `UPDATE petty_cash_requests SET status='approved', hod_approved_by=$1, hod_approved_at=NOW() WHERE id=$2`,
+    [approver_id, id]
+  )
+}
+
 export async function approveFinance(id: number, approver_id: number): Promise<void> {
   await execute(
     `UPDATE petty_cash_requests SET status='approved', finance_approved_by=$1, finance_approved_at=NOW() WHERE id=$2`,
