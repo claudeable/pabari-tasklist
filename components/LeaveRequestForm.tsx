@@ -96,7 +96,7 @@ export default function LeaveRequestForm({ currentUser, usedDays, remaining }: P
               <a href="/forms/leave/new" style={{background:'#1a3a2a',color:'white',padding:'10px 20px',borderRadius:6,textDecoration:'none',fontSize:14,fontWeight:600}}>
                 New Request
               </a>
-              <a href="/forms/leave" style={{background:'#f3f4f6',color:'#374151',padding:'10px 20px',borderRadius:6,textDecoration:'none',fontSize:14,fontWeight:600}}>
+              <a href="/forms" style={{background:'#f3f4f6',color:'#374151',padding:'10px 20px',borderRadius:6,textDecoration:'none',fontSize:14,fontWeight:600}}>
                 View All Requests
               </a>
             </div>
@@ -125,7 +125,7 @@ export default function LeaveRequestForm({ currentUser, usedDays, remaining }: P
       <div style={{flex:1,maxWidth:760,margin:'0 auto',width:'100%',padding: isMobile ? '16px 12px' : '24px 16px'}}>
         {/* Header */}
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
-          <a href="/forms/leave" style={{color:'#6b7280',textDecoration:'none',fontSize:13}}>← Leave Requests</a>
+          <a href="/forms" style={{color:'#6b7280',textDecoration:'none',fontSize:13}}>← Leave Requests</a>
           <span style={{color:'#d1d5db'}}>/</span>
           <span style={{fontSize:13,color:'#111827',fontWeight:600}}>New Request</span>
         </div>
@@ -283,7 +283,7 @@ export default function LeaveRequestForm({ currentUser, usedDays, remaining }: P
           )}
 
           <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-            <a href="/forms/leave" style={{background:'#f3f4f6',color:'#374151',padding:'10px 20px',borderRadius:6,textDecoration:'none',fontSize:14,fontWeight:600,display:'inline-flex',alignItems:'center'}}>
+            <a href="/forms" style={{background:'#f3f4f6',color:'#374151',padding:'10px 20px',borderRadius:6,textDecoration:'none',fontSize:14,fontWeight:600,display:'inline-flex',alignItems:'center'}}>
               Cancel
             </a>
             <button type="submit" disabled={saving || wouldExceed}
@@ -319,7 +319,7 @@ function Nav({ currentUser, isMobile, showMobileMenu, setShowMobileMenu }: {
           <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
           {currentUser.role !== 'staff' && <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>}
           <a href="/tasks" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
-          <a href="/forms/leave" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Forms</a>
+          <a href="/forms" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Forms</a>
           {currentUser.role !== 'staff' && <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Reports</a>}
         </>}
         <div style={{flex:1}}/>

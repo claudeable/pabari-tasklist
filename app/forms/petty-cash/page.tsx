@@ -1,0 +1,26 @@
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { verifyToken } from '@/lib/auth'
+import { getAllPettyCashRequests, getMyPettyCashRequests } from '@/lib/pettyCash'
+import PettyCashList from '@/components/PettyCashList'
+
+export const dynamic = 'force-dynamic'
+
+const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
+const FINANCE_EMAIL = 'ateferi@kwale-group.com'
+
+export default async function PettyCashPage() {
+  const cookieStore = cookies()
+  const session = cookieStore.get('pabari-session')
+  const user = session?.value ? await verifyToken(session.value) : null
+  if (!user) redirect('/login')
+
+  const canSeeAll = user.role === 'admin' || user.role === 'director'
+    || user.email === HOS_EMAIL || user.email === FINANCE_EMAIL
+
+  const requests = canSeeAll
+    ? await getAllPettyCashRequests()
+    : await getMyPettyCashRequests(Number(user.id))
+
+  return <PettyCashList currentUser={user} requests={requests} />
+}
