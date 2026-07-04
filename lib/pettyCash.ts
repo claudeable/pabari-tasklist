@@ -11,6 +11,7 @@ async function ensureTable() {
     CREATE TABLE IF NOT EXISTS petty_cash_requests (
       id SERIAL PRIMARY KEY,
       form_type TEXT NOT NULL DEFAULT 'general',
+      payment_method TEXT NOT NULL DEFAULT 'cash',
       req_no TEXT DEFAULT '',
       voucher_no TEXT DEFAULT '',
       request_date DATE NOT NULL,
@@ -38,6 +39,7 @@ async function ensureTable() {
       year INTEGER NOT NULL
     )
   `)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash'`)
   tableReady = true
 }
 
@@ -57,6 +59,7 @@ function rowToPettyCash(row: Record<string, unknown>): PettyCashRequest {
   return {
     id:               Number(row.id),
     form_type:        (row.form_type as 'kiscol' | 'general') || 'general',
+    payment_method:   (row.payment_method as 'cash' | 'mpesa' | 'bank_transfer') || 'cash',
     req_no:           String(row.req_no || ''),
     voucher_no:       String(row.voucher_no || ''),
     request_date:     dateStr(row.request_date),
@@ -103,32 +106,33 @@ export async function getMyPettyCashRequests(employee_id: number): Promise<Petty
 }
 
 export async function createPettyCashRequest(data: {
-  form_type:      'kiscol' | 'general'
-  request_date:   string
-  company:        string
-  employee_id:    number
-  employee_name:  string
-  employee_id_no: string
-  department:     string
-  items:          PettyCashItem[]
-  total_amount:   number
+  form_type:       'kiscol' | 'general'
+  payment_method:  'cash' | 'mpesa' | 'bank_transfer'
+  request_date:    string
+  company:         string
+  employee_id:     number
+  employee_name:   string
+  employee_id_no:  string
+  department:      string
+  items:           PettyCashItem[]
+  total_amount:    number
   amount_in_words: string
-  delegate_name:  string
-  delegate_id_no: string
-  hod_id:         number | null
-  hod_name:       string
-  year:           number
+  delegate_name:   string
+  delegate_id_no:  string
+  hod_id:          number | null
+  hod_name:        string
+  year:            number
 }): Promise<PettyCashRequest> {
   await ensureTable()
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO petty_cash_requests (
-      form_type, request_date, company, employee_id, employee_name, employee_id_no,
+      form_type, payment_method, request_date, company, employee_id, employee_name, employee_id_no,
       department, items, total_amount, amount_in_words, delegate_name, delegate_id_no,
       hod_id, hod_name, year
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     RETURNING *`,
     [
-      data.form_type, data.request_date, data.company, data.employee_id, data.employee_name,
+      data.form_type, data.payment_method, data.request_date, data.company, data.employee_id, data.employee_name,
       data.employee_id_no, data.department, JSON.stringify(data.items),
       data.total_amount, data.amount_in_words, data.delegate_name, data.delegate_id_no,
       data.hod_id, data.hod_name, data.year,

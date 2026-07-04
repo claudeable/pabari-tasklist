@@ -50,6 +50,7 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
   const [items,     setItems]     = useState<Item[]>([newItem(), newItem(), newItem()])
   const [delegate,  setDelegate]  = useState('')
   const [delegateId,setDelegateId]= useState('')
+  const [payMethod, setPayMethod] = useState<'cash'|'mpesa'|'bank_transfer'>('cash')
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
   const [success,   setSuccess]   = useState<{reqNo:string}|null>(null)
@@ -94,8 +95,9 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          form_type: formType,
-          request_date: reqDate,
+          form_type:      formType,
+          payment_method: payMethod,
+          request_date:   reqDate,
           company,
           employee_id_no: idNo,
           items: validItems.map(it => ({
@@ -109,10 +111,11 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
           delegate_id_no:  delegateId,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Failed to submit.'); return }
-      setSuccess({ reqNo: data.pcr.req_no })
-    } catch { setError('Network error. Please try again.') }
+      let data: Record<string, unknown> = {}
+      try { data = await res.json() } catch { /* server returned non-JSON */ }
+      if (!res.ok) { setError((data.error as string) || `Server error (${res.status}). Please try again.`); return }
+      setSuccess({ reqNo: (data.pcr as Record<string,unknown>)?.req_no as string })
+    } catch { setError('Network error. Please check your connection and try again.') }
     finally  { setSaving(false) }
   }
 
@@ -309,6 +312,36 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
                 <label style={labelStyle}>Delegate ID No.</label>
                 <input style={inputStyle} placeholder="National ID number" value={delegateId} onChange={e=>setDelegateId(e.target.value)} />
               </div>
+            </div>
+          </div>
+
+          {/* Payment Method */}
+          <div style={sectionStyle}>
+            <div style={{fontSize:14,fontWeight:700,color:'#1a3a2a',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #f0f0f0'}}>
+              Payment Method <span style={{color:'#dc2626'}}>*</span>
+            </div>
+            <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+              {([
+                { value:'cash',          label:'Cash',          icon:'💵' },
+                { value:'mpesa',         label:'M-Pesa',        icon:'📱' },
+                { value:'bank_transfer', label:'Bank Transfer', icon:'🏦' },
+              ] as const).map(opt => (
+                <label key={opt.value} style={{
+                  display:'flex',alignItems:'center',gap:10,padding:'10px 18px',
+                  border:`2px solid ${payMethod===opt.value?'#1a3a2a':'#e5e7eb'}`,
+                  borderRadius:8,cursor:'pointer',
+                  background:payMethod===opt.value?'#f0f4f1':'white',
+                  color:payMethod===opt.value?'#1a3a2a':'#374151',
+                  fontWeight:payMethod===opt.value?600:400,fontSize:13,
+                  transition:'border-color 0.15s,background 0.15s',
+                }}>
+                  <input type="radio" name="payMethod" value={opt.value}
+                    checked={payMethod===opt.value} onChange={()=>setPayMethod(opt.value)}
+                    style={{accentColor:'#1a3a2a'}}/>
+                  <span style={{fontSize:16}}>{opt.icon}</span>
+                  {opt.label}
+                </label>
+              ))}
             </div>
           </div>
 

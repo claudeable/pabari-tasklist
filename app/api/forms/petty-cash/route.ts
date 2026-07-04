@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { form_type, request_date, company, employee_id_no, items, total_amount, amount_in_words, delegate_name, delegate_id_no } = body
+  const { form_type, payment_method, request_date, company, employee_id_no, items, total_amount, amount_in_words, delegate_name, delegate_id_no } = body
 
   if (!company || !request_date || !items?.length || !total_amount) {
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
 
   const pcr = await createPettyCashRequest({
     form_type:       form_type || 'general',
+    payment_method:  payment_method || 'cash',
     request_date,
     company,
     employee_id:     Number(user.id),

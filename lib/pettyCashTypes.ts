@@ -17,6 +17,7 @@ export interface PettyCashItem {
 export interface PettyCashRequest {
   id:               number
   form_type:        'kiscol' | 'general'
+  payment_method:   'cash' | 'mpesa' | 'bank_transfer'
   req_no:           string
   voucher_no:       string
   request_date:     string
