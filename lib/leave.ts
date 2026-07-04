@@ -10,30 +10,30 @@ async function ensureTable() {
   await execute(`
     CREATE TABLE IF NOT EXISTS leave_requests (
       id SERIAL PRIMARY KEY,
-      employee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      employee_name TEXT NOT NULL,
+      employee_id INTEGER,
+      employee_name TEXT NOT NULL DEFAULT '',
       employee_no TEXT DEFAULT '',
       department TEXT DEFAULT '',
       job_title TEXT DEFAULT '',
       date_of_employment TEXT DEFAULT '',
       telephone TEXT DEFAULT '',
-      company TEXT NOT NULL,
-      leave_type TEXT NOT NULL,
-      date_from DATE NOT NULL,
-      date_to DATE NOT NULL,
-      days_requested INTEGER NOT NULL,
+      company TEXT NOT NULL DEFAULT '',
+      leave_type TEXT NOT NULL DEFAULT 'annual',
+      date_from DATE NOT NULL DEFAULT CURRENT_DATE,
+      date_to DATE NOT NULL DEFAULT CURRENT_DATE,
+      days_requested INTEGER NOT NULL DEFAULT 0,
       reason TEXT DEFAULT '',
       cover_person TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending_hr',
       hr_notes TEXT DEFAULT '',
-      hr_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hr_reviewed_by INTEGER,
       hr_reviewed_at TIMESTAMPTZ,
       hk_notes TEXT DEFAULT '',
-      hk_approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hk_approved_by INTEGER,
       hk_approved_at TIMESTAMPTZ,
       rejection_reason TEXT DEFAULT '',
       submitted_at TIMESTAMPTZ DEFAULT NOW(),
-      year INTEGER NOT NULL
+      year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW())
     )
   `)
   tableReady = true

@@ -14,10 +14,10 @@ async function ensureTable() {
       payment_method TEXT NOT NULL DEFAULT 'cash',
       req_no TEXT DEFAULT '',
       voucher_no TEXT DEFAULT '',
-      request_date DATE NOT NULL,
-      company TEXT NOT NULL,
-      employee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      employee_name TEXT NOT NULL,
+      request_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      company TEXT NOT NULL DEFAULT '',
+      employee_id INTEGER,
+      employee_name TEXT NOT NULL DEFAULT '',
       employee_id_no TEXT DEFAULT '',
       department TEXT NOT NULL DEFAULT '',
       items JSONB NOT NULL DEFAULT '[]',
@@ -25,18 +25,18 @@ async function ensureTable() {
       amount_in_words TEXT DEFAULT '',
       delegate_name TEXT DEFAULT '',
       delegate_id_no TEXT DEFAULT '',
-      hod_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hod_id INTEGER,
       hod_name TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending_hos',
-      hos_approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hos_approved_by INTEGER,
       hos_approved_at TIMESTAMPTZ,
-      hod_approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hod_approved_by INTEGER,
       hod_approved_at TIMESTAMPTZ,
-      finance_approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      finance_approved_by INTEGER,
       finance_approved_at TIMESTAMPTZ,
       rejection_reason TEXT DEFAULT '',
       submitted_at TIMESTAMPTZ DEFAULT NOW(),
-      year INTEGER NOT NULL
+      year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW())
     )
   `)
   await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash'`)
