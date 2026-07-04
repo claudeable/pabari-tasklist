@@ -135,11 +135,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [filterStatus,    setFilterStatus]    = useState('')
   const [filterPriority,  setFilterPriority]  = useState('')
   const [filterPerson,    setFilterPerson]    = useState('')
+  const [filterCategory,  setFilterCategory]  = useState('')
 
   const showCompanyCol = filterCompany === ''
   const [expandedRows,  setExpandedRows]  = useState<Set<string>>(new Set())
   const [activeTask,    setActiveTask]    = useState<Task | null>(null)
-  const [showAddForm,   setShowAddForm]   = useState(false)
+  const [showAddForm,      setShowAddForm]      = useState(false)
+  const [showFollowUpForm, setShowFollowUpForm] = useState(false)
+  const [fuForm, setFuForm] = useState({
+    particulars: '',
+    responsible: currentUser.name,
+    company: isKiscolOnly ? 'KISCOL' : 'BYTEWISE',
+    dueDate: '',
+    recurrence: 'none' as Recurrence,
+  })
   const [comment,       setComment]       = useState('')
   const [saving,        setSaving]        = useState(false)
   const [viewAs,        setViewAs]        = useState('')   // name of person being viewed as
@@ -340,12 +349,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
+      if (filterCategory  && t.category    !== filterCategory)                             return false
       if (filterPriority  && t.priority     !== filterPriority)                            return false
       if (filterPerson    && !nameMatch(t.responsible, filterPerson))                      return false
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [base, visibleTasks, directorFilter, filterSection, filterStatus, filterPriority, filterPerson, search])
+  }, [base, visibleTasks, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, search])
 
   const kpis = useMemo(() => ({
     total:    base.filter(t=>t.status!=='resolved').length,
@@ -475,6 +485,41 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setSaving(false)
   }
 
+  async function addFollowUp() {
+    if (!fuForm.particulars.trim()) return
+    setSaving(true)
+    const fallbackDue = (() => { const d = new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10) })()
+    const res = await fetch('/api/tasks', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        company:         fuForm.company,
+        section:         'External Stakeholders - Non-Payment',
+        category:        'Correspondence',
+        particulars:     fuForm.particulars,
+        responsible:     fuForm.responsible,
+        payment:         'Non-Payment',
+        status:          'action-required',
+        priority:        'medium',
+        approval_type:   '',
+        hk_comment:      '',
+        status_wk:       '',
+        due_date:        fuForm.dueDate || fallbackDue,
+        recurrence:      fuForm.recurrence,
+        date:            fmtDate(),
+        sno:             tasks.filter(t=>t.company===fuForm.company).length+1,
+        update_date:     todayStr(),
+      }),
+    })
+    const { task } = await res.json()
+    setTasks(prev => [...prev, { ...task, task_updates: [] }])
+    setShowFollowUpForm(false)
+    setFuForm(f => ({...f, particulars:'', dueDate:'', recurrence:'none' as Recurrence}))
+    setFilterCategory('Correspondence')
+    setFilterSection('')
+    setFilterStatus('')
+    setSaving(false)
+  }
+
   async function deleteTask(id: string) {
     if (!perms.canDelete) return
     if (!confirm('Delete this task permanently?')) return
@@ -539,6 +584,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             <span style={{background:rb.bg,color:rb.color,fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:8,marginLeft:2}}>{rb.label}</span>
           </div>
           {perms.canAddTask && (
+            <button onClick={()=>setShowFollowUpForm(true)}
+              style={{background:'#1a3a2a',color:'white',border:'none',padding:'6px 13px',borderRadius:5,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+              📩 Log Follow-up
+            </button>
+          )}
+          {perms.canAddTask && (
             <button onClick={()=>setShowAddForm(v=>!v)}
               style={{background:'#b5833a',color:'white',border:'none',padding:'6px 13px',borderRadius:5,fontSize:12,fontWeight:600,cursor:'pointer'}}>
               + New Task
@@ -556,6 +607,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
         {/* Mobile right side */}
         {isMobile && <>
+          {perms.canAddTask && (
+            <button onClick={()=>setShowFollowUpForm(true)}
+              style={{background:'none',border:'none',color:'white',fontSize:18,cursor:'pointer',lineHeight:1,padding:'4px 6px'}}>
+              📩
+            </button>
+          )}
           {perms.canAddTask && (
             <button onClick={()=>setShowAddForm(v=>!v)}
               style={{background:'#b5833a',color:'white',border:'none',padding:'5px 10px',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer'}}>
@@ -603,6 +660,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </a>
             ))}
             <div style={{padding:'10px 12px',display:'flex',flexDirection:'column',gap:7,borderTop:'1px solid rgba(255,255,255,0.1)',marginTop:4}}>
+              {perms.canAddTask && (
+                <button onClick={()=>{setShowMobileMenu(false);setShowFollowUpForm(true)}}
+                  style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
+                  📩 Log Follow-up
+                </button>
+              )}
               <button onClick={()=>{setShowMobileMenu(false);setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
                 style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
                 Change Password
@@ -610,6 +673,79 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               <button onClick={signOut}
                 style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
                 Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FOLLOW-UP MODAL */}
+      {showFollowUpForm && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
+          onClick={()=>setShowFollowUpForm(false)}>
+          <div style={{background:'white',borderRadius:12,padding:isMobile?20:28,maxWidth:500,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,0.2)'}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
+              <div>
+                <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>📩 Log Follow-up</div>
+                <div style={{fontSize:12,color:'#6b7280',marginTop:3}}>Creates an action-required task tagged as Correspondence</div>
+              </div>
+              <button onClick={()=>setShowFollowUpForm(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,color:'#9ca3af',lineHeight:1,marginLeft:12}}>✕</button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div>
+                <label style={{display:'block',fontSize:11,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:5}}>Description *</label>
+                <input
+                  value={fuForm.particulars}
+                  onChange={e=>setFuForm(v=>({...v,particulars:e.target.value}))}
+                  placeholder="e.g. Letter sent to KRA re: tax clearance — awaiting response"
+                  autoFocus
+                  style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'9px 11px',fontSize:13,boxSizing:'border-box',outline:'none'}}
+                />
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <div>
+                  <label style={{display:'block',fontSize:11,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:5}}>Responsible</label>
+                  <select value={fuForm.responsible} onChange={e=>setFuForm(v=>({...v,responsible:e.target.value}))}
+                    style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13}}>
+                    {PEOPLE.map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{display:'block',fontSize:11,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:5}}>Company</label>
+                  <select value={fuForm.company} onChange={e=>setFuForm(v=>({...v,company:e.target.value}))}
+                    style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13}}>
+                    {(isKiscolOnly?['KISCOL']:[...COMPANIES]).map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <div>
+                  <label style={{display:'block',fontSize:11,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:5}}>Follow Up By</label>
+                  <input type="date" value={fuForm.dueDate} onChange={e=>setFuForm(v=>({...v,dueDate:e.target.value}))}
+                    style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13}}/>
+                  <div style={{fontSize:10,color:'#9ca3af',marginTop:3}}>Defaults to 7 days from today</div>
+                </div>
+                <div>
+                  <label style={{display:'block',fontSize:11,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:5}}>Recurrence</label>
+                  <select value={fuForm.recurrence} onChange={e=>setFuForm(v=>({...v,recurrence:e.target.value as Recurrence}))}
+                    style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13}}>
+                    {RECURRENCE_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:6,padding:'10px 12px',fontSize:12,color:'#15803d'}}>
+                Tagged as <strong>Correspondence</strong> · Section: <strong>External Stakeholders</strong> · Status: <strong>Action Required</strong>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10,marginTop:22,justifyContent:'flex-end'}}>
+              <button onClick={()=>setShowFollowUpForm(false)}
+                style={{background:'#f3f4f6',color:'#374151',border:'none',padding:'9px 18px',borderRadius:6,fontSize:13,cursor:'pointer'}}>
+                Cancel
+              </button>
+              <button onClick={addFollowUp} disabled={saving||!fuForm.particulars.trim()}
+                style={{background:saving||!fuForm.particulars.trim()?'#9ca3af':'#1a3a2a',color:'white',border:'none',padding:'9px 20px',borderRadius:6,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                {saving?'Saving…':'Log Follow-up'}
               </button>
             </div>
           </div>
@@ -958,9 +1094,17 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 {availablePeople.map(p=><option key={p} value={p}>{p}</option>)}
               </select>
             )}
-            <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPriority('');setFilterPerson('')}}
+            <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPriority('');setFilterPerson('');setFilterCategory('')}}
               style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 10px',fontSize:12,cursor:'pointer',color:'#4b5563'}}>
               Reset
+            </button>
+            <button
+              onClick={()=>{
+                if (filterCategory==='Correspondence') { setFilterCategory('') }
+                else { setFilterCategory('Correspondence'); setFilterSection(''); setFilterStatus('') }
+              }}
+              style={{border:`1px solid ${filterCategory==='Correspondence'?'#1a3a2a':'#d1d5db'}`,background:filterCategory==='Correspondence'?'#1a3a2a':'white',color:filterCategory==='Correspondence'?'white':'#374151',borderRadius:4,padding:'5px 10px',fontSize:12,cursor:'pointer',fontWeight:filterCategory==='Correspondence'?600:400}}>
+              📋 Follow-ups
             </button>
             <div style={{flex:1}}/>
             <span style={{fontSize:11,color:'#9ca3af'}}>{filtered.length} task{filtered.length!==1?'s':''}</span>

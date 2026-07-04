@@ -106,6 +106,7 @@ export const KISCOL_SECTIONS = [
 export const CATEGORIES = [
   'Other', 'Supplier', 'Staff', 'OG/Outgrower', 'Legal',
   'Finance', 'Operations', 'Auctioneer', 'Travel', 'Bank', 'KRA', 'Auditor',
+  'Correspondence',
 ] as const
 
 export const PEOPLE = [
