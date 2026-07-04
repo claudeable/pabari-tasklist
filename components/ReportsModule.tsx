@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { SessionUser, COMPANIES, SECTIONS, TaskStatus, STATUS_LABELS, TaskPriority, PRIORITY_LABELS, PRIORITY_STYLE, Task } from '@/types'
 import { Report } from '@/lib/reports'
@@ -123,6 +123,15 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
   const [generating, setGen]    = useState(false)
   const [genExcel,   setGenEx]  = useState(false)
   const [error, setError]       = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const setF = (k: string, v: string) => setFilters(f => ({ ...f, [k]: v }))
 
@@ -191,24 +200,57 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
       <InactivityGuard />
 
       {/* NAV */}
-      <div style={{background:'#1a3a2a',padding:'0 18px',display:'flex',alignItems:'center',gap:12,height:50,flexShrink:0}}>
+      <div style={{background:'#1a3a2a',padding:'0 14px',display:'flex',alignItems:'center',gap:isMobile?8:12,height:50,flexShrink:0}}>
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
-        <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-        <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
-        <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
-        <a href="/reports"   style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Reports</a>
+        {!isMobile && <>
+          <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
+          <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
+          <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
+          <a href="/reports"   style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Reports</a>
+        </>}
         <div style={{flex:1}}/>
-        <span style={{color:'rgba(255,255,255,0.7)',fontSize:12}}>{currentUser.name}</span>
+        {!isMobile && <span style={{color:'rgba(255,255,255,0.7)',fontSize:12}}>{currentUser.name}</span>}
+        {isMobile && <>
+          <span style={{color:'rgba(255,255,255,0.8)',fontSize:12,fontWeight:500}}>{currentUser.name.split(' ')[0]}</span>
+          <button onClick={()=>setShowMobileMenu(true)}
+            style={{background:'none',border:'1px solid rgba(255,255,255,0.3)',color:'white',borderRadius:4,padding:'4px 9px',fontSize:17,cursor:'pointer',lineHeight:1}}>
+            ☰
+          </button>
+        </>}
       </div>
 
-      <div style={{flex:1,overflow:'auto',padding:24}}>
+      {/* MOBILE MENU */}
+      {isMobile && showMobileMenu && (
+        <div style={{position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.6)'}}
+             onClick={()=>setShowMobileMenu(false)}>
+          <div style={{background:'#1a3a2a',width:'100%'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+              <span style={{color:'white',fontWeight:600,fontSize:14}}>{currentUser.name}</span>
+              <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
+            </div>
+            {[
+              {label:'Dashboard',href:'/dashboard'},
+              {label:'Task Board',href:'/tasks'},
+              {label:'Reports',href:'/reports'},
+            ].map(item=>(
+              <a key={item.href} href={item.href}
+                style={{display:'block',padding:'13px 16px',color:'rgba(255,255,255,0.85)',textDecoration:'none',fontSize:14,fontWeight:500,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{flex:1,overflow:'auto',padding:isMobile?14:24}}>
 
         {/* GENERATE PANEL */}
         <div style={{background:'white',borderRadius:8,border:'1px solid #e5e7eb',padding:24,marginBottom:24,maxWidth:900}}>
           <div style={{fontWeight:700,fontSize:16,color:'#111',marginBottom:4}}>Generate New Report</div>
           <div style={{fontSize:12,color:'#6b7280',marginBottom:20}}>Select filters then click Generate. The PDF opens immediately and the report is saved to history below.</div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr 1fr',gap:14,marginBottom:14}}>
             <div>
               <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Company</label>
               {isKiscolOnly ? (
@@ -244,7 +286,7 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
               </select>
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14,marginBottom:20}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr 1fr',gap:14,marginBottom:20}}>
             <div>
               <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Person</label>
               <select value={filters.person} onChange={e=>setF('person',e.target.value)} style={sel}>

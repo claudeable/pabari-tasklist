@@ -156,6 +156,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [pwError,        setPwError]        = useState('')
   const [pwSuccess,      setPwSuccess]      = useState(false)
   const [pwSaving,       setPwSaving]       = useState(false)
+  const [isMobile,       setIsMobile]       = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   interface AuditEntry { id:string; changed_by:string; field:string|null; old_value:string|null; new_value:string|null; changed_at:string }
   const [taskAudit, setTaskAudit] = useState<AuditEntry[]>([])
@@ -277,14 +279,16 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // ── Visible tasks (role + company access) ────────────────────────
   const visibleTasks = useMemo(() => {
-    // Apply company access gate first
+    // Staff always see every task assigned to them, regardless of company
+    if (effectiveRole === 'staff') {
+      return tasks.filter(t => nameMatch(t.responsible, effectiveName))
+    }
+
+    // For all other roles, apply company access gate first
     const accessible = currentUser.companies.includes('ALL')
       ? tasks
       : tasks.filter(t => currentUser.companies.includes(t.company))
 
-    if (effectiveRole === 'staff') {
-      return accessible.filter(t => nameMatch(t.responsible, effectiveName))
-    }
     if (effectiveRole === 'ceo') {
       return accessible // CEO (Ahmad) sees all their company's tasks
     }
@@ -488,58 +492,126 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const rb = ROLE_BADGE[currentUser.role] || ROLE_BADGE.staff
   const viewAsUsers = allUsers.filter(u => u.name !== currentUser.name)
 
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
       <InactivityGuard />
 
       {/* TOP NAV */}
-      <div style={{background:'#1a3a2a',padding:'0 18px',display:'flex',alignItems:'center',gap:12,height:50,flexShrink:0}}>
+      <div style={{background:'#1a3a2a',padding:'0 14px',display:'flex',alignItems:'center',gap:isMobile?8:12,height:50,flexShrink:0}}>
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
-        <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
-        <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-        {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
-          <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
-        )}
-        <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
-        {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
-          <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
-        )}
-        {currentUser.role === 'admin' && (
-          <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>
-        )}
+
+        {/* Desktop nav links */}
+        {!isMobile && <>
+          <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
+          <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
+          {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
+            <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
+          )}
+          <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
+          {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
+            <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
+          )}
+          {currentUser.role === 'admin' && (
+            <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>
+          )}
+        </>}
+
         <div style={{flex:1}}/>
 
-        <span style={{background:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:14}}>{weekNum()}</span>
+        {/* Desktop right side */}
+        {!isMobile && <>
+          <span style={{background:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:14}}>{weekNum()}</span>
+          <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.08)',borderRadius:20,padding:'3px 10px 3px 5px'}}>
+            <div style={{width:24,height:24,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {avatarInitials(currentUser.name)}
+            </div>
+            <span style={{fontSize:12,color:'white',fontWeight:500}}>{currentUser.name}</span>
+            <span style={{background:rb.bg,color:rb.color,fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:8,marginLeft:2}}>{rb.label}</span>
+          </div>
+          {perms.canAddTask && (
+            <button onClick={()=>setShowAddForm(v=>!v)}
+              style={{background:'#b5833a',color:'white',border:'none',padding:'6px 13px',borderRadius:5,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+              + New Task
+            </button>
+          )}
+          <button onClick={()=>{setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
+            style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
+            Change Password
+          </button>
+          <button onClick={signOut}
+            style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
+            Sign Out
+          </button>
+        </>}
 
-        {/* User chip */}
-        <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.08)',borderRadius:20,padding:'3px 10px 3px 5px'}}>
-          <div style={{width:24,height:24,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {/* Mobile right side */}
+        {isMobile && <>
+          {perms.canAddTask && (
+            <button onClick={()=>setShowAddForm(v=>!v)}
+              style={{background:'#b5833a',color:'white',border:'none',padding:'5px 10px',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer'}}>
+              + New
+            </button>
+          )}
+          <div style={{width:28,height:28,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {avatarInitials(currentUser.name)}
           </div>
-          <span style={{fontSize:12,color:'white',fontWeight:500}}>{currentUser.name}</span>
-          <span style={{background:rb.bg,color:rb.color,fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:8,marginLeft:2}}>
-            {rb.label}
-          </span>
-        </div>
-
-        {perms.canAddTask && (
-          <button onClick={()=>setShowAddForm(v=>!v)}
-            style={{background:'#b5833a',color:'white',border:'none',padding:'6px 13px',borderRadius:5,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-            + New Task
+          <button onClick={()=>setShowMobileMenu(true)}
+            style={{background:'none',border:'1px solid rgba(255,255,255,0.3)',color:'white',borderRadius:4,padding:'4px 9px',fontSize:17,cursor:'pointer',lineHeight:1}}>
+            ☰
           </button>
-        )}
-
-        <button onClick={()=>{setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
-          style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
-          Change Password
-        </button>
-
-        <button onClick={signOut}
-          style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
-          Sign Out
-        </button>
+        </>}
       </div>
+
+      {/* MOBILE MENU OVERLAY */}
+      {isMobile && showMobileMenu && (
+        <div style={{position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.6)'}}
+             onClick={()=>setShowMobileMenu(false)}>
+          <div style={{background:'#1a3a2a',width:'100%'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{width:34,height:34,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {avatarInitials(currentUser.name)}
+                </div>
+                <div>
+                  <div style={{color:'white',fontWeight:600,fontSize:14}}>{currentUser.name}</div>
+                  <div style={{color:'rgba(255,255,255,0.5)',fontSize:10,textTransform:'uppercase',letterSpacing:'0.5px'}}>{currentUser.role}</div>
+                </div>
+              </div>
+              <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
+            </div>
+            {[
+              ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Dashboard',href:'/dashboard'}] : []),
+              {label:'Task Board',href:'/tasks'},
+              ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Reports',href:'/reports'}] : []),
+              ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
+            ].map(item=>(
+              <a key={item.href} href={item.href}
+                style={{display:'block',padding:'13px 16px',color:'rgba(255,255,255,0.85)',textDecoration:'none',fontSize:14,fontWeight:500,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                {item.label}
+              </a>
+            ))}
+            <div style={{padding:'10px 12px',display:'flex',flexDirection:'column',gap:7,borderTop:'1px solid rgba(255,255,255,0.1)',marginTop:4}}>
+              <button onClick={()=>{setShowMobileMenu(false);setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
+                style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
+                Change Password
+              </button>
+              <button onClick={signOut}
+                style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CHANGE PASSWORD MODAL */}
       {showChangePw && (
@@ -763,8 +835,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       {/* BODY */}
       {activeMainTab === 'active' && <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* SIDEBAR */}
-        <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8}}>
+        {/* SIDEBAR — hidden on mobile */}
+        <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8,display:isMobile?'none':'block'}}>
 
           {/* Director Attention — admin/director only */}
           {perms.canHKComment && (
@@ -844,7 +916,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         <div style={{flex:1,overflowY:'auto',padding:'15px 17px',background:'#f9fafb'}}>
 
           {/* KPI strip */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10,marginBottom:13}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(3,1fr)':'repeat(6,1fr)',gap:isMobile?8:10,marginBottom:isMobile?10:13}}>
             {[
               {label:'Total',           val:kpis.total,    col:'#1e40af'},
               {label:'Action Required', val:kpis.action,   col:'#b91c1c'},
@@ -902,7 +974,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 New Task
                 <button onClick={()=>setShowAddForm(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:'#9ca3af'}}>✕</button>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,marginBottom:10}}>
+              <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr 1fr',gap:10,marginBottom:10}}>
                 {([
                   {label:'Company',    key:'company',    opts: isKiscolOnly ? ['KISCOL'] : [...COMPANIES]},
                   {label:'Section',    key:'section',    opts:[...SECTIONS]},
@@ -991,14 +1063,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
           {/* Task table */}
           <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:6,overflow:'hidden'}}>
-            <div style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',background:'#f9fafb',borderBottom:'1px solid #e5e7eb',padding:'0 6px'}}>
+            {!isMobile && <div style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',background:'#f9fafb',borderBottom:'1px solid #e5e7eb',padding:'0 6px'}}>
               {(showCompanyCol
                 ? ['#','Date','Company','Section','Category','Particulars','Latest Update','Responsible','Status','']
                 : ['#','Date','Section','Category','Particulars','Latest Update','Responsible','Status','']
               ).map(h=>(
                 <div key={h} style={{padding:'8px 6px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.5px',textTransform:'uppercase'}}>{h}</div>
               ))}
-            </div>
+            </div>}
 
             {filtered.length===0 && (
               <div style={{padding:48,textAlign:'center',color:'#9ca3af',fontSize:13}}>
@@ -1017,7 +1089,47 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               const isExp        = expandedRows.has(task.id)
               return (
                 <div key={task.id}>
-                  <div onClick={()=>setActiveTask(activeTask?.id===task.id?null:task)}
+                  {/* Mobile card */}
+                  {isMobile && (
+                    <div onClick={()=>setActiveTask(activeTask?.id===task.id?null:task)}
+                      style={{background:activeTask?.id===task.id?'#f0f9ff':'white',borderLeft:`3px solid ${BORDER[task.status]}`,borderBottom:'1px solid #f3f4f6',padding:'12px 14px',cursor:'pointer'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:5}}>
+                        <div style={{display:'flex',gap:4,flexWrap:'wrap',flex:1,minWidth:0}}>
+                          {showCompanyCol && <span style={{background:'#eff6ff',border:'1px solid #bfdbfe',padding:'1px 5px',borderRadius:6,fontSize:9,fontWeight:700,color:'#1d4ed8',flexShrink:0}}>{task.company}</span>}
+                          <span style={{background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'1px 5px',borderRadius:6,fontSize:9,fontWeight:600,color:'#166534',flexShrink:0}}>{sectionShort(task.section)}</span>
+                        </div>
+                        <span className={STATUS_PILL[task.status]} style={{flexShrink:0,marginLeft:6,fontSize:9}}>{STATUS_LABELS[task.status]}</span>
+                      </div>
+                      <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:6,lineHeight:1.3}}>{task.particulars}</div>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:5}}>
+                          <div style={{width:20,height:20,borderRadius:'50%',background:avatarColor(task.responsible),color:'white',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                            {avatarInitials(task.responsible)}
+                          </div>
+                          <span style={{fontSize:11,color:'#4b5563'}}>{task.responsible}</span>
+                        </div>
+                        <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                          {task.priority !== 'medium' && (
+                            <span style={{fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:6,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color}}>
+                              {PRIORITY_LABELS[task.priority]}
+                            </span>
+                          )}
+                          {task.due_date && task.status!=='resolved' && task.status!=='expired' && (()=>{
+                            const ds=dueDateStatus(task.due_date)
+                            const c=ds==='overdue'?{bg:'#fef2f2',col:'#dc2626'}:ds==='soon'?{bg:'#fffbeb',col:'#d97706'}:{bg:'#f0fdf4',col:'#15803d'}
+                            return <span style={{fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:6,background:c.bg,color:c.col}}>{ds==='overdue'?'OVD':fmtDueDate(task.due_date)}</span>
+                          })()}
+                        </div>
+                      </div>
+                      {(latestApp||task.updates?.trim()) && (
+                        <div style={{fontSize:11,color:'#6b7280',marginTop:5,lineHeight:1.4,borderTop:'1px solid #f3f4f6',paddingTop:5}}>
+                          {latestApp?`${latestApp.date}: ${latestApp.text.slice(0,80)}${latestApp.text.length>80?'…':''}`:((task.updates||'').slice(0,80))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Desktop grid row */}
+                  {!isMobile && <div onClick={()=>setActiveTask(activeTask?.id===task.id?null:task)}
                     style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',
                       borderBottom:'1px solid #f3f4f6',padding:'0 6px',cursor:'pointer',
                       borderLeft:`3px solid ${BORDER[task.status]}`,
@@ -1090,10 +1202,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         </button>
                       )}
                     </div>
-                  </div>
+                  </div>}
 
-                  {/* Expanded history */}
-                  {isExp && (
+                  {/* Expanded history — desktop only */}
+                  {!isMobile && isExp && (
                     <div style={{background:'#f8faf8',borderBottom:'1px solid #e5e7eb',padding:'11px 18px 13px 50px'}}>
                       <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px',color:'#9ca3af',marginBottom:7}}>Full Update History</div>
                       <div style={{borderLeft:'2px solid #d1d5db',paddingLeft:13,display:'flex',flexDirection:'column',gap:8}}>
@@ -1145,7 +1257,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
         {/* DETAIL PANEL */}
         {activeTask && (
-          <div style={{width:325,borderLeft:'1px solid #e5e7eb',background:'white',overflowY:'auto',flexShrink:0,display:'flex',flexDirection:'column'}}>
+          <div style={isMobile
+            ? {position:'fixed',inset:0,zIndex:300,background:'white',overflowY:'auto',display:'flex',flexDirection:'column'}
+            : {width:325,borderLeft:'1px solid #e5e7eb',background:'white',overflowY:'auto',flexShrink:0,display:'flex',flexDirection:'column'}}>
             <div style={{padding:'12px 14px',background:'#1a3a2a',color:'white',flexShrink:0}}>
               <button onClick={()=>setActiveTask(null)} style={{float:'right',background:'none',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer',fontSize:16,lineHeight:1}}>✕</button>
               <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px',color:'rgba(255,255,255,0.5)',marginBottom:3}}>

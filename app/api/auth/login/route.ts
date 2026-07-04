@@ -9,10 +9,10 @@ function isRateLimited(ip: string): boolean {
   const now = Date.now()
   const record = attempts.get(ip)
   if (!record || now > record.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 })
+    attempts.set(ip, { count: 1, resetAt: now + 5 * 60 * 1000 })
     return false
   }
-  if (record.count >= 5) return true
+  if (record.count >= 10) return true
   record.count++
   return false
 }
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   if (isRateLimited(ip)) {
     return NextResponse.json(
-      { error: 'Too many login attempts. Please wait 15 minutes.' },
+      { error: 'Too many login attempts. Please wait 5 minutes.' },
       { status: 429 }
     )
   }

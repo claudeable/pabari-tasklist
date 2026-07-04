@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
   ResponsiveContainer, PieChart, Pie, Tooltip, Legend,
@@ -67,6 +67,15 @@ export default function Dashboard({ currentUser, stats }: Props) {
   const [pwError,        setPwError]        = useState('')
   const [pwSuccess,      setPwSuccess]      = useState(false)
   const [pwSaving,       setPwSaving]       = useState(false)
+  const [isMobile,       setIsMobile]       = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const rb = ROLE_BADGE[currentUser.role] || ROLE_BADGE.staff
 
@@ -115,31 +124,88 @@ export default function Dashboard({ currentUser, stats }: Props) {
       <InactivityGuard />
 
       {/* TOP NAV */}
-      <div style={{background:'#1a3a2a',padding:'0 18px',display:'flex',alignItems:'center',gap:12,height:50,flexShrink:0}}>
+      <div style={{background:'#1a3a2a',padding:'0 14px',display:'flex',alignItems:'center',gap:isMobile?8:12,height:50,flexShrink:0}}>
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
-        <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
-        <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-        <a href="/dashboard" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Dashboard</a>
-        <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Task Board</a>
-        <a href="/reports"   style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
+        {!isMobile && <>
+          <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
+          <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
+          <a href="/dashboard" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Dashboard</a>
+          <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Task Board</a>
+          <a href="/reports"   style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
+          {currentUser.role === 'admin' && <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>}
+        </>}
         <div style={{flex:1}}/>
-        <span style={{background:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:14}}>{weekNum()}</span>
-        <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.08)',borderRadius:20,padding:'3px 10px 3px 5px'}}>
-          <div style={{width:24,height:24,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {!isMobile && <>
+          <span style={{background:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:14}}>{weekNum()}</span>
+          <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.08)',borderRadius:20,padding:'3px 10px 3px 5px'}}>
+            <div style={{width:24,height:24,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {avatarInitials(currentUser.name)}
+            </div>
+            <span style={{fontSize:12,color:'white',fontWeight:500}}>{currentUser.name}</span>
+            <span style={{background:rb.bg,color:rb.color,fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:8,marginLeft:2}}>{rb.label}</span>
+          </div>
+          <button onClick={()=>{setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
+            style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
+            Change Password
+          </button>
+          <button onClick={signOut}
+            style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
+            Sign Out
+          </button>
+        </>}
+        {isMobile && <>
+          <div style={{width:28,height:28,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {avatarInitials(currentUser.name)}
           </div>
-          <span style={{fontSize:12,color:'white',fontWeight:500}}>{currentUser.name}</span>
-          <span style={{background:rb.bg,color:rb.color,fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:8,marginLeft:2}}>{rb.label}</span>
-        </div>
-        <button onClick={()=>{setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
-          style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
-          Change Password
-        </button>
-        <button onClick={signOut}
-          style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',border:'1px solid rgba(255,255,255,0.15)',padding:'5px 11px',borderRadius:5,fontSize:11,cursor:'pointer'}}>
-          Sign Out
-        </button>
+          <button onClick={()=>setShowMobileMenu(true)}
+            style={{background:'none',border:'1px solid rgba(255,255,255,0.3)',color:'white',borderRadius:4,padding:'4px 9px',fontSize:17,cursor:'pointer',lineHeight:1}}>
+            ☰
+          </button>
+        </>}
       </div>
+
+      {/* MOBILE MENU OVERLAY */}
+      {isMobile && showMobileMenu && (
+        <div style={{position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.6)'}}
+             onClick={()=>setShowMobileMenu(false)}>
+          <div style={{background:'#1a3a2a',width:'100%'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{width:34,height:34,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {avatarInitials(currentUser.name)}
+                </div>
+                <div>
+                  <div style={{color:'white',fontWeight:600,fontSize:14}}>{currentUser.name}</div>
+                  <div style={{color:'rgba(255,255,255,0.5)',fontSize:10,textTransform:'uppercase'}}>{currentUser.role}</div>
+                </div>
+              </div>
+              <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
+            </div>
+            {[
+              {label:'Dashboard',href:'/dashboard'},
+              {label:'Task Board',href:'/tasks'},
+              {label:'Reports',href:'/reports'},
+              ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
+            ].map(item=>(
+              <a key={item.href} href={item.href}
+                style={{display:'block',padding:'13px 16px',color:'rgba(255,255,255,0.85)',textDecoration:'none',fontSize:14,fontWeight:500,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                {item.label}
+              </a>
+            ))}
+            <div style={{padding:'10px 12px',display:'flex',flexDirection:'column',gap:7,borderTop:'1px solid rgba(255,255,255,0.1)',marginTop:4}}>
+              <button onClick={()=>{setShowMobileMenu(false);setShowChangePw(true);setPwForm({current:'',next:'',confirm:''});setPwError('');setPwSuccess(false)}}
+                style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
+                Change Password
+              </button>
+              <button onClick={signOut}
+                style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 14px',fontSize:13,textAlign:'left',cursor:'pointer',width:'100%'}}>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CHANGE PASSWORD MODAL */}
       {showChangePw && (
@@ -189,10 +255,10 @@ export default function Dashboard({ currentUser, stats }: Props) {
       )}
 
       {/* BODY */}
-      <div style={{flex:1,overflowY:'auto',padding:'20px 24px'}}>
+      <div style={{flex:1,overflowY:'auto',padding:isMobile?'14px 12px':'20px 24px'}}>
 
         {/* KPI CARDS */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12,marginBottom:20}}>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(6,1fr)',gap:isMobile?10:12,marginBottom:isMobile?14:20}}>
           {kpis.map(k=>(
             <div key={k.label} style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:'14px 16px',borderTop:`3px solid ${k.col}`}}>
               <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'0.6px',color:'#9ca3af',fontWeight:600,marginBottom:4}}>{k.label}</div>
@@ -237,7 +303,7 @@ export default function Dashboard({ currentUser, stats }: Props) {
         })()}
 
         {/* ROW 1: Pie + People workload */}
-        <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gap:14,marginBottom:14}}>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'320px 1fr',gap:14,marginBottom:14}}>
 
           {/* Status donut */}
           <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:'18px 16px'}}>
