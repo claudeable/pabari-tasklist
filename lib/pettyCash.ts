@@ -19,7 +19,7 @@ async function ensureTable() {
       employee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       employee_name TEXT NOT NULL,
       employee_id_no TEXT DEFAULT '',
-      department TEXT NOT NULL,
+      department TEXT NOT NULL DEFAULT '',
       items JSONB NOT NULL DEFAULT '[]',
       total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
       amount_in_words TEXT DEFAULT '',

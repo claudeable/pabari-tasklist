@@ -67,24 +67,29 @@ export async function POST(req: NextRequest) {
 
   const year = new Date(request_date).getFullYear()
 
-  const pcr = await createPettyCashRequest({
-    form_type:       form_type || 'general',
-    payment_method:  payment_method || 'cash',
-    request_date,
-    company,
-    employee_id:     Number(user.id),
-    employee_name:   user.name,
-    employee_id_no:  employee_id_no || '',
-    department:      user.department,
-    items,
-    total_amount:    Number(total_amount),
-    amount_in_words: amount_in_words || '',
-    delegate_name:   delegate_name || '',
-    delegate_id_no:  delegate_id_no || '',
-    hod_id,
-    hod_name,
-    year,
-  })
-
-  return NextResponse.json({ pcr })
+  try {
+    const pcr = await createPettyCashRequest({
+      form_type:       form_type || 'general',
+      payment_method:  payment_method || 'cash',
+      request_date,
+      company,
+      employee_id:     Number(user.id),
+      employee_name:   user.name || '',
+      employee_id_no:  employee_id_no || '',
+      department:      user.department || '',
+      items,
+      total_amount:    Number(total_amount),
+      amount_in_words: amount_in_words || '',
+      delegate_name:   delegate_name || '',
+      delegate_id_no:  delegate_id_no || '',
+      hod_id,
+      hod_name,
+      year,
+    })
+    return NextResponse.json({ pcr })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[petty-cash POST]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
