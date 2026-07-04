@@ -18,9 +18,10 @@ export default async function PettyCashPage() {
   const canSeeAll = user.role === 'admin' || user.role === 'director'
     || user.email === HOS_EMAIL || user.email === FINANCE_EMAIL
 
+  const uid = parseInt(String(user.id ?? ''), 10) || 0
   const requests = canSeeAll
     ? await getAllPettyCashRequests()
-    : await getMyPettyCashRequests(Number(user.id))
+    : await getMyPettyCashRequests(uid)
 
   return <PettyCashList currentUser={user} requests={requests} />
 }

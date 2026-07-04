@@ -36,7 +36,7 @@ async function ensureTable() {
       finance_approved_at TIMESTAMPTZ,
       rejection_reason TEXT DEFAULT '',
       submitted_at TIMESTAMPTZ DEFAULT NOW(),
-      year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW())
+      year INTEGER NOT NULL DEFAULT 0
     )
   `)
   await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash'`)
