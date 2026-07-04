@@ -7,15 +7,30 @@ interface Props {
   currentUser: SessionUser
 }
 
+interface PendingCounts {
+  leave: number
+  pettyCashGeneral: number
+  pettyCashKiscol: number
+  total: number
+}
+
 export default function FormsLanding({ currentUser }: Props) {
   const [isMobile,       setIsMobile]       = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [pending,        setPending]        = useState<PendingCounts | null>(null)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/forms/pending-count')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPending(d) })
+      .catch(() => {})
   }, [])
 
   const hasKiscol = currentUser.companies.includes('ALL') || currentUser.companies.includes('KISCOL')
@@ -27,34 +42,37 @@ export default function FormsLanding({ currentUser }: Props) {
 
   const forms = [
     {
-      title:       'Leave Request Form',
-      description: 'Submit annual, sick, maternity or compassionate leave. Requires HR and Harshil approval.',
-      icon:        '📅',
-      listHref:    '/forms/leave',
-      newHref:     '/forms/leave/new',
-      visible:     true,
-      badge:       'Leave',
-      badgeColor:  '#1a3a2a',
+      title:        'Leave Request Form',
+      description:  'Submit annual, sick, maternity or compassionate leave. Requires HR and Harshil approval.',
+      icon:         '📅',
+      listHref:     '/forms/leave',
+      newHref:      '/forms/leave/new',
+      visible:      true,
+      badge:        'Leave',
+      badgeColor:   '#1a3a2a',
+      pendingCount: pending?.leave ?? 0,
     },
     {
-      title:       'Petty Cash Requisition (KISCOL)',
-      description: 'For KISCOL staff only. Raise a petty cash request — approved by Krishna → HOD → Andu.',
-      icon:        '💵',
-      listHref:    '/forms/petty-cash?type=kiscol',
-      newHref:     '/forms/petty-cash/new?type=kiscol',
-      visible:     hasKiscol,
-      badge:       'KISCOL',
-      badgeColor:  '#e17055',
+      title:        'Petty Cash Requisition (KISCOL)',
+      description:  'For KISCOL staff only. Raise a petty cash request — approved by Suresh → Ahmad.',
+      icon:         '💵',
+      listHref:     '/forms/petty-cash?type=kiscol',
+      newHref:      '/forms/petty-cash/new?type=kiscol',
+      visible:      hasKiscol,
+      badge:        'KISCOL',
+      badgeColor:   '#e17055',
+      pendingCount: pending?.pettyCashKiscol ?? 0,
     },
     {
-      title:       'Petty Cash Requisition (General)',
-      description: 'For all other companies under Pabari Group. Approved by Krishna → HOD → Andu.',
-      icon:        '💵',
-      listHref:    '/forms/petty-cash',
-      newHref:     '/forms/petty-cash/new',
-      visible:     true,
-      badge:       'General',
-      badgeColor:  '#b5833a',
+      title:        'Petty Cash Requisition (General)',
+      description:  'For all other companies under Pabari Group. Approved by Krishna → HOD → Andu.',
+      icon:         '💵',
+      listHref:     '/forms/petty-cash',
+      newHref:      '/forms/petty-cash/new',
+      visible:      true,
+      badge:        'General',
+      badgeColor:   '#b5833a',
+      pendingCount: pending?.pettyCashGeneral ?? 0,
     },
   ].filter(f => f.visible)
 
@@ -112,16 +130,47 @@ export default function FormsLanding({ currentUser }: Props) {
           <div style={{fontSize:14,color:'#6b7280'}}>Submit and manage requests across all Pabari Group companies.</div>
         </div>
 
+        {/* Pending approvals banner */}
+        {pending && pending.total > 0 && (
+          <div style={{
+            marginBottom:20, padding:'12px 16px',
+            background:'#fffbeb', border:'1px solid #f59e0b',
+            borderRadius:8, display:'flex', alignItems:'center', gap:10,
+          }}>
+            <span style={{fontSize:18}}>🔔</span>
+            <div style={{flex:1}}>
+              <span style={{fontSize:13,fontWeight:700,color:'#92400e'}}>
+                {pending.total} request{pending.total !== 1 ? 's' : ''} pending your approval —{' '}
+              </span>
+              {pending.leave > 0 && <span style={{fontSize:12,color:'#b45309'}}>Leave ({pending.leave}){pending.pettyCashGeneral > 0 || pending.pettyCashKiscol > 0 ? ' · ' : ''}</span>}
+              {pending.pettyCashGeneral > 0 && <span style={{fontSize:12,color:'#b45309'}}>Petty Cash General ({pending.pettyCashGeneral}){pending.pettyCashKiscol > 0 ? ' · ' : ''}</span>}
+              {pending.pettyCashKiscol > 0 && <span style={{fontSize:12,color:'#b45309'}}>Petty Cash KISCOL ({pending.pettyCashKiscol})</span>}
+            </div>
+          </div>
+        )}
+
         <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(280px,1fr))',gap:16}}>
           {forms.map(f => (
-            <div key={f.title} style={{background:'white',borderRadius:10,boxShadow:'0 1px 6px rgba(0,0,0,0.07)',overflow:'hidden',border:'1px solid #f0f0f0'}}>
+            <div key={f.title} style={{background:'white',borderRadius:10,boxShadow:'0 1px 6px rgba(0,0,0,0.07)',overflow:'hidden',border:`1px solid ${f.pendingCount > 0 ? '#f59e0b' : '#f0f0f0'}`}}>
               <div style={{padding:'24px 22px 16px'}}>
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12}}>
                   <div style={{fontSize:36}}>{f.icon}</div>
-                  <span style={{background:f.badgeColor,color:'white',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:4,letterSpacing:'0.5px'}}>{f.badge}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    {f.pendingCount > 0 && (
+                      <span style={{background:'#ef4444',color:'white',fontSize:11,fontWeight:700,minWidth:20,height:20,padding:'0 6px',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {f.pendingCount}
+                      </span>
+                    )}
+                    <span style={{background:f.badgeColor,color:'white',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:4,letterSpacing:'0.5px'}}>{f.badge}</span>
+                  </div>
                 </div>
                 <div style={{fontSize:15,fontWeight:700,color:'#1a3a2a',marginBottom:6}}>{f.title}</div>
                 <div style={{fontSize:13,color:'#6b7280',lineHeight:1.6}}>{f.description}</div>
+                {f.pendingCount > 0 && (
+                  <div style={{marginTop:10,fontSize:12,fontWeight:600,color:'#b45309',background:'#fffbeb',borderRadius:5,padding:'5px 9px',display:'inline-block'}}>
+                    {f.pendingCount} pending your approval
+                  </div>
+                )}
               </div>
               <div style={{borderTop:'1px solid #f0f0f0',padding:'12px 22px',display:'flex',gap:8}}>
                 <a href={f.newHref}

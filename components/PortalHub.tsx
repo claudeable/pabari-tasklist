@@ -63,6 +63,7 @@ const systems = [
 
 export default function PortalHub({ currentUser }: Props) {
   const [isMobile, setIsMobile] = useState(false)
+  const [pendingForms, setPendingForms] = useState(0)
   const firstName = currentUser.name.split(' ')[0]
 
   useEffect(() => {
@@ -70,6 +71,13 @@ export default function PortalHub({ currentUser }: Props) {
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/forms/pending-count')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPendingForms(d.total) })
+      .catch(() => {})
   }, [])
 
   return (
@@ -124,7 +132,7 @@ export default function PortalHub({ currentUser }: Props) {
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '32px 16px' : '52px 40px' }}>
 
         {/* Greeting */}
-        <div style={{ marginBottom: 40 }}>
+        <div style={{ marginBottom: pendingForms > 0 ? 20 : 40 }}>
           <h1 style={{ fontSize: isMobile ? 26 : 32, fontWeight: 700, color: '#111827', margin: 0, marginBottom: 8 }}>
             {getGreeting()}, {firstName}
           </h1>
@@ -132,6 +140,39 @@ export default function PortalHub({ currentUser }: Props) {
             Select a system to continue.
           </p>
         </div>
+
+        {/* Pending approval banner */}
+        {pendingForms > 0 && (
+          <div
+            onClick={() => { window.location.href = '/forms' }}
+            style={{
+              marginBottom: 32, padding: '14px 20px',
+              background: '#fffbeb', border: '1px solid #f59e0b',
+              borderRadius: 10, display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', cursor: 'pointer',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: '#fef3c7', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 18, flexShrink: 0,
+              }}>🔔</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>
+                  {pendingForms} request{pendingForms !== 1 ? 's' : ''} pending your approval
+                </div>
+                <div style={{ fontSize: 12, color: '#b45309', marginTop: 2 }}>
+                  Go to Forms to review and action them
+                </div>
+              </div>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#b45309', whiteSpace: 'nowrap' }}>
+              Review →
+            </span>
+          </div>
+        )}
 
         {/* System cards */}
         <div style={{
@@ -168,7 +209,17 @@ export default function PortalHub({ currentUser }: Props) {
                 }}
               >
                 {/* Badge */}
-                <div style={{ position: 'absolute', top: 20, right: 20 }}>
+                <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {sys.key === 'forms' && pendingForms > 0 && (
+                    <span style={{
+                      background: '#ef4444', color: 'white',
+                      fontSize: 11, fontWeight: 700, minWidth: 20, height: 20,
+                      padding: '0 6px', borderRadius: 10, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {pendingForms}
+                    </span>
+                  )}
                   <span style={{
                     background: sys.badgeBg, color: sys.badgeColor,
                     fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
