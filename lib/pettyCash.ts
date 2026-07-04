@@ -1,4 +1,5 @@
 import { query, queryOne, execute } from './database'
+import type { PettyCashStatus, PettyCashItem, PettyCashRequest } from './pettyCashTypes'
 export { PETTY_CASH_STATUS_LABELS } from './pettyCashTypes'
 export type { PettyCashStatus, PettyCashItem, PettyCashRequest } from './pettyCashTypes'
 

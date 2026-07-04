@@ -1,4 +1,5 @@
 import { query, queryOne, execute } from './database'
+import type { LeaveType, LeaveStatus, LeaveRequest } from './leaveTypes'
 export { LEAVE_COMPANIES, LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, ANNUAL_LEAVE_LIMIT } from './leaveTypes'
 export type { LeaveType, LeaveStatus, LeaveRequest } from './leaveTypes'
 
