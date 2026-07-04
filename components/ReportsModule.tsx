@@ -206,6 +206,7 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
           <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
           <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
           <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
+          <a href="/forms/leave" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Forms</a>
           <a href="/reports"   style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Reports</a>
         </>}
         <div style={{flex:1}}/>
@@ -232,6 +233,7 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
             {[
               {label:'Dashboard',href:'/dashboard'},
               {label:'Task Board',href:'/tasks'},
+              {label:'Forms',href:'/forms/leave'},
               {label:'Reports',href:'/reports'},
             ].map(item=>(
               <a key={item.href} href={item.href}

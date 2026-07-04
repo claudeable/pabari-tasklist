@@ -1,0 +1,223 @@
+import { query, queryOne, execute } from './database'
+
+export const LEAVE_COMPANIES = [
+  'Berlin Equipment Ltd',
+  'Doctor Pharma (K) Limited',
+  'Getwell Hospital Ltd (GHL)',
+  'KISCOL',
+  'Mali Credit Limited',
+  'Mayfair Aviation Ltd',
+  'Maxi Tower Ltd',
+  'Pabari Investments Limited',
+  'Safety Auto Spares (E.A) Limited',
+  'Topnotch Investment Holding Limited',
+  'Uni Supplies & Marketing (K) Ltd',
+  'Unifresh Exotics (K) Limited',
+]
+
+export type LeaveType = 'annual' | 'sick' | 'maternity' | 'paternity' | 'compassionate' | 'absence'
+export type LeaveStatus = 'pending_hr' | 'pending_hk' | 'approved' | 'rejected'
+
+export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
+  annual:        'Annual Leave',
+  sick:          'Sick Leave',
+  maternity:     'Maternity Leave',
+  paternity:     'Paternity Leave',
+  compassionate: 'Compassionate Leave',
+  absence:       'Leave of Absence',
+}
+
+export const LEAVE_STATUS_LABELS: Record<LeaveStatus, string> = {
+  pending_hr:  'Pending HR Review',
+  pending_hk:  'Pending HK Approval',
+  approved:    'Approved',
+  rejected:    'Rejected',
+}
+
+export const ANNUAL_LEAVE_LIMIT = 21
+
+export interface LeaveRequest {
+  id: number
+  employee_id: number | null
+  employee_name: string
+  employee_no: string
+  department: string
+  job_title: string
+  date_of_employment: string
+  telephone: string
+  company: string
+  leave_type: LeaveType
+  date_from: string
+  date_to: string
+  days_requested: number
+  reason: string
+  cover_person: string
+  status: LeaveStatus
+  hr_notes: string
+  hr_reviewed_by: number | null
+  hr_reviewed_at: string | null
+  hk_notes: string
+  hk_approved_by: number | null
+  hk_approved_at: string | null
+  rejection_reason: string
+  submitted_at: string
+  year: number
+}
+
+let tableReady = false
+
+async function ensureTable() {
+  if (tableReady) return
+  await execute(`
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id SERIAL PRIMARY KEY,
+      employee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      employee_name TEXT NOT NULL,
+      employee_no TEXT DEFAULT '',
+      department TEXT DEFAULT '',
+      job_title TEXT DEFAULT '',
+      date_of_employment TEXT DEFAULT '',
+      telephone TEXT DEFAULT '',
+      company TEXT NOT NULL,
+      leave_type TEXT NOT NULL,
+      date_from DATE NOT NULL,
+      date_to DATE NOT NULL,
+      days_requested INTEGER NOT NULL,
+      reason TEXT DEFAULT '',
+      cover_person TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending_hr',
+      hr_notes TEXT DEFAULT '',
+      hr_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hr_reviewed_at TIMESTAMPTZ,
+      hk_notes TEXT DEFAULT '',
+      hk_approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hk_approved_at TIMESTAMPTZ,
+      rejection_reason TEXT DEFAULT '',
+      submitted_at TIMESTAMPTZ DEFAULT NOW(),
+      year INTEGER NOT NULL
+    )
+  `)
+  tableReady = true
+}
+
+function dateStr(val: unknown): string {
+  if (!val) return ''
+  if (val instanceof Date) return val.toISOString().split('T')[0]
+  return String(val).split('T')[0]
+}
+
+function rowToLeave(row: Record<string, unknown>): LeaveRequest {
+  return {
+    id: Number(row.id),
+    employee_id: row.employee_id ? Number(row.employee_id) : null,
+    employee_name: String(row.employee_name || ''),
+    employee_no: String(row.employee_no || ''),
+    department: String(row.department || ''),
+    job_title: String(row.job_title || ''),
+    date_of_employment: String(row.date_of_employment || ''),
+    telephone: String(row.telephone || ''),
+    company: String(row.company || ''),
+    leave_type: row.leave_type as LeaveType,
+    date_from: dateStr(row.date_from),
+    date_to: dateStr(row.date_to),
+    days_requested: Number(row.days_requested),
+    reason: String(row.reason || ''),
+    cover_person: String(row.cover_person || ''),
+    status: row.status as LeaveStatus,
+    hr_notes: String(row.hr_notes || ''),
+    hr_reviewed_by: row.hr_reviewed_by ? Number(row.hr_reviewed_by) : null,
+    hr_reviewed_at: row.hr_reviewed_at ? String(row.hr_reviewed_at) : null,
+    hk_notes: String(row.hk_notes || ''),
+    hk_approved_by: row.hk_approved_by ? Number(row.hk_approved_by) : null,
+    hk_approved_at: row.hk_approved_at ? String(row.hk_approved_at) : null,
+    rejection_reason: String(row.rejection_reason || ''),
+    submitted_at: String(row.submitted_at || ''),
+    year: Number(row.year),
+  }
+}
+
+export async function getAllLeaveRequests(): Promise<LeaveRequest[]> {
+  await ensureTable()
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM leave_requests ORDER BY submitted_at DESC'
+  )
+  return rows.map(rowToLeave)
+}
+
+export async function getMyLeaveRequests(employee_id: number): Promise<LeaveRequest[]> {
+  await ensureTable()
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM leave_requests WHERE employee_id = $1 ORDER BY submitted_at DESC',
+    [employee_id]
+  )
+  return rows.map(rowToLeave)
+}
+
+export async function getLeaveBalance(employee_id: number, year: number): Promise<number> {
+  await ensureTable()
+  const rows = await query<{ total: string }>(
+    `SELECT COALESCE(SUM(days_requested), 0) as total
+     FROM leave_requests
+     WHERE employee_id = $1 AND leave_type = 'annual' AND year = $2
+     AND status NOT IN ('rejected')`,
+    [employee_id, year]
+  )
+  return Number(rows[0]?.total || 0)
+}
+
+export async function createLeaveRequest(data: {
+  employee_id: number
+  employee_name: string
+  employee_no: string
+  department: string
+  job_title: string
+  date_of_employment: string
+  telephone: string
+  company: string
+  leave_type: LeaveType
+  date_from: string
+  date_to: string
+  days_requested: number
+  reason: string
+  cover_person: string
+  year: number
+}): Promise<LeaveRequest> {
+  await ensureTable()
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO leave_requests (
+      employee_id, employee_name, employee_no, department, job_title,
+      date_of_employment, telephone, company, leave_type, date_from, date_to,
+      days_requested, reason, cover_person, year
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    RETURNING *`,
+    [
+      data.employee_id, data.employee_name, data.employee_no, data.department,
+      data.job_title, data.date_of_employment, data.telephone, data.company,
+      data.leave_type, data.date_from, data.date_to, data.days_requested,
+      data.reason, data.cover_person, data.year,
+    ]
+  )
+  if (!row) throw new Error('Failed to create leave request')
+  return rowToLeave(row)
+}
+
+export async function approveByHR(id: number, reviewer_id: number, notes: string): Promise<void> {
+  await execute(
+    `UPDATE leave_requests SET status='pending_hk', hr_notes=$1, hr_reviewed_by=$2, hr_reviewed_at=NOW() WHERE id=$3`,
+    [notes, reviewer_id, id]
+  )
+}
+
+export async function approveByHK(id: number, approver_id: number, notes: string): Promise<void> {
+  await execute(
+    `UPDATE leave_requests SET status='approved', hk_notes=$1, hk_approved_by=$2, hk_approved_at=NOW() WHERE id=$3`,
+    [notes, approver_id, id]
+  )
+}
+
+export async function rejectLeave(id: number, reason: string): Promise<void> {
+  await execute(
+    `UPDATE leave_requests SET status='rejected', rejection_reason=$1 WHERE id=$2`,
+    [reason, id]
+  )
+}

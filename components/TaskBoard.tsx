@@ -516,6 +516,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
           )}
           <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
+          <a href="/forms/leave" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Forms</a>
           {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
             <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
           )}
@@ -591,6 +592,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             {[
               ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Dashboard',href:'/dashboard'}] : []),
               {label:'Task Board',href:'/tasks'},
+              {label:'Forms',href:'/forms/leave'},
               ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Reports',href:'/reports'}] : []),
               ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
             ].map(item=>(
