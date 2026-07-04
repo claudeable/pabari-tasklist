@@ -52,6 +52,12 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
   const myRequests = requests.filter(r => r.employee_id === uid)
 
   // Requests needing the current user's action
+  // Match HOD by ID or by name (fallback if hod_id was stored as null)
+  const isMyHOD = (r: { hod_id: number | null; hod_name: string }) =>
+    (r.hod_id !== null && r.hod_id === uid) ||
+    (!!r.hod_name && r.hod_name.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+    (!!r.hod_name && !!currentUser.name && r.hod_name.split(' ')[0].toLowerCase() === currentUser.name.split(' ')[0].toLowerCase())
+
   const needsMyAction = requests.filter(r => {
     if (r.form_type === 'kiscol') {
       if (r.status === 'pending_hos') return isAdmin || isSuresh
@@ -59,14 +65,14 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
       return false
     } else {
       if (r.status === 'pending_hos')     return isAdmin || isHOS
-      if (r.status === 'pending_hod')     return isAdmin || r.hod_id === uid
+      if (r.status === 'pending_hod')     return isAdmin || isMyHOD(r)
       if (r.status === 'pending_finance') return isAdmin || isFinance
       return false
     }
   })
 
   const canApproveAnything = isAdmin || isHOS || isFinance || isSuresh || isAhmad
-    || requests.some(r => r.status === 'pending_hod' && r.hod_id === uid)
+    || requests.some(r => r.status === 'pending_hod' && isMyHOD(r))
 
   const tabs: { key: Tab; label: string; count: number; visible: boolean }[] = [
     { key: 'mine',            label: 'My Requests',      count: myRequests.length,    visible: true },
@@ -200,7 +206,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
               const st = STATUS_STYLE[req.status]
               const isKiscol = req.form_type === 'kiscol'
               const canHOS     = req.status === 'pending_hos' && (isAdmin || (isKiscol ? isSuresh : isHOS))
-              const canHOD     = req.status === 'pending_hod' && (isAdmin || (isKiscol ? isAhmad : req.hod_id === uid))
+              const canHOD     = req.status === 'pending_hod' && (isAdmin || (isKiscol ? isAhmad : isMyHOD(req)))
               const canFinance = !isKiscol && req.status === 'pending_finance' && (isAdmin || isFinance)
               const canAct     = canHOS || canHOD || canFinance
               const approveAction = canHOS ? 'hos_approve' : canHOD ? 'hod_approve' : 'finance_approve'

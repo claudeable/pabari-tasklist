@@ -37,7 +37,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (!isAdmin && user.email !== AHMAD_EMAIL) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       await approveHODFinal(id, uid)
     } else {
-      if (!isAdmin && pcr.hod_id !== uid) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      const nameMatch = !!pcr.hod_name && !!user.name &&
+        pcr.hod_name.split(' ')[0].toLowerCase() === user.name.split(' ')[0].toLowerCase()
+      const isHOD = pcr.hod_id === uid || nameMatch
+      if (!isAdmin && !isHOD) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       await approveHOD(id, uid)
     }
 
