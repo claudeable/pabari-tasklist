@@ -27,7 +27,7 @@ export default function LoginForm() {
         return
       }
 
-      window.location.href = '/dashboard'
+      window.location.href = '/'
     } catch {
       setError('Network error. Please try again.')
       setLoading(false)

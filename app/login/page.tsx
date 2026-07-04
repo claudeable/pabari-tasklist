@@ -8,7 +8,7 @@ export default async function LoginPage() {
   const session = cookieStore.get('pabari-session')
   if (session?.value) {
     const user = await verifyToken(session.value)
-    if (user) redirect('/tasks')
+    if (user) redirect('/')
   }
   return <LoginForm />
 }
