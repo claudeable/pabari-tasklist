@@ -124,6 +124,14 @@ export async function createPettyCashRequest(data: {
   year:            number
 }): Promise<PettyCashRequest> {
   await ensureTable()
+  // Guard: never let NaN reach the DB
+  const safeId   = (v: unknown) => { const n = parseInt(String(v ?? ''), 10); return isNaN(n) ? 0 : n }
+  const employee_id = safeId(data.employee_id)
+  const hod_id      = data.hod_id === null ? null : safeId(data.hod_id)
+  const year        = isNaN(data.year) ? new Date().getFullYear() : data.year
+  const total       = isNaN(data.total_amount) ? 0 : data.total_amount
+  console.log('[PCR lib] employee_id=%d hod_id=%s year=%d total=%d', employee_id, hod_id, year, total)
+
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO petty_cash_requests (
       form_type, payment_method, request_date, company, employee_id, employee_name, employee_id_no,
@@ -132,14 +140,14 @@ export async function createPettyCashRequest(data: {
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     RETURNING *`,
     [
-      data.form_type, data.payment_method, data.request_date, data.company, data.employee_id, data.employee_name,
+      data.form_type, data.payment_method, data.request_date, data.company, employee_id, data.employee_name,
       data.employee_id_no, data.department, JSON.stringify(data.items),
-      data.total_amount, data.amount_in_words, data.delegate_name, data.delegate_id_no,
-      data.hod_id, data.hod_name, data.year,
+      total, data.amount_in_words, data.delegate_name, data.delegate_id_no,
+      hod_id, data.hod_name, year,
     ]
   )
   if (!row) throw new Error('Failed to create petty cash request')
-  const req_no = `PCR-${data.year}-${String(row.id).padStart(4, '0')}`
+  const req_no = `PCR-${year}-${String(row.id).padStart(4, '0')}`
   await execute('UPDATE petty_cash_requests SET req_no=$1 WHERE id=$2', [req_no, row.id])
   row.req_no = req_no
   return rowToPettyCash(row)

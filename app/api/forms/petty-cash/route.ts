@@ -61,16 +61,20 @@ export async function POST(req: NextRequest) {
       'SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)',
       [AHMAD_EMAIL]
     )
-    if (rows.length > 0) { hod_id = Number(rows[0].id); hod_name = String(rows[0].name) }
+    if (rows.length > 0) { hod_id = safeInt(rows[0].id); hod_name = String(rows[0].name) }
   } else if (user.reports_to) {
     const rows = await query<Record<string, unknown>>(
       'SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)',
       [user.reports_to]
     )
-    if (rows.length > 0) { hod_id = Number(rows[0].id); hod_name = String(rows[0].name) }
+    if (rows.length > 0) { hod_id = safeInt(rows[0].id); hod_name = String(rows[0].name) }
   }
 
-  const year = new Date(request_date).getFullYear()
+  const yearRaw = new Date(request_date).getFullYear()
+  const year    = isNaN(yearRaw) ? new Date().getFullYear() : yearRaw
+  const empId   = safeInt(user.id) ?? 0
+
+  console.log('[PCR] user.id=%s empId=%d hod_id=%s year=%d', user.id, empId, hod_id, year)
 
   try {
     const pcr = await createPettyCashRequest({
@@ -78,7 +82,7 @@ export async function POST(req: NextRequest) {
       payment_method:  payment_method || 'cash',
       request_date,
       company,
-      employee_id:     safeInt(user.id) ?? 0,
+      employee_id:     empId,
       employee_name:   user.name || '',
       employee_id_no:  employee_id_no || '',
       department:      user.department || '',

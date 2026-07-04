@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const year = new Date(date_from).getFullYear()
+  const yearRaw = new Date(date_from).getFullYear()
+  const year    = isNaN(yearRaw) ? new Date().getFullYear() : yearRaw
+
+  console.log('[LEAVE] user.id=%s safeInt=%d year=%d days=%s', user.id, safeInt(user.id), year, days_requested)
 
   if (leave_type === 'annual') {
     const used = await getLeaveBalance(safeInt(user.id), year)
