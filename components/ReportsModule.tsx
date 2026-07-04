@@ -204,9 +204,10 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
         {!isMobile && <>
           <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-          <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
+          <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>← Portal</a>
+          <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
           <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
-          <a href="/forms" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Forms</a>
+          <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
           <a href="/reports"   style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Reports</a>
         </>}
         <div style={{flex:1}}/>
@@ -231,9 +232,9 @@ export default function ReportsModule({ currentUser, initialReports }: Props) {
               <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
             </div>
             {[
-              {label:'Dashboard',href:'/dashboard'},
+              {label:'← Portal',href:'/'},
               {label:'Task Board',href:'/tasks'},
-              {label:'Forms',href:'/forms/leave'},
+              {label:'Dashboard',href:'/dashboard'},
               {label:'Reports',href:'/reports'},
             ].map(item=>(
               <a key={item.href} href={item.href}

@@ -129,9 +129,10 @@ export default function Dashboard({ currentUser, stats }: Props) {
         {!isMobile && <>
           <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
           <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-          <a href="/dashboard" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Dashboard</a>
+          <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>← Portal</a>
+          <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
           <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Task Board</a>
-          <a href="/forms" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Forms</a>
+          <a href="/dashboard" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Dashboard</a>
           <a href="/reports"   style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
           {currentUser.role === 'admin' && <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>}
         </>}
@@ -184,9 +185,9 @@ export default function Dashboard({ currentUser, stats }: Props) {
               <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
             </div>
             {[
-              {label:'Dashboard',href:'/dashboard'},
+              {label:'← Portal',href:'/'},
               {label:'Task Board',href:'/tasks'},
-              {label:'Forms',href:'/forms/leave'},
+              {label:'Dashboard',href:'/dashboard'},
               {label:'Reports',href:'/reports'},
               ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
             ].map(item=>(

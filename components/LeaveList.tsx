@@ -103,10 +103,10 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
         {!isMobile && <>
           <span style={{fontSize:13,fontWeight:700,color:'white'}}>PABARI GROUP</span>
           <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-          {currentUser.role !== 'staff' && <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>}
-          <a href="/tasks" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
-          <a href="/forms" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Forms</a>
-          {currentUser.role !== 'staff' && <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Reports</a>}
+          <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>← Portal</a>
+          <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
+          <a href="/forms/leave" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Leave Requests</a>
+          <a href="/forms/petty-cash" style={{color:'rgba(255,255,255,0.75)',textDecoration:'none',fontSize:12}}>Petty Cash</a>
         </>}
         <div style={{flex:1}}/>
         {!isMobile && <>
@@ -128,10 +128,9 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
               <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer'}}>✕</button>
             </div>
             {[
-              ...(currentUser.role !== 'staff' ? [{label:'Dashboard',href:'/dashboard'}] : []),
-              {label:'Task Board',href:'/tasks'},
-              {label:'Forms',href:'/forms/leave'},
-              ...(currentUser.role !== 'staff' ? [{label:'Reports',href:'/reports'}] : []),
+              {label:'← Portal',href:'/'},
+              {label:'Leave Requests',href:'/forms/leave'},
+              {label:'Petty Cash',href:'/forms/petty-cash'},
             ].map(item => (
               <a key={item.href} href={item.href} style={{display:'block',padding:'13px 16px',color:'rgba(255,255,255,0.85)',textDecoration:'none',fontSize:14,fontWeight:500,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 {item.label}
