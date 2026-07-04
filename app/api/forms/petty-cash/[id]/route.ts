@@ -14,9 +14,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const id      = Number(params.id)
+  const safeInt = (v: unknown) => { const n = parseInt(String(v ?? ''), 10); return isNaN(n) ? 0 : n }
+  const id      = safeInt(params.id)
+  const uid     = safeInt(user.id)
   const { action, notes } = await req.json()
-  const uid     = Number(user.id)
   const isAdmin = user.role === 'admin'
 
   const all = await getAllPettyCashRequests()

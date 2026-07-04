@@ -8,6 +8,11 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+function safeInt(v: unknown): number {
+  const n = parseInt(String(v ?? ''), 10)
+  return isNaN(n) ? 0 : n
+}
+
 export async function GET() {
   const cookieStore = cookies()
   const session = cookieStore.get('pabari-session')
@@ -18,8 +23,8 @@ export async function GET() {
   const [requests, usedDays] = await Promise.all([
     (user.role === 'admin' || user.role === 'director' || user.department === 'HR')
       ? getAllLeaveRequests()
-      : getMyLeaveRequests(Number(user.id)),
-    getLeaveBalance(Number(user.id), year),
+      : getMyLeaveRequests(safeInt(user.id)),
+    getLeaveBalance(safeInt(user.id), year),
   ])
 
   return NextResponse.json({
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
   const year = new Date(date_from).getFullYear()
 
   if (leave_type === 'annual') {
-    const used = await getLeaveBalance(Number(user.id), year)
+    const used = await getLeaveBalance(safeInt(user.id), year)
     if (used + Number(days_requested) > ANNUAL_LEAVE_LIMIT) {
       const remaining = Math.max(0, ANNUAL_LEAVE_LIMIT - used)
       return NextResponse.json({
@@ -58,23 +63,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const leave = await createLeaveRequest({
-    employee_id:      Number(user.id),
-    employee_name:    user.name,
-    employee_no:      employee_no || '',
-    department:       user.department,
-    job_title:        job_title || '',
-    date_of_employment: date_of_employment || '',
-    telephone:        telephone || '',
-    company,
-    leave_type,
-    date_from,
-    date_to,
-    days_requested:   Number(days_requested),
-    reason:           reason || '',
-    cover_person:     cover_person || '',
-    year,
-  })
-
-  return NextResponse.json({ leave })
+  try {
+    const leave = await createLeaveRequest({
+      employee_id:        safeInt(user.id),
+      employee_name:      user.name || '',
+      employee_no:        employee_no || '',
+      department:         user.department || '',
+      job_title:          job_title || '',
+      date_of_employment: date_of_employment || '',
+      telephone:          telephone || '',
+      company,
+      leave_type,
+      date_from,
+      date_to,
+      days_requested:     safeInt(days_requested),
+      reason:             reason || '',
+      cover_person:       cover_person || '',
+      year,
+    })
+    return NextResponse.json({ leave })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[leave POST]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }

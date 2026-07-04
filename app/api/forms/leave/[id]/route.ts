@@ -9,7 +9,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const id = Number(params.id)
+  const safeInt = (v: unknown) => { const n = parseInt(String(v ?? ''), 10); return isNaN(n) ? 0 : n }
+  const id  = safeInt(params.id)
+  const uid = safeInt(user.id)
   const { action, notes } = await req.json()
 
   const isHR    = user.department === 'HR' || user.role === 'admin'
@@ -17,10 +19,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (action === 'hr_approve') {
     if (!isHR) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    await approveByHR(id, Number(user.id), notes || '')
+    await approveByHR(id, uid, notes || '')
   } else if (action === 'hk_approve') {
     if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    await approveByHK(id, Number(user.id), notes || '')
+    await approveByHK(id, uid, notes || '')
   } else if (action === 'reject') {
     if (!isHR) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     await rejectLeave(id, notes || 'Rejected')

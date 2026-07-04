@@ -6,6 +6,11 @@ import { query } from '@/lib/database'
 
 export const dynamic = 'force-dynamic'
 
+function safeInt(v: unknown): number | null {
+  const n = parseInt(String(v ?? ''), 10)
+  return isNaN(n) ? null : n
+}
+
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS (Krishna)
 const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance (Andu)
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com' // KISCOL HOS
@@ -23,7 +28,7 @@ export async function GET() {
 
   const requests = canSeeAll
     ? await getAllPettyCashRequests()
-    : await getMyPettyCashRequests(Number(user.id))
+    : await getMyPettyCashRequests(safeInt(user.id) ?? 0)
 
   return NextResponse.json({ requests })
 }
@@ -73,7 +78,7 @@ export async function POST(req: NextRequest) {
       payment_method:  payment_method || 'cash',
       request_date,
       company,
-      employee_id:     Number(user.id),
+      employee_id:     safeInt(user.id) ?? 0,
       employee_name:   user.name || '',
       employee_id_no:  employee_id_no || '',
       department:      user.department || '',
