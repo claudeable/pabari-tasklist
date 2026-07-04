@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/types'
-import { LeaveRequest, LeaveStatus, LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, ANNUAL_LEAVE_LIMIT } from '@/lib/leave'
+import { LeaveRequest, LeaveStatus, LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, ANNUAL_LEAVE_LIMIT } from '@/lib/leaveTypes'
 
 interface Props {
   currentUser: SessionUser

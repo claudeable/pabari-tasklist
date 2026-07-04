@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/types'
-import { PettyCashRequest, PettyCashStatus, PETTY_CASH_STATUS_LABELS } from '@/lib/pettyCash'
+import { PettyCashRequest, PettyCashStatus, PETTY_CASH_STATUS_LABELS } from '@/lib/pettyCashTypes'
 
 interface Props {
   currentUser: SessionUser
