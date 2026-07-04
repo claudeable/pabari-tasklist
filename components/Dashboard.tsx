@@ -271,7 +271,10 @@ export default function Dashboard({ currentUser, stats }: Props) {
         {/* DEPARTMENT BREAKDOWN */}
         {stats.byDepartment.length > 0 && (() => {
           const deptData = stats.byDepartment.map(d => ({
-            name: d.dept.replace(' & Corporate','').replace(' / Hospitality','').replace(' Operations',''),
+            name: d.dept
+              .replace('International Business & Operations', 'Intl Business & Ops')
+              .replace(' & Corporate','')
+              .replace(' / Hospitality',''),
             full: d.dept,
             Open:    d.open,
             Pending: d.pendingReview,
@@ -290,7 +293,7 @@ export default function Dashboard({ currentUser, stats }: Props) {
                 <BarChart data={deptData} layout="vertical" margin={{left:4,right:32,top:0,bottom:0}} barCategoryGap="30%" barGap={3}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6"/>
                   <XAxis type="number" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
-                  <YAxis type="category" dataKey="name" tick={{fontSize:11,fontWeight:500}} width={130} axisLine={false} tickLine={false} interval={0}/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:11,fontWeight:500}} width={155} axisLine={false} tickLine={false} interval={0}/>
                   <Tooltip contentStyle={{fontSize:11,borderRadius:6}}
                     formatter={(v,n) => [v, n==='Pending'?'Pending Review':'Open Tasks']}
                     labelFormatter={(_,p) => p?.[0]?.payload?.full || ''}/>

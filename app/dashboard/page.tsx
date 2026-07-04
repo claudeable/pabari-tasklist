@@ -33,13 +33,20 @@ export default async function DashboardPage() {
   }
 
   // ── By department (open + pending review) ──────────────────────
+  const SKIP_DEPTS = new Set(['System', 'Director', ''])
   const deptMap: Record<string, { open: number; pendingReview: number }> = {}
+  // Pre-seed all known departments at zero so they always appear
+  for (const u of users) {
+    if (!SKIP_DEPTS.has(u.department)) {
+      if (!deptMap[u.department]) deptMap[u.department] = { open: 0, pendingReview: 0 }
+    }
+  }
   for (const t of tasks) {
     if (t.status === 'resolved' || t.status === 'expired') continue
     const names = t.responsible.split(/\s*[&/]\s*/).map((n: string) => n.trim()).filter(Boolean)
     for (const name of names) {
       const dept = nameToDept[name.toLowerCase()] || nameToDept[name.split(' ')[0].toLowerCase()] || null
-      if (!dept || dept === 'System' || dept === 'Director') continue
+      if (!dept || SKIP_DEPTS.has(dept)) continue
       if (!deptMap[dept]) deptMap[dept] = { open: 0, pendingReview: 0 }
       deptMap[dept].open++
       if (t.status === 'awaiting-hod-approval' || t.status === 'awaiting-hk-approval') {
