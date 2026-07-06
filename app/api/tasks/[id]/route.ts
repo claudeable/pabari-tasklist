@@ -61,9 +61,16 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const token = req.cookies.get('pabari-session')?.value
+  const user  = token ? await verifyToken(token) : null
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const canDelete = user.role === 'admin' || (user.role === 'director' && user.department === 'Director')
+  if (!canDelete) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const ok = await deleteTask(params.id)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })

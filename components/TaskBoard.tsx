@@ -302,7 +302,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   const perms = useMemo(() => ({
     canAddTask:      effectiveRole !== 'staff',
-    canDelete:       currentUser.role === 'admin',
+    canDelete:       currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director'),
     canChangeStatus: effectiveRole !== 'staff',
     canHKComment:    ['admin','director'].includes(currentUser.role),
     canViewAs:       ['admin','director'].includes(currentUser.role),
@@ -1441,7 +1441,18 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             ? {position:'fixed',inset:0,zIndex:300,background:'white',overflowY:'auto',display:'flex',flexDirection:'column'}
             : {width:325,borderLeft:'1px solid #e5e7eb',background:'white',overflowY:'auto',flexShrink:0,display:'flex',flexDirection:'column'}}>
             <div style={{padding:'12px 14px',background:'#1a3a2a',color:'white',flexShrink:0}}>
-              <button onClick={()=>setActiveTask(null)} style={{float:'right',background:'none',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer',fontSize:16,lineHeight:1}}>✕</button>
+              <div style={{float:'right',display:'flex',gap:6,alignItems:'center'}}>
+                {perms.canDelete && (
+                  <button
+                    onClick={() => deleteTask(activeTask.id)}
+                    style={{background:'#dc2626',border:'none',color:'white',cursor:'pointer',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:4,lineHeight:1.4}}
+                    title="Delete task permanently"
+                  >
+                    Delete
+                  </button>
+                )}
+                <button onClick={()=>setActiveTask(null)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer',fontSize:16,lineHeight:1}}>✕</button>
+              </div>
               <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px',color:'rgba(255,255,255,0.5)',marginBottom:3}}>
                 {activeTask.company} · {activeTask.section}
               </div>
