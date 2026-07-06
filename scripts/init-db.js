@@ -154,6 +154,21 @@ async function main() {
       )
     `)
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id         BIGSERIAL PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        user_name  TEXT NOT NULL,
+        message    TEXT NOT NULL,
+        channel    TEXT NOT NULL DEFAULT 'all',
+        is_system  BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel   TEXT    NOT NULL DEFAULT 'all'`)
+    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT false`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_chat_channel ON chat_messages(channel, id)`)
+
     // ── Column migrations (safe to re-run) ───────────────────────────────────
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority        VARCHAR(20)  DEFAULT 'medium'`)
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date        DATE`)
@@ -271,6 +286,13 @@ async function main() {
     } else {
       console.log(`✓ KISCOL already has ${kiscolCount} tasks — skipping`)
     }
+
+    // ── Post a startup system message so Notifications tab is never empty ──────
+    await client.query(
+      `INSERT INTO chat_messages (user_id, user_name, message, channel, is_system)
+       VALUES ('system','System','🚀 System started — chat ready','system',true)`
+    )
+    console.log('✓ System startup message posted')
 
     console.log('✓ Database initialization complete')
   } finally {
