@@ -116,10 +116,12 @@ export async function postDMMessage(fromId: string, fromName: string, toId: stri
 
 export async function postSystemMessage(message: string): Promise<void> {
   try {
+    await ensureTable()
     await execute(
       'INSERT INTO chat_messages (user_id, user_name, message, channel, is_system) VALUES ($1,$2,$3,$4,$5)',
       ['system', 'System', message, 'system', true]
     )
+    console.log('[chat] system message posted:', message)
   } catch (err) {
     console.error('[chat] postSystemMessage failed:', err)
   }

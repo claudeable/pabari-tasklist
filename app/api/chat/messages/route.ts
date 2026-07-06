@@ -6,7 +6,6 @@ import { getMessages, postMessage, ChatChannel } from '@/lib/chat'
 export const dynamic = 'force-dynamic'
 
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
-const HARSHIL_EMAIL = 'hkotecha@kwale-group.com'
 
 function canAccessChannel(user: { role: string; department: string; email?: string }, channel: ChatChannel): boolean {
   if (channel === 'all') return true
@@ -16,7 +15,7 @@ function canAccessChannel(user: { role: string; department: string; email?: stri
       || user.department === 'Finance'
       || (user.email ?? '').toLowerCase() === FINANCE_EMAIL
   }
-  if (channel === 'system') return (user.email ?? '').toLowerCase() === HARSHIL_EMAIL
+  if (channel === 'system') return user.role === 'director' && user.department === 'Director'
   return false
 }
 

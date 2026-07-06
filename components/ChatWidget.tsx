@@ -15,7 +15,6 @@ type Tab     = Channel | 'direct'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
-const HARSHIL_EMAIL = 'hkotecha@kwale-group.com'
 const CHANNELS: Channel[] = ['all', 'hod', 'finance', 'system']
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,7 +35,7 @@ function fmtDateTime(iso: string): string {
 }
 
 // ── Message bubble renderer ───────────────────────────────────────────────────
-function MsgBubble({ msg, i, list, myId }: { msg: ChatMsg; i: number; list: ChatMsg[]; myId: string }) {
+function MsgBubble({ msg, i, list, myId, isDM = false }: { msg: ChatMsg; i: number; list: ChatMsg[]; myId: string; isDM?: boolean }) {
   if (msg.is_system) {
     return (
       <div style={{textAlign:'center',fontSize:11,color:'#6b7280',padding:'4px 0'}}>
@@ -47,18 +46,20 @@ function MsgBubble({ msg, i, list, myId }: { msg: ChatMsg; i: number; list: Chat
     )
   }
   const isMe     = msg.user_id === myId
-  const prevSame = i > 0 && !list[i-1].is_system && list[i-1].user_id === msg.user_id
+  // In DMs always show sender name; in group chats collapse repeated sender names
+  const prevSame = !isDM && i > 0 && !list[i-1].is_system && list[i-1].user_id === msg.user_id
+  const showName = !isMe && !prevSame
   return (
     <div style={{display:'flex',flexDirection:isMe?'row-reverse':'row',gap:7,alignItems:'flex-end'}}>
-      {!isMe && !prevSame && (
+      {!isMe && showName && (
         <div style={{width:28,height:28,borderRadius:'50%',flexShrink:0,background:avatarColor(msg.user_name),color:'white',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>
           {initials(msg.user_name)}
         </div>
       )}
-      {!isMe && prevSame && <div style={{width:28,flexShrink:0}}/>}
+      {!isMe && !showName && <div style={{width:28,flexShrink:0}}/>}
       <div style={{maxWidth:'75%'}}>
-        {!isMe && !prevSame && (
-          <div style={{fontSize:10,fontWeight:600,color:'#6b7280',marginBottom:2,marginLeft:2}}>{msg.user_name}</div>
+        {showName && (
+          <div style={{fontSize:11,fontWeight:700,color:'#374151',marginBottom:3,marginLeft:2}}>{msg.user_name}</div>
         )}
         <div style={{padding:'7px 11px',borderRadius:isMe?'12px 12px 2px 12px':'12px 12px 12px 2px',background:isMe?'#1a3a2a':'#f3f4f6',color:isMe?'white':'#111827',fontSize:13,lineHeight:1.5,wordBreak:'break-word'}}>
           {msg.message}
@@ -100,6 +101,8 @@ export default function ChatWidget({ currentUser }: Props) {
   const [dmSearch,  setDmSearch]  = useState('')
   const [dmLoaded,  setDmLoaded]  = useState(false)
   const [dmUnread,  setDmUnread]  = useState(0)
+  const [onlineIds,    setOnlineIds]    = useState<Set<string>>(new Set())
+  const [dmUnreadFrom, setDmUnreadFrom] = useState<Set<string>>(new Set())
 
   // ── Refs (avoids stale closures in intervals) ────────────────────────────────
   const chLastId   = useRef<Partial<Record<Channel,number>>>({})
@@ -118,9 +121,9 @@ export default function ChatWidget({ currentUser }: Props) {
   useEffect(() => { dmWithR.current = dmWith }, [dmWith])
 
   // ── Access flags ─────────────────────────────────────────────────────────────
-  const email     = (currentUser.email ?? '').toLowerCase()
-  const isHarshil = email === HARSHIL_EMAIL
-  const canSeeHOD = ['admin','director','manager'].includes(currentUser.role)
+  const email      = (currentUser.email ?? '').toLowerCase()
+  const isHarshil  = currentUser.role === 'director' && currentUser.department === 'Director'
+  const canSeeHOD  = ['admin','director','manager'].includes(currentUser.role)
   const canFinance = ['admin','director','ceo'].includes(currentUser.role) || currentUser.department === 'Finance' || email === FINANCE_EMAIL
   const myId = String(currentUser.id)
 
@@ -173,11 +176,18 @@ export default function ChatWidget({ currentUser }: Props) {
     try {
       const res = await fetch(`/api/chat/dm/unread?since=${dmUnreadSince.current}`, { credentials:'include' })
       if (!res.ok) return
-      const { count, maxId } = await res.json() as { count: number; maxId: number }
+      const { count, maxId, senderIds } = await res.json() as { count: number; maxId: number; senderIds: string[] }
       if (count > 0) {
         const isViewingDMs = openR.current && activeTabR.current === 'direct' && dmWithR.current !== null
         if (!isViewingDMs) setDmUnread(c => c + count)
         if (maxId) dmUnreadSince.current = maxId
+        if (senderIds.length) {
+          setDmUnreadFrom(prev => {
+            const next = new Set(prev)
+            senderIds.forEach(id => next.add(id))
+            return next
+          })
+        }
       }
     } catch { /**/ }
   }
@@ -195,14 +205,24 @@ export default function ChatWidget({ currentUser }: Props) {
     } catch { /**/ }
   }
 
+  // ── Presence ping + online fetch ─────────────────────────────────────────────
+  async function pingAndRefreshOnline() {
+    try {
+      await fetch('/api/chat/ping', { method:'POST', credentials:'include' })
+      const res = await fetch('/api/chat/online', { credentials:'include' })
+      if (res.ok) {
+        const { users } = await res.json() as { users: { user_id: string }[] }
+        setOnlineIds(new Set(users.map(u => u.user_id)))
+      }
+    } catch { /**/ }
+  }
+
   // ── Polling setup ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/chat/ping', { method:'POST', credentials:'include' }).catch(() => {})
+    pingAndRefreshOnline()
     visChans.forEach(ch => fetchCh(ch, false))
 
-    const pingT = setInterval(() => {
-      fetch('/api/chat/ping', { method:'POST', credentials:'include' }).catch(() => {})
-    }, 30000)
+    const pingT = setInterval(pingAndRefreshOnline, 30000)
 
     const pollT = setInterval(() => {
       visChans.forEach(ch => fetchCh(ch, true))
@@ -294,15 +314,30 @@ export default function ChatWidget({ currentUser }: Props) {
     } catch { /**/ } finally { setDmSending(false) }
   }
 
-  function openDM(user: DmUser) { setDmWith(user); setDmSearch('') }
+  function openDM(user: DmUser) {
+    setDmWith(user)
+    setDmSearch('')
+    setDmUnreadFrom(prev => { const next = new Set(prev); next.delete(user.id); return next })
+  }
   function closeDM() { setDmWith(null) }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
   const totalUnread    = Object.values(chUnread).reduce((s,n) => s+(n??0), 0) + dmUnread
-  const filteredUsers  = dmUsers.filter(u =>
-    u.name.toLowerCase().includes(dmSearch.toLowerCase()) ||
-    u.department.toLowerCase().includes(dmSearch.toLowerCase())
-  )
+  const filteredUsers  = dmUsers
+    .filter(u =>
+      u.name.toLowerCase().includes(dmSearch.toLowerCase()) ||
+      u.department.toLowerCase().includes(dmSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      // unread first, then online, then alphabetical
+      const aUnread = dmUnreadFrom.has(a.id) ? 0 : 1
+      const bUnread = dmUnreadFrom.has(b.id) ? 0 : 1
+      if (aUnread !== bUnread) return aUnread - bUnread
+      const aOnline = onlineIds.has(a.id) ? 0 : 1
+      const bOnline = onlineIds.has(b.id) ? 0 : 1
+      if (aOnline !== bOnline) return aOnline - bOnline
+      return a.name.localeCompare(b.name)
+    })
   const inDMConvo = activeTab === 'direct' && dmWith !== null
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -337,7 +372,10 @@ export default function ChatWidget({ currentUser }: Props) {
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{dmWith!.name}</div>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.5)'}}>🔒 Private message</div>
+                <div style={{fontSize:10,display:'flex',alignItems:'center',gap:4}}>
+                  <span style={{width:7,height:7,borderRadius:'50%',background:onlineIds.has(dmWith!.id)?'#4ade80':'rgba(255,255,255,0.3)',display:'inline-block',flexShrink:0}}/>
+                  <span style={{color: onlineIds.has(dmWith!.id) ? '#86efac' : 'rgba(255,255,255,0.45)'}}>{onlineIds.has(dmWith!.id) ? 'Online' : 'Away'}</span>
+                </div>
               </div>
             </div>
           ) : (
@@ -388,7 +426,7 @@ export default function ChatWidget({ currentUser }: Props) {
                   Start a private conversation with {dmWith!.name}
                 </div>
               )}
-              {dmMsgs.map((msg, i) => <MsgBubble key={msg.id} msg={msg} i={i} list={dmMsgs} myId={myId} />)}
+              {dmMsgs.map((msg, i) => <MsgBubble key={msg.id} msg={msg} i={i} list={dmMsgs} myId={myId} isDM={true} />)}
               <div ref={dmBottomR}/>
             </div>
           )}
@@ -409,23 +447,35 @@ export default function ChatWidget({ currentUser }: Props) {
                     {dmLoaded ? 'No users found' : 'Loading…'}
                   </div>
                 )}
-                {filteredUsers.map(u => (
-                  <div key={u.id}
-                    onClick={() => openDM(u)}
-                    style={{display:'flex',alignItems:'center',gap:11,padding:'10px 14px',cursor:'pointer',borderBottom:'1px solid #f9fafb'}}
-                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background='#f9fafb'}
-                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background=''}
-                  >
-                    <div style={{width:36,height:36,borderRadius:'50%',background:avatarColor(u.name),color:'white',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                      {initials(u.name)}
+                {filteredUsers.map(u => {
+                  const isOnline  = onlineIds.has(u.id)
+                  const hasUnread = dmUnreadFrom.has(u.id)
+                  return (
+                    <div key={u.id}
+                      onClick={() => openDM(u)}
+                      style={{display:'flex',alignItems:'center',gap:11,padding:'10px 14px',cursor:'pointer',borderBottom:'1px solid #f9fafb',background: hasUnread ? '#fef2f2' : ''}}
+                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background= hasUnread ? '#fee2e2' : '#f9fafb'}
+                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background= hasUnread ? '#fef2f2' : ''}
+                    >
+                      <div style={{position:'relative',flexShrink:0}}>
+                        <div style={{width:36,height:36,borderRadius:'50%',background:avatarColor(u.name),color:'white',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          {initials(u.name)}
+                        </div>
+                        <span style={{position:'absolute',bottom:0,right:0,width:10,height:10,borderRadius:'50%',background:isOnline?'#22c55e':'#d1d5db',border:'2px solid white',display:'block'}}/>
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight: hasUnread ? 700 : 600,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.name}</div>
+                        <div style={{fontSize:11,color: hasUnread ? '#dc2626' : isOnline ? '#16a34a' : '#9ca3af',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {hasUnread ? 'New message' : isOnline ? 'Online' : u.department}
+                        </div>
+                      </div>
+                      {hasUnread && (
+                        <span style={{background:'#dc2626',color:'white',borderRadius:'50%',width:18,height:18,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>!</span>
+                      )}
+                      {!hasUnread && <div style={{color:'#d1d5db',fontSize:18,fontWeight:300}}>›</div>}
                     </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.name}</div>
-                      <div style={{fontSize:11,color:'#9ca3af',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.department}</div>
-                    </div>
-                    <div style={{color:'#d1d5db',fontSize:18,fontWeight:300}}>›</div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
