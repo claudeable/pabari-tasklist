@@ -62,7 +62,9 @@ export async function PATCH(
 
   // When HK saves a comment on an active task, DM the responsible person
   if (user && body.hk_comment?.trim() && task.status !== 'resolved' && task.status !== 'expired') {
-    notifyResponsible(user, task, body.hk_comment.trim()).catch(() => {})
+    notifyResponsible(user, task, body.hk_comment.trim()).catch(err =>
+      console.error('[task PATCH] notifyResponsible failed:', err)
+    )
   }
 
   return NextResponse.json({ ok: true })
