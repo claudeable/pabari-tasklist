@@ -29,7 +29,7 @@ const USERS = [
   { name: 'Andu',       email: 'ateferi@kwale-group.com',  role: 'director', department: 'Accounts',                          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Yared',      email: 'yyigezu@usm.co.ke',        role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Yalelet',    email: 'yaynalem@usm.co.ke',       role: 'staff',    department: 'KISCOL',                            reports_to: 'ahmad@usm.co.ke',          companies: ['KISCOL']  },
-  { name: 'Lulie',      email: 'laynalem@usm.co.ke',       role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
+  { name: 'Lulie Aynalem Ewnetu', email: 'lanalem@kwale-group.com', role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Duran',      email: 'dligaga@usm.co.ke',        role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Juma',       email: 'johasa@usm.co.ke',         role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Benson',     email: 'benson@usm.co.ke',         role: 'director', department: 'Group CEO',                          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
@@ -64,6 +64,7 @@ const EMAIL_MIGRATIONS = [
   { from: 'mungai@usc.co.ke',   to: 'mungai@usm.co.ke'         },
   { from: 'lazarus@usc.co.ke',  to: 'lazarus@usm.co.ke'        },
   { from: 'hpedro@usc.co.ke',   to: 'hpedro@usm.co.ke'         },
+  { from: 'laynalem@usm.co.ke', to: 'lanalem@kwale-group.com'  },
 ]
 
 async function waitForDb(retries = 10, delayMs = 3000) {

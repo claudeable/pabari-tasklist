@@ -112,7 +112,7 @@ export const CATEGORIES = [
 export const PEOPLE = [
   'Ahmad', 'Andu', 'Ashok', 'Benson', 'Binal', 'Duncan',
   'Duran', 'Eng. Suresh', 'Harshil', 'Juma', 'Krishina',
-  'Lazarus', 'Lulie', 'Mungai', 'Paul', 'Pedro',
+  'Lazarus', 'Lulie Aynalem Ewnetu', 'Mungai', 'Paul', 'Pedro',
   'Sabina', 'Simon', 'Yalelet', 'Yared',
 ] as const
 
