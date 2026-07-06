@@ -120,8 +120,8 @@ export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLe
   const pcrTotalAmt    = filteredPCR.reduce((s,r) => s + r.total_amount, 0)
 
   // Unique company lists for filters
-  const leaveCompanies = useMemo(() => [...new Set(leaveReqs.map(r=>r.company))].sort(), [leaveReqs])
-  const pcrCompanies   = useMemo(() => [...new Set(pcrReqs.map(r=>r.company))].sort(), [pcrReqs])
+  const leaveCompanies = useMemo(() => Array.from(new Set(leaveReqs.map(r=>r.company))).sort(), [leaveReqs])
+  const pcrCompanies   = useMemo(() => Array.from(new Set(pcrReqs.map(r=>r.company))).sort(), [pcrReqs])
 
   const leaveStatuses: LeaveStatus[] = ['pending_hr','pending_hk','approved','rejected']
   const pcrStatuses:   PettyCashStatus[] = ['pending_hos','pending_hod','pending_finance','approved','rejected']
