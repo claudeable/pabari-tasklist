@@ -59,7 +59,7 @@ function buildPCRCSV(rows: PettyCashRequest[]): string[][] {
     'Form Type','Payment Method','Item Description','Total Amount (KSH)','Status',
   ]
   const data = rows.map(r => {
-    const itemDesc = r.items.map(i => `${i.particulars} x${i.quantity} @${i.unit_price}`).join(' | ')
+    const itemDesc = r.items.map(i => `${i.description} (${i.account_no}) KSH${i.amount}`).join(' | ')
     return [
       r.req_no, fmtDate(r.submitted_at), r.employee_name, r.department, r.company,
       r.form_type === 'kiscol' ? 'KISCOL' : 'General',
