@@ -10,7 +10,7 @@ const HARSHIL_EMAIL = 'hkotecha@kwale-group.com'
 
 function canAccessChannel(user: { role: string; department: string; email?: string }, channel: ChatChannel): boolean {
   if (channel === 'all') return true
-  if (channel === 'hod') return user.role !== 'staff'
+  if (channel === 'hod') return ['admin','director','manager'].includes(user.role)
   if (channel === 'finance') {
     return ['admin','director','ceo'].includes(user.role)
       || user.department === 'Finance'

@@ -56,7 +56,7 @@ export default function ChatWidget({ currentUser }: Props) {
   const inputRef  = useRef<HTMLTextAreaElement>(null)
 
   const isHarshil    = (currentUser.email ?? '').toLowerCase() === HARSHIL_EMAIL
-  const canSeeHOD    = currentUser.role !== 'staff'
+  const canSeeHOD    = ['admin', 'director', 'manager'].includes(currentUser.role)
   const canSeeFinance = ['admin','director','ceo'].includes(currentUser.role)
     || currentUser.department === 'Finance'
     || (currentUser.email ?? '').toLowerCase() === FINANCE_EMAIL
