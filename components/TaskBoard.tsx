@@ -145,7 +145,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [fuForm, setFuForm] = useState({
     particulars: '',
     responsible: currentUser.name,
-    company: isKiscolOnly ? 'KISCOL' : 'BYTEWISE',
+    company: (!currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')) ? 'KISCOL' : 'BYTEWISE',
     dueDate: '',
     recurrence: 'none' as Recurrence,
   })
