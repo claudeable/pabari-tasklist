@@ -387,6 +387,13 @@ export default function ChatWidget({ currentUser }: Props) {
   return (
     <>
       {/* ── Toggle button ─────────────────────────────────────────────────── */}
+      <style>{`
+        @keyframes pulse-ring {
+          0%   { transform: scale(1);   opacity: 0.8; }
+          70%  { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+      `}</style>
       <div
         onClick={() => setOpen(v => !v)}
         title="Organisation Chat"
@@ -396,9 +403,14 @@ export default function ChatWidget({ currentUser }: Props) {
       >
         {open ? '✕' : '💬'}
         {!open && totalUnread > 0 && (
-          <div style={{position:'absolute',top:-4,right:-4,background:'#dc2626',color:'white',borderRadius:'50%',width:18,height:18,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid white'}}>
-            {totalUnread > 9 ? '9+' : totalUnread}
-          </div>
+          <>
+            {/* Pulsing ring */}
+            <div style={{position:'absolute',top:-4,right:-4,width:18,height:18,borderRadius:'50%',background:'#dc2626',animation:'pulse-ring 1.4s ease-out infinite'}}/>
+            {/* Count badge */}
+            <div style={{position:'absolute',top:-4,right:-4,background:'#dc2626',color:'white',borderRadius:'50%',width:18,height:18,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid white'}}>
+              {totalUnread > 9 ? '9+' : totalUnread}
+            </div>
+          </>
         )}
       </div>
 
