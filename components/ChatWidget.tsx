@@ -103,6 +103,7 @@ export default function ChatWidget({ currentUser }: Props) {
   const [dmUnread,  setDmUnread]  = useState(0)
   const [onlineIds,    setOnlineIds]    = useState<Set<string>>(new Set())
   const [dmUnreadFrom, setDmUnreadFrom] = useState<Set<string>>(new Set())
+  const [notifPerm,   setNotifPerm]    = useState<NotificationPermission | null>(null)
 
   // ── Refs (avoids stale closures in intervals) ────────────────────────────────
   const chLastId   = useRef<Partial<Record<Channel,number>>>({})
@@ -234,6 +235,41 @@ export default function ChatWidget({ currentUser }: Props) {
     }, 3000)
 
     return () => { clearInterval(pingT); clearInterval(pollT) }
+  }, []) // eslint-disable-line
+
+  // ── Push notification registration ───────────────────────────────────────────
+  const VAPID_PUBLIC_KEY = 'BCBZxG0u3uHsKLcfShzJPs_K-9XLAiA1BFj2q0flXWqzgAWhdBZBwv-OFv7slY4GvEoUXdMH-gCksVuUGkPCs-I'
+
+  async function subscribeToPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      const sub = existing ?? await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: VAPID_PUBLIC_KEY,
+      })
+      await fetch('/api/push/subscribe', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      })
+    } catch (err) {
+      console.error('[push] subscribe failed:', err)
+    }
+  }
+
+  async function requestNotifPermission() {
+    const perm = await Notification.requestPermission()
+    setNotifPerm(perm)
+    if (perm === 'granted') await subscribeToPush()
+  }
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+    setNotifPerm(Notification.permission)
+    if (Notification.permission === 'granted') subscribeToPush()
   }, []) // eslint-disable-line
 
   // ── Load on tab change ────────────────────────────────────────────────────────
@@ -382,6 +418,17 @@ export default function ChatWidget({ currentUser }: Props) {
             <div style={{background:'#1a3a2a',color:'white',padding:'12px 16px',flexShrink:0}}>
               <div style={{fontSize:13,fontWeight:700}}>Organisation Chat</div>
               <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginTop:1}}>Pabari Group · Internal</div>
+            </div>
+          )}
+
+          {/* Push notification prompt */}
+          {notifPerm === 'default' && (
+            <div style={{background:'#fef9c3',borderBottom:'1px solid #fde047',padding:'7px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+              <span style={{fontSize:16}}>🔔</span>
+              <span style={{fontSize:11,color:'#713f12',flex:1}}>Enable notifications to get alerts when away</span>
+              <button onClick={requestNotifPermission} style={{fontSize:11,fontWeight:700,color:'white',background:'#1a3a2a',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',flexShrink:0}}>
+                Enable
+              </button>
             </div>
           )}
 

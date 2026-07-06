@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { getDMMessages, postDMMessage } from '@/lib/chat'
+import { getSubscriptionsForUser, sendPush } from '@/lib/push'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const msg = await postDMMessage(String(user.id), user.name, toUserId, toUserName || 'Unknown', message.trim())
+    getSubscriptionsForUser(toUserId)
+      .then(subs => sendPush(subs, {
+        title: `${user.name} (Direct Message)`,
+        body:  message.trim().slice(0, 120),
+        tag:   `dm-${user.id}`,
+        url:   '/',
+      }))
+      .catch(() => {})
     return NextResponse.json({ message: msg })
   } catch (err) {
     console.error('[chat/dm POST]', err)

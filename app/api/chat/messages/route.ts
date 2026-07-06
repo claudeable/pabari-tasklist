@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { getMessages, postMessage, ChatChannel } from '@/lib/chat'
+import { getSubscriptionsForChannel, sendPush } from '@/lib/push'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const msg = await postMessage(String(user.id), user.name, message, channel as ChatChannel)
+    const channelLabel: Record<string, string> = { all: 'All Staff', hod: 'HOD', finance: 'Finance & Accounts' }
+    getSubscriptionsForChannel(channel, String(user.id))
+      .then(subs => sendPush(subs, {
+        title: `${user.name} — ${channelLabel[channel] ?? channel}`,
+        body:  message.trim().slice(0, 120),
+        tag:   `ch-${channel}`,
+        url:   '/',
+      }))
+      .catch(() => {})
     return NextResponse.json({ message: msg })
   } catch (err) {
     console.error('[chat/messages POST]', err)

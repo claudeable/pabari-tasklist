@@ -174,6 +174,18 @@ async function main() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_chat_channel ON chat_messages(channel, id)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_chat_dm      ON chat_messages(channel, to_user_id, id)`)
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id         BIGSERIAL PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        endpoint   TEXT NOT NULL UNIQUE,
+        p256dh     TEXT NOT NULL,
+        auth       TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)`)
+
     // ── Column migrations (safe to re-run) ───────────────────────────────────
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority        VARCHAR(20)  DEFAULT 'medium'`)
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date        DATE`)
