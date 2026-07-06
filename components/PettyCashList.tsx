@@ -15,6 +15,7 @@ const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
+const SABINA_EMAIL  = 'sabina@usc.co.ke'  // Paul's deputy HOD for Operations
 
 const STATUS_STYLE: Record<PettyCashStatus, { bg: string; color: string }> = {
   pending_hos:     { bg: '#fef3c7', color: '#92400e' },
@@ -40,7 +41,8 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
   const isFinance = currentUser.email === FINANCE_EMAIL
   const isSuresh  = currentUser.email === SURESH_EMAIL
   const isAhmad   = currentUser.email === AHMAD_EMAIL
-  const canSeeAll = isAdmin || currentUser.role === 'director' || isHOS || isFinance || isSuresh || isAhmad
+  const isSabina  = currentUser.email === SABINA_EMAIL
+  const canSeeAll = isAdmin || currentUser.role === 'director' || isHOS || isFinance || isSuresh || isAhmad || isSabina
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -53,10 +55,13 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
 
   // Requests needing the current user's action
   // Match HOD by ID or by name (fallback if hod_id was stored as null)
-  const isMyHOD = (r: { hod_id: number | null; hod_name: string }) =>
-    (r.hod_id !== null && r.hod_id === uid) ||
-    (!!r.hod_name && r.hod_name.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
-    (!!r.hod_name && !!currentUser.name && r.hod_name.split(' ')[0].toLowerCase() === currentUser.name.split(' ')[0].toLowerCase())
+  // Sabina is Paul's deputy — she can act wherever Paul is the named HOD
+  const isMyHOD = (r: { hod_id: number | null; hod_name: string }) => {
+    if (isSabina && !!r.hod_name && r.hod_name.split(' ')[0].toLowerCase() === 'paul') return true
+    return (r.hod_id !== null && r.hod_id === uid) ||
+      (!!r.hod_name && r.hod_name.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+      (!!r.hod_name && !!currentUser.name && r.hod_name.split(' ')[0].toLowerCase() === currentUser.name.split(' ')[0].toLowerCase())
+  }
 
   const needsMyAction = requests.filter(r => {
     if (r.form_type === 'kiscol') {

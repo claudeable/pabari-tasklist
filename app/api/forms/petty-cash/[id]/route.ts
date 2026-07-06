@@ -7,6 +7,7 @@ const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS
 const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com' // KISCOL step 1
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'         // KISCOL step 2 (final)
+const SABINA_EMAIL  = 'sabina@usc.co.ke'        // Deputy HOD for Paul (Operations)
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = cookies()
@@ -37,9 +38,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (!isAdmin && user.email !== AHMAD_EMAIL) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       await approveHODFinal(id, uid)
     } else {
-      const nameMatch = !!pcr.hod_name && !!user.name &&
+      const nameMatch   = !!pcr.hod_name && !!user.name &&
         pcr.hod_name.split(' ')[0].toLowerCase() === user.name.split(' ')[0].toLowerCase()
-      const isHOD = pcr.hod_id === uid || nameMatch
+      const isPaulHOD   = !!pcr.hod_name && pcr.hod_name.split(' ')[0].toLowerCase() === 'paul'
+      const isDeputyHOD = user.email === SABINA_EMAIL && isPaulHOD
+      const isHOD       = pcr.hod_id === uid || nameMatch || isDeputyHOD
       if (!isAdmin && !isHOD) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       await approveHOD(id, uid)
     }
@@ -51,8 +54,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   } else if (action === 'reject') {
     const hosEmail  = isKiscol ? SURESH_EMAIL : HOS_EMAIL
+    const isPaulHOD   = !!pcr.hod_name && pcr.hod_name.split(' ')[0].toLowerCase() === 'paul'
     const canReject = isAdmin || user.email === hosEmail || user.email === FINANCE_EMAIL
       || user.email === AHMAD_EMAIL || pcr.hod_id === uid
+      || (user.email === SABINA_EMAIL && isPaulHOD)
     if (!canReject) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     await rejectPettyCash(id, notes || 'Rejected')
 

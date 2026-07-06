@@ -9,6 +9,7 @@ const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
+const SABINA_EMAIL  = 'sabina@usc.co.ke'
 
 function cnt(rows: { count: string }[]) {
   return parseInt(rows[0]?.count ?? '0', 10)
@@ -64,6 +65,15 @@ export async function GET() {
          WHERE status='pending_hod' AND form_type='general'
          AND (hod_id=$1 OR LOWER(SPLIT_PART(hod_name,' ',1))=LOWER($2))`,
         [uid, firstName]
+      )
+      pettyCashGeneral += cnt(r)
+    }
+    // Sabina is Paul's deputy — she sees Paul's pending_hod requests
+    if (user.email?.toLowerCase() === SABINA_EMAIL) {
+      const r = await query<{count:string}>(
+        `SELECT COUNT(*)::text AS count FROM petty_cash_requests
+         WHERE status='pending_hod' AND form_type='general'
+         AND LOWER(SPLIT_PART(hod_name,' ',1))='paul'`
       )
       pettyCashGeneral += cnt(r)
     }
