@@ -165,9 +165,12 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
-    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel   TEXT    NOT NULL DEFAULT 'all'`)
-    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT false`)
+    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel      TEXT    NOT NULL DEFAULT 'all'`)
+    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_system    BOOLEAN NOT NULL DEFAULT false`)
+    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS to_user_id   TEXT`)
+    await client.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS to_user_name TEXT`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_chat_channel ON chat_messages(channel, id)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_chat_dm      ON chat_messages(channel, to_user_id, id)`)
 
     // ── Column migrations (safe to re-run) ───────────────────────────────────
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority        VARCHAR(20)  DEFAULT 'medium'`)
