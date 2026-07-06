@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pabari ERP — Login Reference</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111827; }
+
+    header {
+      background: #1a3a2a;
+      color: white;
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .badge { background: #b5833a; color: white; font-weight: 800; font-size: 13px; padding: 5px 12px; border-radius: 4px; letter-spacing: 1px; }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header p  { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+    .container { max-width: 900px; margin: 32px auto; padding: 0 20px 40px; }
+
+    .notice {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-left: 4px solid #f59e0b;
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #92400e;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .section { margin-bottom: 32px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #6b7280;
+      margin-bottom: 10px;
+      padding-left: 2px;
+    }
+
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+    thead tr { background: #1a3a2a; color: white; }
+    thead th { padding: 11px 14px; font-size: 11px; font-weight: 600; text-align: left; letter-spacing: 0.4px; text-transform: uppercase; }
+    tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f9fafb; }
+    tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
+
+    .name { font-weight: 600; color: #111827; }
+    .email { color: #1a3a2a; font-family: 'Courier New', monospace; font-size: 12px; }
+    .dept { color: #6b7280; font-size: 12px; }
+
+    .role-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .role-admin    { background: #fee2e2; color: #991b1b; }
+    .role-director { background: #ede9fe; color: #5b21b6; }
+    .role-manager  { background: #dbeafe; color: #1e40af; }
+    .role-staff    { background: #f3f4f6; color: #6b7280; }
+
+    .pw { font-family: 'Courier New', monospace; font-size: 12px; background: #f3f4f6; padding: 2px 7px; border-radius: 4px; color: #374151; }
+
+    .footer { text-align: center; font-size: 11px; color: #9ca3af; margin-top: 32px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <span class="badge">PABARI</span>
+  </div>
+  <div>
+    <h1>ERP Login Reference</h1>
+    <p>Internal credentials sheet — keep confidential</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="notice">
+    ⚠️ All accounts use the default password <strong>changeme123</strong> until the user logs in and changes it.
+    Users should change their password on first login via the portal settings.
+  </div>
+
+  <!-- Directors / Leadership -->
+  <div class="section">
+    <div class="section-title">Directors &amp; Leadership</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email (Login)</th>
+          <th>Department</th>
+          <th>Role</th>
+          <th>Default Password</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">Harshil</td>
+          <td class="email">hkotecha@kwale-group.com</td>
+          <td class="dept">Director</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Benson</td>
+          <td class="email">benson@usm.co.ke</td>
+          <td class="dept">Group CEO</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Paul</td>
+          <td class="email">pmureithi@usm.co.ke</td>
+          <td class="dept">Operations / AOB</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Ashok</td>
+          <td class="email">sashok@usm.co.ke</td>
+          <td class="dept">International Business &amp; Operations</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Andu</td>
+          <td class="email">ateferi@kwale-group.com</td>
+          <td class="dept">Accounts</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Ahmad</td>
+          <td class="email">ahmad@usm.co.ke</td>
+          <td class="dept">KISCOL</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Eng. Suresh</td>
+          <td class="email">ssuresh@kwale-group.com</td>
+          <td class="dept">Projects</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Binal</td>
+          <td class="email">bpabari@usm.co.ke</td>
+          <td class="dept">GHPL</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Krishina</td>
+          <td class="email">rkrishnan@usm.co.ke</td>
+          <td class="dept">Trading</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">David Kulecho</td>
+          <td class="email">dkulecho@kwale-group.com</td>
+          <td class="dept">Legal</td>
+          <td><span class="role-badge role-director">Director</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Managers / HODs -->
+  <div class="section">
+    <div class="section-title">Managers / HODs</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email (Login)</th>
+          <th>Department</th>
+          <th>Role</th>
+          <th>Default Password</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">James</td>
+          <td class="email">joduor@usm.co.ke</td>
+          <td class="dept">HR</td>
+          <td><span class="role-badge role-manager">Manager</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Pedro</td>
+          <td class="email">hpedro@usm.co.ke</td>
+          <td class="dept">IT</td>
+          <td><span class="role-badge role-manager">Manager</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Mungai</td>
+          <td class="email">mungai@usm.co.ke</td>
+          <td class="dept">Logistics</td>
+          <td><span class="role-badge role-manager">Manager</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Lazarus</td>
+          <td class="email">lazarus@usm.co.ke</td>
+          <td class="dept">Administration</td>
+          <td><span class="role-badge role-manager">Manager</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Staff -->
+  <div class="section">
+    <div class="section-title">Staff</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email (Login)</th>
+          <th>Department</th>
+          <th>Role</th>
+          <th>Default Password</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">Sabina</td>
+          <td class="email">smutua@kwale-group.com</td>
+          <td class="dept">KISCOL</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Yared</td>
+          <td class="email">yyigezu@usm.co.ke</td>
+          <td class="dept">Accounts</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Yalelet</td>
+          <td class="email">yaynalem@usm.co.ke</td>
+          <td class="dept">KISCOL</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Lulie</td>
+          <td class="email">laynalem@usm.co.ke</td>
+          <td class="dept">Accounts</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Duran</td>
+          <td class="email">dligaga@usm.co.ke</td>
+          <td class="dept">Accounts</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Juma</td>
+          <td class="email">johasa@usm.co.ke</td>
+          <td class="dept">Accounts</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Simon</td>
+          <td class="email">sithibu@kwale-group.com</td>
+          <td class="dept">Administration</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+        <tr>
+          <td class="name">Duncan</td>
+          <td class="email">dmumo@usm.co.ke</td>
+          <td class="dept">Administration</td>
+          <td><span class="role-badge role-staff">Staff</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- System -->
+  <div class="section">
+    <div class="section-title">System</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email (Login)</th>
+          <th>Department</th>
+          <th>Role</th>
+          <th>Default Password</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">Admin</td>
+          <td class="email">admin@usm.co.ke</td>
+          <td class="dept">System</td>
+          <td><span class="role-badge role-admin">Admin</span></td>
+          <td><span class="pw">changeme123</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    Pabari Group · ERP Portal · Internal Use Only · Generated 2026
+  </div>
+
+</div>
+</body>
+</html>
