@@ -240,6 +240,12 @@ export default function ChatWidget({ currentUser }: Props) {
   // ── Push notification registration ───────────────────────────────────────────
   const VAPID_PUBLIC_KEY = 'BCBZxG0u3uHsKLcfShzJPs_K-9XLAiA1BFj2q0flXWqzgAWhdBZBwv-OFv7slY4GvEoUXdMH-gCksVuUGkPCs-I'
 
+  function urlB64ToUint8Array(b64: string): Uint8Array {
+    const pad = '='.repeat((4 - b64.length % 4) % 4)
+    const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'))
+    return new Uint8Array([...raw].map(c => c.charCodeAt(0)))
+  }
+
   async function subscribeToPush() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     try {
@@ -247,13 +253,14 @@ export default function ChatWidget({ currentUser }: Props) {
       const existing = await reg.pushManager.getSubscription()
       const sub = existing ?? await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY,
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
       })
-      await fetch('/api/push/subscribe', {
+      const res = await fetch('/api/push/subscribe', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: sub.toJSON() }),
       })
+      if (!res.ok) console.error('[push] save subscription failed', res.status)
     } catch (err) {
       console.error('[push] subscribe failed:', err)
     }
@@ -267,7 +274,7 @@ export default function ChatWidget({ currentUser }: Props) {
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
+    navigator.serviceWorker.register('/sw.js').catch(err => console.error('[sw]', err))
     setNotifPerm(Notification.permission)
     if (Notification.permission === 'granted') subscribeToPush()
   }, []) // eslint-disable-line
@@ -428,6 +435,18 @@ export default function ChatWidget({ currentUser }: Props) {
               <span style={{fontSize:11,color:'#713f12',flex:1}}>Enable notifications to get alerts when away</span>
               <button onClick={requestNotifPermission} style={{fontSize:11,fontWeight:700,color:'white',background:'#1a3a2a',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',flexShrink:0}}>
                 Enable
+              </button>
+            </div>
+          )}
+          {notifPerm === 'granted' && (
+            <div style={{background:'#f0fdf4',borderBottom:'1px solid #bbf7d0',padding:'5px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+              <span style={{fontSize:12}}>🔔</span>
+              <span style={{fontSize:11,color:'#166534',flex:1}}>Notifications active</span>
+              <button
+                onClick={() => fetch('/api/push/test',{method:'POST',credentials:'include'}).then(r=>r.json()).then(d=>d.error && alert(d.error)).catch(()=>{})}
+                style={{fontSize:10,color:'#166534',background:'none',border:'1px solid #86efac',borderRadius:6,padding:'3px 8px',cursor:'pointer',flexShrink:0}}
+              >
+                Test
               </button>
             </div>
           )}
