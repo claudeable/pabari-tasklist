@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
   Task, TaskStatus, TaskUpdate, ApprovalType,
@@ -138,6 +138,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [filterCategory,  setFilterCategory]  = useState('')
 
   const showCompanyCol = filterCompany === ''
+  const companyTabsRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft,  setCanScrollLeft]  = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+
+  function onCompanyScroll() {
+    const el = companyTabsRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 0)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }
+  function scrollCompanyTabs(dir: 'left' | 'right') {
+    companyTabsRef.current?.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' })
+  }
+
   const [expandedRows,  setExpandedRows]  = useState<Set<string>>(new Set())
   const [activeTask,    setActiveTask]    = useState<Task | null>(null)
   const [showAddForm,      setShowAddForm]      = useState(false)
@@ -860,27 +874,35 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       </div>
 
       {/* COMPANY TAB BAR */}
-      <div style={{background:'white',borderBottom:'2px solid #e5e7eb',display:'flex',alignItems:'stretch',overflowX:'auto',flexShrink:0,scrollbarWidth:'none'}}>
-        {(isKiscolOnly
-          ? [{label:'KISCOL',key:'KISCOL'}]
-          : [{label:'ALL',key:''}, ...COMPANIES.map(c=>({label:c,key:c}))]
-        ).map(({label,key})=>{
-          const active = filterCompany===key
-          const cnt = key==='' ? visibleTasks.length : (companyCounts[key]||0)
-          return (
-            <button key={key} onClick={()=>{setFilterCompany(key);setFilterSection('')}}
-              style={{border:'none',borderBottom:active?'2px solid #1a3a2a':'2px solid transparent',
-                background:'transparent',padding:'0 14px',height:40,cursor:'pointer',
-                display:'flex',alignItems:'center',gap:5,whiteSpace:'nowrap',flexShrink:0,
-                color:active?'#1a3a2a':'#6b7280',fontWeight:active?700:400,fontSize:12,marginBottom:-2}}>
-              {label}
-              <span style={{background:active?'#1a3a2a':'#f3f4f6',color:active?'white':'#9ca3af',
-                fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
-                {cnt}
-              </span>
-            </button>
-          )
-        })}
+      <div style={{background:'white',borderBottom:'2px solid #e5e7eb',display:'flex',alignItems:'stretch',flexShrink:0,position:'relative'}}>
+        {canScrollLeft && (
+          <button onClick={()=>scrollCompanyTabs('left')} style={{position:'absolute',left:0,top:0,bottom:0,zIndex:2,width:32,background:'linear-gradient(to right,white 60%,transparent)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'flex-start',paddingLeft:6,color:'#6b7280',fontSize:16,flexShrink:0}}>‹</button>
+        )}
+        <div ref={companyTabsRef} onScroll={onCompanyScroll} style={{display:'flex',alignItems:'stretch',overflowX:'auto',scrollbarWidth:'none',flex:1}}>
+          {(isKiscolOnly
+            ? [{label:'KISCOL',key:'KISCOL'}]
+            : [{label:'ALL',key:''}, ...COMPANIES.map(c=>({label:c,key:c}))]
+          ).map(({label,key})=>{
+            const active = filterCompany===key
+            const cnt = key==='' ? visibleTasks.length : (companyCounts[key]||0)
+            return (
+              <button key={key} onClick={()=>{setFilterCompany(key);setFilterSection('')}}
+                style={{border:'none',borderBottom:active?'2px solid #1a3a2a':'2px solid transparent',
+                  background:'transparent',padding:'0 14px',height:40,cursor:'pointer',
+                  display:'flex',alignItems:'center',gap:5,whiteSpace:'nowrap',flexShrink:0,
+                  color:active?'#1a3a2a':'#6b7280',fontWeight:active?700:400,fontSize:12,marginBottom:-2}}>
+                {label}
+                <span style={{background:active?'#1a3a2a':'#f3f4f6',color:active?'white':'#9ca3af',
+                  fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
+                  {cnt}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        {canScrollRight && !isKiscolOnly && (
+          <button onClick={()=>scrollCompanyTabs('right')} style={{position:'absolute',right:0,top:0,bottom:0,zIndex:2,width:32,background:'linear-gradient(to left,white 60%,transparent)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:6,color:'#6b7280',fontSize:16,flexShrink:0}}>›</button>
+        )}
       </div>
 
       {/* PENDING MY REVIEW TAB */}
