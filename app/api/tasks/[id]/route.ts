@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateTask, deleteTask, createTask } from '@/lib/db'
 import { verifyToken } from '@/lib/auth'
-import { RECURRENCE_OPTIONS } from '@/types'
+import { RECURRENCE_OPTIONS, Task } from '@/types'
+import { getUserByName } from '@/lib/users'
+import { postDMMessage } from '@/lib/chat'
+import { getSubscriptionsForUser, sendPush } from '@/lib/push'
 
 function advanceDate(fromISO: string, days: number): string {
   const d = fromISO ? new Date(fromISO) : new Date()
@@ -57,7 +60,38 @@ export async function PATCH(
     }
   }
 
+  // When HK saves a comment on an active task, DM the responsible person
+  if (user && body.hk_comment?.trim() && task.status !== 'resolved' && task.status !== 'expired') {
+    notifyResponsible(user, task, body.hk_comment.trim()).catch(() => {})
+  }
+
   return NextResponse.json({ ok: true })
+}
+
+async function notifyResponsible(
+  sender: { id: string | number; name: string },
+  task: Task,
+  comment: string
+) {
+  const responsible = await getUserByName(task.responsible)
+  if (!responsible || String(responsible.id) === String(sender.id)) return
+
+  const snippet = task.particulars.length > 70
+    ? task.particulars.slice(0, 70) + '…'
+    : task.particulars
+  const dmText = `📋 HK commented on your task:\n"${snippet}"\n\n${comment}\n\n→ Task is still pending your update.`
+
+  await postDMMessage(String(sender.id), sender.name, String(responsible.id), responsible.name, dmText)
+
+  const subs = await getSubscriptionsForUser(String(responsible.id))
+  if (subs.length) {
+    await sendPush(subs, {
+      title: `Harshil commented on your task`,
+      body:  snippet,
+      tag:   `hk-comment-${task.id}`,
+      url:   '/',
+    })
+  }
 }
 
 export async function DELETE(

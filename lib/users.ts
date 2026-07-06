@@ -40,6 +40,14 @@ export async function getUsers(): Promise<StoredUser[]> {
   return rows.map(rowToUser)
 }
 
+export async function getUserByName(name: string): Promise<StoredUser | undefined> {
+  const row = await queryOne<Record<string, unknown>>(
+    'SELECT * FROM users WHERE LOWER(name) = LOWER($1)',
+    [name]
+  )
+  return row ? rowToUser(row) : undefined
+}
+
 export async function getUserByEmail(email: string): Promise<StoredUser | undefined> {
   const row = await queryOne<Record<string, unknown>>(
     'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
