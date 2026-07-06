@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/types'
+import ChatWidget from '@/components/ChatWidget'
 
 interface Props {
   currentUser: SessionUser
@@ -263,6 +264,8 @@ export default function PortalHub({ currentUser }: Props) {
           Document Management is coming soon.
         </div>
       </div>
+
+      <ChatWidget currentUser={currentUser} />
     </div>
   )
 }
