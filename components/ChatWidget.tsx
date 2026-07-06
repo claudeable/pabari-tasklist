@@ -154,7 +154,10 @@ export default function ChatWidget({ currentUser }: Props) {
       } else {
         chLastId.current[ch] = ms[ms.length-1].id
         if (isActive) setMsgs(prev => [...prev, ...ms])
-        if (polling && (!isOpen || !isActive)) setChUnread(u => ({...u, [ch]: (u[ch]??0) + ms.length}))
+        if (polling && (!isOpen || !isActive)) {
+          setChUnread(u => ({...u, [ch]: (u[ch]??0) + ms.length}))
+          playNotifSound()
+        }
       }
     } catch { /**/ }
   }
@@ -180,7 +183,10 @@ export default function ChatWidget({ currentUser }: Props) {
       const { count, maxId, senderIds } = await res.json() as { count: number; maxId: number; senderIds: string[] }
       if (count > 0) {
         const isViewingDMs = openR.current && activeTabR.current === 'direct' && dmWithR.current !== null
-        if (!isViewingDMs) setDmUnread(c => c + count)
+        if (!isViewingDMs) {
+          setDmUnread(c => c + count)
+          playNotifSound()
+        }
         if (maxId) dmUnreadSince.current = maxId
         if (senderIds.length) {
           setDmUnreadFrom(prev => {
@@ -203,6 +209,29 @@ export default function ChatWidget({ currentUser }: Props) {
         setDmUsers(users)
         setDmLoaded(true)
       }
+    } catch { /**/ }
+  }
+
+  // ── Notification sound ───────────────────────────────────────────────────────
+  function playNotifSound() {
+    try {
+      const ctx = new AudioContext()
+      const play = (freq: number, start: number, duration: number) => {
+        const osc  = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0, ctx.currentTime + start)
+        gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + start + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(ctx.currentTime + start)
+        osc.stop(ctx.currentTime + start + duration)
+      }
+      play(880, 0,    0.18)   // first ding
+      play(1100, 0.18, 0.22)  // second ding (higher)
+      setTimeout(() => ctx.close(), 600)
     } catch { /**/ }
   }
 
