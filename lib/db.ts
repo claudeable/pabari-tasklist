@@ -1,6 +1,13 @@
 import { query, queryOne, execute } from './database'
 import { Task, TaskUpdate, TaskPriority, Recurrence } from '@/types'
 
+let parentColReady = false
+async function ensureParentId() {
+  if (parentColReady) return
+  await execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_id INTEGER')
+  parentColReady = true
+}
+
 function rowToTask(row: Record<string, unknown>): Task {
   const updates = Array.isArray(row.task_updates) ? row.task_updates : []
   return {
@@ -25,6 +32,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     hod_comment:     String(row.hod_comment || ''),
     due_date:        row.due_date ? String(row.due_date).slice(0, 10) : '',
     recurrence:      (row.recurrence as Recurrence) || 'none',
+    parent_id:       row.parent_id ? String(row.parent_id) : undefined,
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
     task_updates: (updates as Record<string, unknown>[]).map(u => ({
@@ -51,6 +59,7 @@ const TASK_SELECT = `
 `
 
 export async function getTasks(): Promise<Task[]> {
+  await ensureParentId()
   const rows = await query<Record<string, unknown>>(
     `${TASK_SELECT} GROUP BY t.id ORDER BY t.id`
   )
@@ -68,17 +77,20 @@ export async function getTaskById(id: string): Promise<Task | undefined> {
 export async function createTask(
   data: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'task_updates'>
 ): Promise<Task> {
+  await ensureParentId()
   const now = new Date().toISOString()
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
        responsible, payment, status, priority, approval_type, status_wk, hk_comment,
-       due_date, recurrence, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       due_date, recurrence, parent_id, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [data.sno, data.date, data.company, data.category, data.section, data.particulars,
      data.updates, data.responsible, data.payment, data.status, data.priority ?? 'medium',
      data.approval_type ?? '', data.status_wk, data.hk_comment,
-     data.due_date || null, data.recurrence || 'none', now, now]
+     data.due_date || null, data.recurrence || 'none',
+     data.parent_id ? Number(data.parent_id) : null,
+     now, now]
   )
   if (!row) throw new Error('Failed to create task')
   return rowToTask({ ...row, task_updates: [] })

@@ -56,6 +56,7 @@ export async function PATCH(
         hod_comment:     '',
         due_date:        nextDue,
         recurrence:      task.recurrence,
+        parent_id:       task.id,
       })
     }
   }

@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     hod_comment:     body.hod_comment ?? '',
     due_date:        body.due_date ?? '',
     recurrence:      body.recurrence ?? 'none',
+    parent_id:       body.parent_id ? String(body.parent_id) : undefined,
   })
 
   if (body.initial_update) {

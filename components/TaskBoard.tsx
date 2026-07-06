@@ -533,6 +533,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         date:            fmtDate(),
         sno:             tasks.filter(t=>t.company===fuForm.company).length+1,
         update_date:     todayStr(),
+        parent_id:       activeTask?.id,
       }),
     })
     const { task } = await res.json()
@@ -1775,6 +1776,48 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                             <span style={{color:'#dc2626',textDecoration:'line-through',marginRight:4}}>{fmtVal(entry.field, entry.old_value)}</span>
                             <span style={{color:'#9ca3af',marginRight:4}}>→</span>
                             <span style={{color:'#15803d',fontWeight:600}}>{fmtVal(entry.field, entry.new_value)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )
+              })()}
+
+              {/* LINKED TASKS — parent chain + follow-ups */}
+              {(() => {
+                const parentTask = activeTask.parent_id ? tasks.find(t => t.id === activeTask.parent_id) : null
+                const childTasks = tasks.filter(t => t.parent_id === activeTask.id)
+                if (!parentTask && childTasks.length === 0) return null
+                const openLinked = (t: Task) => { setActiveTask(t) }
+                const pill = (label: string, color: string) => (
+                  <span style={{background:color,color:'white',fontSize:8.5,fontWeight:700,padding:'1px 5px',borderRadius:8,marginRight:4,textTransform:'uppercase'}}>{label}</span>
+                )
+                return (
+                  <>
+                    <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',margin:'14px 0 5px',paddingBottom:4,borderBottom:'1px solid #f3f4f6'}}>
+                      Linked Tasks
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                      {parentTask && (
+                        <div onClick={()=>openLinked(parentTask)}
+                          style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:5,padding:'7px 10px',cursor:'pointer',display:'flex',alignItems:'flex-start',gap:8}}>
+                          <span style={{fontSize:11,color:'#0369a1',flexShrink:0,marginTop:1}}>↑</span>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:'#0369a1',marginBottom:2}}>Previous cycle / Original task</div>
+                            <div style={{fontSize:11,color:'#374151'}}>{parentTask.particulars.slice(0,80)}{parentTask.particulars.length>80?'…':''}</div>
+                            <div style={{fontSize:10,color:'#9ca3af',marginTop:2}}>{parentTask.company} · {parentTask.responsible} · {pill(parentTask.status.replace(/-/g,' '), parentTask.status==='resolved'?'#16a34a':parentTask.status==='pending-discussion'?'#d97706':'#6b7280')}</div>
+                          </div>
+                        </div>
+                      )}
+                      {childTasks.map(child => (
+                        <div key={child.id} onClick={()=>openLinked(child)}
+                          style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:5,padding:'7px 10px',cursor:'pointer',display:'flex',alignItems:'flex-start',gap:8}}>
+                          <span style={{fontSize:11,color:'#15803d',flexShrink:0,marginTop:1}}>↓</span>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:'#15803d',marginBottom:2}}>Follow-up / Next cycle</div>
+                            <div style={{fontSize:11,color:'#374151'}}>{child.particulars.slice(0,80)}{child.particulars.length>80?'…':''}</div>
+                            <div style={{fontSize:10,color:'#9ca3af',marginTop:2}}>{child.company} · {child.responsible} · {pill(child.status.replace(/-/g,' '), child.status==='resolved'?'#16a34a':child.status==='pending-discussion'?'#d97706':'#6b7280')}</div>
                           </div>
                         </div>
                       ))}

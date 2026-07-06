@@ -156,6 +156,7 @@ export interface Task {
   hod_comment:     string
   due_date:        string   // YYYY-MM-DD, '' if not set
   recurrence:      Recurrence
+  parent_id?:      string   // links follow-ups and recurrence cycles to their origin task
   created_at:      string
   updated_at:      string
   task_updates?:   TaskUpdate[]
