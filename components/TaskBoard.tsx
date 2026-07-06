@@ -77,25 +77,36 @@ function weekNum() {
   const d = new Date(), s = new Date(d.getFullYear(), 0, 1)
   return `WK-${Math.ceil(((d.getTime()-s.getTime())/86400000+s.getDay()+1)/7)}`
 }
+function parseDueDate(due: string): Date | null {
+  if (!due) return null
+  // Strip time portion if present (e.g. '2026-07-14T00:00:00.000Z' → '2026-07-14')
+  const datePart = due.split('T')[0]
+  const parts = datePart.split('-')
+  if (parts.length !== 3) return null
+  const [y, mo, d] = parts.map(Number)
+  if (!y || !mo || !d) return null
+  // Construct in LOCAL time so getFullYear/getDate/getMonth stay consistent
+  return new Date(y, mo - 1, d)
+}
 function dueDateStatus(due: string): 'overdue' | 'soon' | 'ok' | 'none' {
-  if (!due) return 'none'
+  const d = parseDueDate(due)
+  if (!d) return 'none'
   const today = new Date(); today.setHours(0,0,0,0)
-  const d = new Date(due); d.setHours(0,0,0,0)
   const diff = Math.ceil((d.getTime()-today.getTime())/86400000)
   if (diff < 0)  return 'overdue'
   if (diff <= 7) return 'soon'
   return 'ok'
 }
 function fmtDueDate(due: string): string {
-  if (!due) return ''
-  const d = new Date(due)
+  const d = parseDueDate(due)
+  if (!d) return ''
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()}`
 }
 function daysOverdue(due: string): number {
-  if (!due) return 0
+  const d = parseDueDate(due)
+  if (!d) return 0
   const today = new Date(); today.setHours(0,0,0,0)
-  const d = new Date(due); d.setHours(0,0,0,0)
   return Math.ceil((today.getTime()-d.getTime())/86400000)
 }
 
