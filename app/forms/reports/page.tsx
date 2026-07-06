@@ -11,7 +11,7 @@ const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
-const SABINA_EMAIL  = 'sabina@usc.co.ke'
+const SABINA_EMAIL  = 'smutua@kwale-group.com'
 
 export default async function FormsReportsPage() {
   const cookieStore = cookies()

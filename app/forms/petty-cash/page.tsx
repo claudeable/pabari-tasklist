@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
-const SABINA_EMAIL  = 'sabina@usc.co.ke'
+const SABINA_EMAIL  = 'smutua@kwale-group.com'
 
 export default async function PettyCashPage() {
   const cookieStore = cookies()

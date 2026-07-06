@@ -8,17 +8,15 @@ interface ChatMessage {
   user_id:    string
   user_name:  string
   message:    string
+  channel:    string
+  is_system:  boolean
   created_at: string
 }
 
-interface OnlineUser {
-  id:        string
-  name:      string
-  role:      string
-  last_seen: string
-}
+type Channel = 'all' | 'hod' | 'finance' | 'system'
 
-const HARSHIL_EMAIL = 'harshil@usc.co.ke'
+const FINANCE_EMAIL = 'ateferi@kwale-group.com'
+const HARSHIL_EMAIL = 'hkotecha@kwale-group.com'
 
 const AVATAR_COLORS = [
   '#1a3a2a','#2d6a4f','#b5833a','#7b2d8b','#1e40af',
@@ -34,107 +32,123 @@ function initials(name: string): string {
 }
 function fmtTime(iso: string): string {
   if (!iso) return ''
+  return new Date(iso).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
+}
+function fmtDateTime(iso: string): string {
+  if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) + ' ' +
+    d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
 }
 
-interface Props {
-  currentUser: SessionUser
-}
+interface Props { currentUser: SessionUser }
 
 export default function ChatWidget({ currentUser }: Props) {
-  const [open,         setOpen]         = useState(false)
-  const [messages,     setMessages]     = useState<ChatMessage[]>([])
-  const [draft,        setDraft]        = useState('')
-  const [sending,      setSending]      = useState(false)
-  const [onlineUsers,  setOnlineUsers]  = useState<OnlineUser[]>([])
-  const [showOnline,   setShowOnline]   = useState(false)
-  const [unread,       setUnread]       = useState(0)
+  const [open,     setOpen]     = useState(false)
+  const [channel,  setChannel]  = useState<Channel>('all')
+  const [msgs,     setMsgs]     = useState<ChatMessage[]>([])
+  const [draft,    setDraft]    = useState('')
+  const [sending,  setSending]  = useState(false)
+  const [unread,   setUnread]   = useState<Partial<Record<Channel,number>>>({})
 
-  const lastIdRef    = useRef(0)
-  const bottomRef    = useRef<HTMLDivElement>(null)
-  const inputRef     = useRef<HTMLTextAreaElement>(null)
+  const lastIdRef = useRef<Partial<Record<Channel,number>>>({})
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
+
   const isHarshil    = (currentUser.email ?? '').toLowerCase() === HARSHIL_EMAIL
+  const canSeeHOD    = currentUser.role !== 'staff'
+  const canSeeFinance = ['admin','director','ceo'].includes(currentUser.role)
+    || currentUser.department === 'Finance'
+    || (currentUser.email ?? '').toLowerCase() === FINANCE_EMAIL
 
-  // ── Fetch messages ────────────────────────────────────────────────────────
-  const fetchMessages = useCallback(async (initial = false) => {
+  const channels: { id: Channel; label: string; visible: boolean }[] = [
+    { id: 'all',     label: 'Open to All',       visible: true },
+    { id: 'hod',     label: 'HOD',               visible: canSeeHOD },
+    { id: 'finance', label: 'Finance & Accounts', visible: canSeeFinance },
+    { id: 'system',  label: '🔔 Notifications',  visible: isHarshil },
+  ]
+  const visibleChannels = channels.filter(c => c.visible)
+
+  // ── Fetch messages for a given channel ───────────────────────────────────
+  const fetchChannel = useCallback(async (ch: Channel, isPolling = false) => {
     try {
-      const since = initial ? 0 : lastIdRef.current
-      const res = await fetch(`/api/chat/messages?since=${since}`, { credentials:'include' })
+      const since = lastIdRef.current[ch] ?? 0
+      const res = await fetch(`/api/chat/messages?channel=${ch}&since=${since}`, { credentials:'include' })
       if (!res.ok) return
       const { messages: newMsgs } = await res.json() as { messages: ChatMessage[] }
       if (!newMsgs?.length) return
-      if (initial) {
-        setMessages(newMsgs)
-        lastIdRef.current = newMsgs[newMsgs.length - 1].id
-      } else {
-        setMessages(prev => {
-          const combined = [...prev, ...newMsgs]
-          lastIdRef.current = newMsgs[newMsgs.length - 1].id
-          return combined
-        })
-        if (!open) setUnread(u => u + newMsgs.length)
-      }
-    } catch { /* ignore network errors */ }
-  }, [open])
 
-  // ── Fetch online users (Harshil only) ────────────────────────────────────
-  const fetchOnline = useCallback(async () => {
-    if (!isHarshil) return
-    try {
-      const res = await fetch('/api/chat/online', { credentials:'include' })
-      if (res.ok) {
-        const { users } = await res.json() as { users: OnlineUser[] }
-        setOnlineUsers(users ?? [])
+      if (since === 0) {
+        // Initial load
+        setMsgs(prev => ch === channel ? newMsgs : prev)
+        lastIdRef.current[ch] = newMsgs[newMsgs.length - 1].id
+      } else {
+        // Polling — new messages arrived
+        lastIdRef.current[ch] = newMsgs[newMsgs.length - 1].id
+        if (ch === channel) {
+          setMsgs(prev => [...prev, ...newMsgs])
+        }
+        if (isPolling && (!open || ch !== channel)) {
+          setUnread(u => ({ ...u, [ch]: (u[ch] ?? 0) + newMsgs.length }))
+        }
       }
     } catch { /* ignore */ }
-  }, [isHarshil])
+  }, [channel, open])
 
   // ── Ping presence ─────────────────────────────────────────────────────────
   const ping = useCallback(() => {
     fetch('/api/chat/ping', { method:'POST', credentials:'include' }).catch(() => {})
   }, [])
 
-  // ── Mount: load messages, start ping + polling ────────────────────────────
+  // ── Initial load when channel changes ────────────────────────────────────
   useEffect(() => {
-    fetchMessages(true)
+    // Reset messages and load for new channel
+    setMsgs([])
+    fetchChannel(channel, false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel])
+
+  // ── Polling: all visible channels every 3s ────────────────────────────────
+  useEffect(() => {
     ping()
+    const pingTimer = setInterval(ping, 30000)
 
-    const msgTimer    = setInterval(() => fetchMessages(false), 3000)
-    const pingTimer   = setInterval(ping, 30000)
-    const onlineTimer = isHarshil ? setInterval(fetchOnline, 10000) : null
-    if (isHarshil) fetchOnline()
+    // Load initial messages for all visible channels (to track unread)
+    visibleChannels.forEach(c => {
+      if (c.id !== channel) fetchChannel(c.id, false)
+    })
 
-    return () => {
-      clearInterval(msgTimer)
-      clearInterval(pingTimer)
-      if (onlineTimer) clearInterval(onlineTimer)
-    }
-  }, [fetchMessages, fetchOnline, ping, isHarshil])
+    const pollTimer = setInterval(() => {
+      visibleChannels.forEach(c => fetchChannel(c.id, true))
+    }, 3000)
 
-  // ── Scroll to bottom when opened or new messages ─────────────────────────
+    return () => { clearInterval(pingTimer); clearInterval(pollTimer) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Scroll to bottom & clear unread when opened/channel changes ──────────
   useEffect(() => {
     if (open) {
-      setUnread(0)
+      setUnread(u => ({ ...u, [channel]: 0 }))
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
       setTimeout(() => inputRef.current?.focus(), 80)
     }
-  }, [open, messages.length])
+  }, [open, channel, msgs.length])
 
-  // ── Send message ──────────────────────────────────────────────────────────
+  // ── Send ──────────────────────────────────────────────────────────────────
   async function sendMessage() {
-    if (!draft.trim() || sending) return
+    if (!draft.trim() || sending || channel === 'system') return
     setSending(true)
     try {
       const res = await fetch('/api/chat/messages', {
         method:'POST', credentials:'include',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ message: draft.trim() }),
+        body: JSON.stringify({ message: draft.trim(), channel }),
       })
       if (res.ok) {
         const { message } = await res.json() as { message: ChatMessage }
-        setMessages(prev => [...prev, message])
-        lastIdRef.current = message.id
+        setMsgs(prev => [...prev, message])
+        lastIdRef.current[channel] = message.id
         setDraft('')
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior:'smooth' }), 30)
       }
@@ -146,11 +160,12 @@ export default function ChatWidget({ currentUser }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
+  const totalUnread = Object.values(unread).reduce((s, n) => s + (n ?? 0), 0)
   const myId = String(currentUser.id)
 
   return (
     <>
-      {/* ── Floating toggle button ── */}
+      {/* ── Toggle button ── */}
       <div
         onClick={() => setOpen(v => !v)}
         title="Organisation Chat"
@@ -160,22 +175,20 @@ export default function ChatWidget({ currentUser }: Props) {
           background:'#1a3a2a', color:'white',
           display:'flex', alignItems:'center', justifyContent:'center',
           cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.25)',
-          fontSize:22, userSelect:'none',
-          transition:'transform 0.15s',
+          fontSize:22, userSelect:'none', transition:'transform 0.15s',
         }}
         onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.transform='scale(1.08)'}
         onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.transform='scale(1)'}
       >
         {open ? '✕' : '💬'}
-        {!open && unread > 0 && (
+        {!open && totalUnread > 0 && (
           <div style={{
             position:'absolute', top:-4, right:-4,
-            background:'#dc2626', color:'white',
-            borderRadius:'50%', width:18, height:18,
-            fontSize:10, fontWeight:700,
+            background:'#dc2626', color:'white', borderRadius:'50%',
+            width:18, height:18, fontSize:10, fontWeight:700,
             display:'flex', alignItems:'center', justifyContent:'center',
             border:'2px solid white',
-          }}>{unread > 9 ? '9+' : unread}</div>
+          }}>{totalUnread > 9 ? '9+' : totalUnread}</div>
         )}
       </div>
 
@@ -183,154 +196,134 @@ export default function ChatWidget({ currentUser }: Props) {
       {open && (
         <div style={{
           position:'fixed', bottom:88, left:24, zIndex:900,
-          width: isHarshil && showOnline ? 560 : 340,
-          maxWidth:'calc(100vw - 48px)',
-          height:480, maxHeight:'calc(100vh - 120px)',
+          width:340, maxWidth:'calc(100vw - 48px)',
+          height:500, maxHeight:'calc(100vh - 120px)',
           background:'white', borderRadius:14,
           boxShadow:'0 12px 48px rgba(0,0,0,0.18)',
           display:'flex', flexDirection:'column',
-          overflow:'hidden',
-          border:'1px solid #e5e7eb',
-          transition:'width 0.2s',
+          overflow:'hidden', border:'1px solid #e5e7eb',
         }}>
 
-          {/* Panel header */}
-          <div style={{
-            background:'#1a3a2a', color:'white',
-            padding:'12px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0,
-          }}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:700}}>Organisation Chat</div>
-              <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginTop:1}}>Pabari Group · All staff</div>
-            </div>
-            {isHarshil && (
-              <button
-                onClick={()=>setShowOnline(v=>!v)}
-                title="Online staff"
-                style={{
-                  background: showOnline ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
-                  border:'1px solid rgba(255,255,255,0.2)',
-                  color:'white', borderRadius:5, padding:'4px 9px', fontSize:11,
-                  cursor:'pointer', display:'flex', alignItems:'center', gap:5,
-                }}
-              >
-                <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}/>
-                {onlineUsers.length} online
-              </button>
-            )}
+          {/* Header */}
+          <div style={{background:'#1a3a2a',color:'white',padding:'12px 16px',flexShrink:0}}>
+            <div style={{fontSize:13,fontWeight:700}}>Organisation Chat</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginTop:1}}>Pabari Group · Internal</div>
           </div>
 
-          {/* Body: messages + optional online panel */}
-          <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+          {/* Channel tabs */}
+          <div style={{
+            display:'flex', borderBottom:'1px solid #e5e7eb',
+            background:'#f9fafb', overflowX:'auto', flexShrink:0,
+          }}>
+            {visibleChannels.map(c => {
+              const u = unread[c.id] ?? 0
+              const isActive = channel === c.id
+              return (
+                <button key={c.id}
+                  onClick={() => setChannel(c.id)}
+                  style={{
+                    flex:'0 0 auto', padding:'8px 12px', border:'none',
+                    background:'transparent', cursor:'pointer', fontSize:11,
+                    fontWeight: isActive ? 700 : 400,
+                    color: isActive ? '#1a3a2a' : '#6b7280',
+                    borderBottom: isActive ? '2px solid #1a3a2a' : '2px solid transparent',
+                    position:'relative', whiteSpace:'nowrap',
+                  }}>
+                  {c.label}
+                  {u > 0 && !isActive && (
+                    <span style={{
+                      marginLeft:4, background:'#dc2626', color:'white',
+                      borderRadius:8, fontSize:9, fontWeight:700,
+                      padding:'1px 5px', verticalAlign:'middle',
+                    }}>{u}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
 
-            {/* Message list */}
-            <div style={{flex:1,overflowY:'auto',padding:'12px 14px',display:'flex',flexDirection:'column',gap:10}}>
-              {messages.length === 0 && (
-                <div style={{textAlign:'center',color:'#9ca3af',fontSize:12,marginTop:40}}>
-                  No messages yet. Say hello!
-                </div>
-              )}
-              {messages.map((msg, i) => {
-                const isMe = msg.user_id === myId
-                const prevSame = i > 0 && messages[i-1].user_id === msg.user_id
-                return (
-                  <div key={msg.id} style={{display:'flex',flexDirection: isMe ? 'row-reverse' : 'row',gap:7,alignItems:'flex-end'}}>
-                    {!isMe && !prevSame && (
-                      <div style={{
-                        width:28, height:28, borderRadius:'50%', flexShrink:0,
-                        background:avatarColor(msg.user_name), color:'white',
-                        fontSize:10, fontWeight:700,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                      }}>{initials(msg.user_name)}</div>
-                    )}
-                    {!isMe && prevSame && <div style={{width:28,flexShrink:0}}/>}
-                    <div style={{maxWidth:'75%'}}>
-                      {!isMe && !prevSame && (
-                        <div style={{fontSize:10,fontWeight:600,color:'#6b7280',marginBottom:2,marginLeft:2}}>{msg.user_name}</div>
-                      )}
-                      <div style={{
-                        padding:'7px 11px', borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                        background: isMe ? '#1a3a2a' : '#f3f4f6',
-                        color: isMe ? 'white' : '#111827',
-                        fontSize:13, lineHeight:1.5, wordBreak:'break-word',
-                      }}>{msg.message}</div>
-                      <div style={{fontSize:9,color:'#9ca3af',marginTop:2,textAlign: isMe ? 'right' : 'left'}}>
-                        {fmtTime(msg.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-              <div ref={bottomRef}/>
-            </div>
-
-            {/* Online users panel (Harshil only) */}
-            {isHarshil && showOnline && (
-              <div style={{
-                width:190, flexShrink:0, borderLeft:'1px solid #f0f0f0',
-                overflowY:'auto', padding:'10px 12px',
-              }}>
-                <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:10}}>
-                  Online Now · {onlineUsers.length}
-                </div>
-                {onlineUsers.length === 0 && (
-                  <div style={{fontSize:11,color:'#9ca3af'}}>No one online yet</div>
-                )}
-                {onlineUsers.map(u => (
-                  <div key={u.id} style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                    <div style={{position:'relative'}}>
-                      <div style={{
-                        width:28,height:28,borderRadius:'50%',
-                        background:avatarColor(u.name),color:'white',
-                        fontSize:10,fontWeight:700,
-                        display:'flex',alignItems:'center',justifyContent:'center',
-                        flexShrink:0,
-                      }}>{initials(u.name)}</div>
-                      <div style={{
-                        position:'absolute',bottom:0,right:0,
-                        width:8,height:8,borderRadius:'50%',
-                        background:'#4ade80',border:'1.5px solid white',
-                      }}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11,fontWeight:600,color:'#111827',lineHeight:1.2}}>{u.name}</div>
-                      <div style={{fontSize:9,color:'#9ca3af',textTransform:'capitalize'}}>{u.role}</div>
-                    </div>
-                  </div>
-                ))}
+          {/* Messages */}
+          <div style={{flex:1,overflowY:'auto',padding:'12px 14px',display:'flex',flexDirection:'column',gap:8}}>
+            {msgs.length === 0 && (
+              <div style={{textAlign:'center',color:'#9ca3af',fontSize:12,marginTop:40}}>
+                {channel === 'system' ? 'Login and logout events will appear here.' : 'No messages yet. Say hello!'}
               </div>
             )}
+            {msgs.map((msg, i) => {
+              if (msg.is_system) {
+                return (
+                  <div key={msg.id} style={{textAlign:'center',fontSize:11,color:'#6b7280',padding:'4px 0'}}>
+                    <span style={{background:'#f3f4f6',padding:'3px 10px',borderRadius:10}}>
+                      {msg.message} · {fmtDateTime(msg.created_at)}
+                    </span>
+                  </div>
+                )
+              }
+              const isMe = msg.user_id === myId
+              const prevSame = i > 0 && !msgs[i-1].is_system && msgs[i-1].user_id === msg.user_id
+              return (
+                <div key={msg.id} style={{display:'flex',flexDirection: isMe ? 'row-reverse' : 'row',gap:7,alignItems:'flex-end'}}>
+                  {!isMe && !prevSame && (
+                    <div style={{
+                      width:28,height:28,borderRadius:'50%',flexShrink:0,
+                      background:avatarColor(msg.user_name),color:'white',
+                      fontSize:10,fontWeight:700,
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                    }}>{initials(msg.user_name)}</div>
+                  )}
+                  {!isMe && prevSame && <div style={{width:28,flexShrink:0}}/>}
+                  <div style={{maxWidth:'75%'}}>
+                    {!isMe && !prevSame && (
+                      <div style={{fontSize:10,fontWeight:600,color:'#6b7280',marginBottom:2,marginLeft:2}}>{msg.user_name}</div>
+                    )}
+                    <div style={{
+                      padding:'7px 11px',
+                      borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                      background: isMe ? '#1a3a2a' : '#f3f4f6',
+                      color: isMe ? 'white' : '#111827',
+                      fontSize:13,lineHeight:1.5,wordBreak:'break-word',
+                    }}>{msg.message}</div>
+                    <div style={{fontSize:9,color:'#9ca3af',marginTop:2,textAlign: isMe ? 'right' : 'left'}}>
+                      {fmtTime(msg.created_at)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            <div ref={bottomRef}/>
           </div>
 
-          {/* Input */}
-          <div style={{borderTop:'1px solid #f0f0f0',padding:'10px 12px',display:'flex',gap:8,alignItems:'flex-end',flexShrink:0}}>
-            <textarea
-              ref={inputRef}
-              value={draft}
-              onChange={e=>setDraft(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Message everyone… (Enter to send)"
-              rows={1}
-              style={{
-                flex:1, border:'1px solid #e5e7eb', borderRadius:8,
-                padding:'8px 11px', fontSize:13, resize:'none',
-                outline:'none', fontFamily:'inherit', lineHeight:1.4,
-                maxHeight:80, overflowY:'auto',
-              }}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!draft.trim() || sending}
-              style={{
-                background: draft.trim() && !sending ? '#1a3a2a' : '#e5e7eb',
-                color: draft.trim() && !sending ? 'white' : '#9ca3af',
-                border:'none', borderRadius:8, width:36, height:36,
-                fontSize:16, cursor: draft.trim() ? 'pointer' : 'default',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                flexShrink:0, transition:'background 0.15s',
-              }}
-            >➤</button>
-          </div>
+          {/* Input — hidden on Notifications tab */}
+          {channel !== 'system' && (
+            <div style={{borderTop:'1px solid #f0f0f0',padding:'10px 12px',display:'flex',gap:8,alignItems:'flex-end',flexShrink:0}}>
+              <textarea
+                ref={inputRef}
+                value={draft}
+                onChange={e=>setDraft(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder={`Message ${visibleChannels.find(c=>c.id===channel)?.label ?? ''}… (Enter to send)`}
+                rows={1}
+                style={{
+                  flex:1,border:'1px solid #e5e7eb',borderRadius:8,
+                  padding:'8px 11px',fontSize:13,resize:'none',
+                  outline:'none',fontFamily:'inherit',lineHeight:1.4,
+                  maxHeight:80,overflowY:'auto',
+                }}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!draft.trim() || sending}
+                style={{
+                  background: draft.trim() && !sending ? '#1a3a2a' : '#e5e7eb',
+                  color: draft.trim() && !sending ? 'white' : '#9ca3af',
+                  border:'none',borderRadius:8,width:36,height:36,
+                  fontSize:16,cursor: draft.trim() ? 'pointer' : 'default',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  flexShrink:0,transition:'background 0.15s',
+                }}
+              >➤</button>
+            </div>
+          )}
         </div>
       )}
     </>

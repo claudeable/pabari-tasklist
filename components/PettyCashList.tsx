@@ -15,7 +15,7 @@ const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
-const SABINA_EMAIL  = 'sabina@usc.co.ke'  // Paul's deputy HOD for Operations
+const SABINA_EMAIL  = 'smutua@kwale-group.com'  // Paul's deputy HOD for Operations
 
 const STATUS_STYLE: Record<PettyCashStatus, { bg: string; color: string }> = {
   pending_hos:     { bg: '#fef3c7', color: '#92400e' },

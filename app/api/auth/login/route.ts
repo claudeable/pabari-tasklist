@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { getUserByEmail } from '@/lib/users'
 import { signToken } from '@/lib/auth'
+import { postSystemMessage } from '@/lib/chat'
 
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
@@ -52,6 +53,8 @@ export async function POST(req: NextRequest) {
     reports_to: user.reports_to,
     companies:  user.companies,
   })
+
+  postSystemMessage(`🟢 ${user.name} logged in`).catch(() => {})
 
   const res = NextResponse.json({ ok: true, name: user.name, role: user.role })
   res.cookies.set('pabari-session', token, {

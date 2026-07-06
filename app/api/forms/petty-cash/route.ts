@@ -15,7 +15,7 @@ const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS (Krishna)
 const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance (Andu)
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com' // KISCOL HOS
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'         // KISCOL final approver
-const SABINA_EMAIL  = 'sabina@usc.co.ke'        // Deputy HOD for Paul (Operations)
+const SABINA_EMAIL  = 'smutua@kwale-group.com'  // Deputy HOD for Paul (Operations)
 
 export async function GET() {
   const cookieStore = cookies()

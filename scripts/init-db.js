@@ -41,9 +41,9 @@ const USERS = [
   { name: 'Krishina',   email: 'rkrishnan@usm.co.ke',      role: 'director', department: 'Trading',                           reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Lazarus',    email: 'lazarus@usm.co.ke',        role: 'manager',  department: 'Administration',                    reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Simon',      email: 'sithibu@kwale-group.com',  role: 'staff',    department: 'Administration',                    reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
-  { name: 'Pedro',      email: 'hpedro@usm.co.ke',         role: 'director', department: 'IT',                                reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'Pedro',      email: 'hpedro@usm.co.ke',         role: 'manager',  department: 'IT',                                reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Duncan',     email: 'dmumo@usm.co.ke',          role: 'staff',    department: 'Administration',                    reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
-  { name: 'James',      email: 'joduor@usm.co.ke',         role: 'director', department: 'HR',                                reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
+  { name: 'James',      email: 'joduor@usm.co.ke',         role: 'manager',  department: 'HR',                                reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
 ]
 
 // Old placeholder emails → real emails

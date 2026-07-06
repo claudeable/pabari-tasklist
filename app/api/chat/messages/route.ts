@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { getMessages, postMessage } from '@/lib/chat'
+import { getMessages, postMessage, ChatChannel } from '@/lib/chat'
 
 export const dynamic = 'force-dynamic'
+
+const FINANCE_EMAIL = 'ateferi@kwale-group.com'
+const HARSHIL_EMAIL = 'hkotecha@kwale-group.com'
+
+function canAccessChannel(user: { role: string; department: string; email?: string }, channel: ChatChannel): boolean {
+  if (channel === 'all') return true
+  if (channel === 'hod') return user.role !== 'staff'
+  if (channel === 'finance') {
+    return ['admin','director','ceo'].includes(user.role)
+      || user.department === 'Finance'
+      || (user.email ?? '').toLowerCase() === FINANCE_EMAIL
+  }
+  if (channel === 'system') return (user.email ?? '').toLowerCase() === HARSHIL_EMAIL
+  return false
+}
 
 export async function GET(req: NextRequest) {
   const cookieStore = cookies()
@@ -11,9 +26,12 @@ export async function GET(req: NextRequest) {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const channel = (req.nextUrl.searchParams.get('channel') ?? 'all') as ChatChannel
+  if (!canAccessChannel(user, channel)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const sinceId = parseInt(req.nextUrl.searchParams.get('since') ?? '0', 10)
   try {
-    const messages = await getMessages(sinceId > 0 ? sinceId : undefined)
+    const messages = await getMessages(channel, sinceId > 0 ? sinceId : undefined)
     return NextResponse.json({ messages })
   } catch (err) {
     console.error('[chat/messages GET]', err)
@@ -27,12 +45,13 @@ export async function POST(req: NextRequest) {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { message } = await req.json()
+  const { message, channel = 'all' } = await req.json()
   if (!message?.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 })
   if (message.trim().length > 1000) return NextResponse.json({ error: 'Message too long' }, { status: 400 })
+  if (!canAccessChannel(user, channel as ChatChannel)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
-    const msg = await postMessage(String(user.id), user.name, message)
+    const msg = await postMessage(String(user.id), user.name, message, channel as ChatChannel)
     return NextResponse.json({ message: msg })
   } catch (err) {
     console.error('[chat/messages POST]', err)

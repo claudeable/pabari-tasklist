@@ -1,10 +1,14 @@
 import { query, queryOne, execute } from './database'
 
+export type ChatChannel = 'all' | 'hod' | 'finance' | 'system'
+
 export interface ChatMessage {
   id:         number
   user_id:    string
   user_name:  string
   message:    string
+  channel:    ChatChannel
+  is_system:  boolean
   created_at: string
 }
 
@@ -18,75 +22,62 @@ async function ensureTable() {
       user_id    TEXT NOT NULL,
       user_name  TEXT NOT NULL,
       message    TEXT NOT NULL,
+      channel    TEXT NOT NULL DEFAULT 'all',
+      is_system  BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
-  await execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ`)
+  await execute(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'all'`)
+  await execute(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT false`)
   tableReady = true
 }
 
-export async function getMessages(sinceId?: number): Promise<ChatMessage[]> {
+function rowToMsg(r: Record<string, unknown>): ChatMessage {
+  return {
+    id:        Number(r.id),
+    user_id:   String(r.user_id),
+    user_name: String(r.user_name),
+    message:   String(r.message),
+    channel:   (r.channel as ChatChannel) || 'all',
+    is_system: Boolean(r.is_system),
+    created_at:String(r.created_at),
+  }
+}
+
+export async function getMessages(channel: ChatChannel, sinceId?: number): Promise<ChatMessage[]> {
   await ensureTable()
   let rows: Record<string, unknown>[]
   if (sinceId && sinceId > 0) {
     rows = await query<Record<string, unknown>>(
-      'SELECT * FROM chat_messages WHERE id > $1 ORDER BY id ASC LIMIT 100',
-      [sinceId]
+      'SELECT * FROM chat_messages WHERE channel=$1 AND id>$2 ORDER BY id ASC LIMIT 100',
+      [channel, sinceId]
     )
   } else {
     rows = await query<Record<string, unknown>>(
-      'SELECT * FROM chat_messages ORDER BY id DESC LIMIT 50'
+      'SELECT * FROM chat_messages WHERE channel=$1 ORDER BY id DESC LIMIT 50',
+      [channel]
     )
     rows = rows.reverse()
   }
-  return rows.map(r => ({
-    id:         Number(r.id),
-    user_id:    String(r.user_id),
-    user_name:  String(r.user_name),
-    message:    String(r.message),
-    created_at: String(r.created_at),
-  }))
+  return rows.map(rowToMsg)
 }
 
-export async function postMessage(userId: string, userName: string, message: string): Promise<ChatMessage> {
+export async function postMessage(userId: string, userName: string, message: string, channel: ChatChannel): Promise<ChatMessage> {
   await ensureTable()
   const row = await queryOne<Record<string, unknown>>(
-    'INSERT INTO chat_messages (user_id, user_name, message) VALUES ($1,$2,$3) RETURNING *',
-    [userId, userName, message.trim()]
+    'INSERT INTO chat_messages (user_id, user_name, message, channel) VALUES ($1,$2,$3,$4) RETURNING *',
+    [userId, userName, message.trim(), channel]
   )
   if (!row) throw new Error('Failed to insert message')
-  return {
-    id:         Number(row.id),
-    user_id:    String(row.user_id),
-    user_name:  String(row.user_name),
-    message:    String(row.message),
-    created_at: String(row.created_at),
-  }
+  return rowToMsg(row)
 }
 
-export async function pingUser(userId: string): Promise<void> {
-  await ensureTable()
-  await execute('UPDATE users SET last_seen = NOW() WHERE id = $1', [userId])
-}
-
-export interface OnlineUser {
-  id:        string
-  name:      string
-  role:      string
-  last_seen: string
-}
-
-export async function getOnlineUsers(): Promise<OnlineUser[]> {
-  await ensureTable()
-  const rows = await query<Record<string, unknown>>(
-    `SELECT id, name, role, last_seen FROM users
-     WHERE last_seen > NOW() - INTERVAL '5 minutes'
-     ORDER BY name`
-  )
-  return rows.map(r => ({
-    id:        String(r.id),
-    name:      String(r.name),
-    role:      String(r.role),
-    last_seen: String(r.last_seen),
-  }))
+export async function postSystemMessage(message: string): Promise<void> {
+  try {
+    await ensureTable()
+    await execute(
+      'INSERT INTO chat_messages (user_id, user_name, message, channel, is_system) VALUES ($1,$2,$3,$4,$5)',
+      ['system', 'System', message, 'system', true]
+    )
+  } catch { /* non-fatal */ }
 }
