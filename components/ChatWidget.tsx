@@ -240,12 +240,6 @@ export default function ChatWidget({ currentUser }: Props) {
   // ── Push notification registration ───────────────────────────────────────────
   const VAPID_PUBLIC_KEY = 'BCBZxG0u3uHsKLcfShzJPs_K-9XLAiA1BFj2q0flXWqzgAWhdBZBwv-OFv7slY4GvEoUXdMH-gCksVuUGkPCs-I'
 
-  function urlB64ToUint8Array(b64: string): Uint8Array {
-    const pad = '='.repeat((4 - b64.length % 4) % 4)
-    const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'))
-    return new Uint8Array([...raw].map(c => c.charCodeAt(0)))
-  }
-
   async function subscribeToPush() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     try {
@@ -253,7 +247,7 @@ export default function ChatWidget({ currentUser }: Props) {
       const existing = await reg.pushManager.getSubscription()
       const sub = existing ?? await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: VAPID_PUBLIC_KEY,
       })
       const res = await fetch('/api/push/subscribe', {
         method: 'POST', credentials: 'include',
