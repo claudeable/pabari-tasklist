@@ -113,7 +113,11 @@ export default function ChatWidget({ currentUser }: Props) {
   const activeTabR = useRef<Tab>('all')
   const openR      = useRef(false)
   const dmWithR    = useRef<DmUser|null>(null)
-  const dmUnreadSince = useRef(0)
+  const dmUnreadSince = useRef(
+    typeof window !== 'undefined'
+      ? parseInt(localStorage.getItem(`dm-since-${currentUser.id}`) ?? '0', 10) || 0
+      : 0
+  )
   const bottomR    = useRef<HTMLDivElement>(null)
   const dmBottomR  = useRef<HTMLDivElement>(null)
   const inputR     = useRef<HTMLTextAreaElement>(null)
@@ -183,7 +187,13 @@ export default function ChatWidget({ currentUser }: Props) {
       if (!res.ok) return
       const { messages: ms } = await res.json() as { messages: ChatMsg[] }
       if (!ms?.length) return
-      dmLastId.current[withUser.id] = ms[ms.length-1].id
+      const lastId = ms[ms.length-1].id
+      dmLastId.current[withUser.id] = lastId
+      // Viewing the DM counts as reading — advance the since pointer so page refresh doesn't re-notify
+      if (lastId > dmUnreadSince.current) {
+        dmUnreadSince.current = lastId
+        localStorage.setItem(`dm-since-${currentUser.id}`, String(lastId))
+      }
       if (since === 0) { setDmMsgs(ms) } else { setDmMsgs(prev => [...prev, ...ms]) }
       setTimeout(() => dmBottomR.current?.scrollIntoView({ behavior:'smooth' }), 30)
     } catch { /**/ }
@@ -202,7 +212,10 @@ export default function ChatWidget({ currentUser }: Props) {
           setDmUnread(c => c + count)
           playNotifSound()
         }
-        if (maxId) dmUnreadSince.current = maxId
+        if (maxId) {
+          dmUnreadSince.current = maxId
+          localStorage.setItem(`dm-since-${currentUser.id}`, String(maxId))
+        }
         if (senderIds.length) {
           setDmUnreadFrom(prev => {
             const next = new Set(prev)
@@ -400,6 +413,8 @@ export default function ChatWidget({ currentUser }: Props) {
   function openDM(user: DmUser) {
     setDmWith(user)
     setDmSearch('')
+    // Clear badge and unread indicator for this sender
+    setDmUnread(0)
     setDmUnreadFrom(prev => { const next = new Set(prev); next.delete(user.id); return next })
   }
   function closeDM() { setDmWith(null) }
