@@ -33,11 +33,9 @@ export default async function FormsReportsPage() {
 
   if (!canSeeLeaveFull && !canSeePCRFull) redirect('/forms')
 
-  const uid = parseInt(String(user.id ?? ''), 10) || 0
-
   const [leaveReqs, pcrReqs] = await Promise.all([
-    canSeeLeaveFull ? getAllLeaveRequests() : getMyLeaveRequests(uid),
-    canSeePCRFull   ? getAllPettyCashRequests() : getMyPettyCashRequests(uid),
+    canSeeLeaveFull ? getAllLeaveRequests() : getMyLeaveRequests(user.name),
+    canSeePCRFull   ? getAllPettyCashRequests() : getMyPettyCashRequests(parseInt(String(user.id ?? ''), 10) || 0),
   ])
 
   return (

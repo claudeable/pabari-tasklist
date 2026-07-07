@@ -12,12 +12,11 @@ export default async function NewLeaveFormPage() {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) redirect('/login')
 
-  const uid  = parseInt(String(user.id ?? ''), 10) || 0
   const year = new Date().getFullYear()
 
   let usedDays = 0
   try {
-    usedDays = await getLeaveBalance(uid, year)
+    usedDays = await getLeaveBalance(user.name, year)
   } catch (err) {
     console.error('[leave/new] getLeaveBalance error:', err)
   }
