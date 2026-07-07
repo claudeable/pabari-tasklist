@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { approveHOS, approveHOD, approveHODFinal, approveFinance, rejectPettyCash, getAllPettyCashRequests } from '@/lib/pettyCash'
+import { approveHOS, approveHOD, approveHODFinal, approveFinance, rejectPettyCash, deletePettyCashRequest, getAllPettyCashRequests } from '@/lib/pettyCash'
 
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS
 const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance
@@ -65,5 +65,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const cookieStore = cookies()
+  const session = cookieStore.get('pabari-session')
+  const user = session?.value ? await verifyToken(session.value) : null
+  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const id = parseInt(params.id, 10)
+  const ok = await deletePettyCashRequest(id)
+  if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

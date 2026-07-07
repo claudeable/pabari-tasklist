@@ -188,3 +188,8 @@ export async function rejectPettyCash(id: number, reason: string): Promise<void>
     [reason, id]
   )
 }
+
+export async function deletePettyCashRequest(id: number): Promise<boolean> {
+  const rows = await query('DELETE FROM petty_cash_requests WHERE id=$1 RETURNING id', [id])
+  return rows.length > 0
+}

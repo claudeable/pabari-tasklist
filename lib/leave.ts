@@ -161,3 +161,8 @@ export async function rejectLeave(id: number, reason: string): Promise<void> {
     [reason, id]
   )
 }
+
+export async function deleteLeaveRequest(id: number): Promise<boolean> {
+  const rows = await query('DELETE FROM leave_requests WHERE id=$1 RETURNING id', [id])
+  return rows.length > 0
+}

@@ -37,6 +37,44 @@ function downloadCSV(rows: string[][], filename: string) {
   URL.revokeObjectURL(url)
 }
 
+// ── Excel export (HTML table format — opens natively in Excel) ───────────────
+function downloadExcel(rows: string[][], filename: string) {
+  const safe = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table>${
+    rows.map((r, i) => `<tr>${r.map(c => i === 0 ? `<th style="background:#1a3a2a;color:white;font-weight:bold">${safe(String(c))}</th>` : `<td>${safe(String(c))}</td>`).join('')}</tr>`).join('')
+  }</table></body></html>`
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ── PDF export (print-ready popup) ──────────────────────────────────────────
+function printPDF(title: string, rows: string[][]) {
+  const safe = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const [header, ...data] = rows
+  const w = window.open('', '_blank', 'width=900,height=700')
+  if (!w) { alert('Please allow popups for PDF export.'); return }
+  w.document.write(`<!DOCTYPE html><html><head><title>${safe(title)}</title><style>
+    *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:20px;font-size:11px;color:#222}
+    h2{color:#1a3a2a;margin:0 0 4px}p{margin:0 0 12px;color:#666;font-size:10px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th{background:#1a3a2a;color:white;padding:6px 8px;text-align:left;font-size:10px;font-weight:700}
+    td{padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:10.5px}
+    tr:nth-child(even) td{background:#f9fafb}
+    .print-btn{margin-bottom:12px;padding:7px 16px;background:#1a3a2a;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+    @media print{.print-btn{display:none}body{margin:10px}}
+  </style></head><body>
+  <h2>${safe(title)}</h2>
+  <p>Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</p>
+  <button class="print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+  <table><thead><tr>${(header||[]).map(h=>`<th>${safe(h)}</th>`).join('')}</tr></thead>
+  <tbody>${data.map(r=>`<tr>${r.map(c=>`<td>${safe(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></body></html>`)
+  w.document.close()
+}
+
 function buildLeaveCSV(rows: LeaveRequest[]): string[][] {
   const header = [
     'Submitted','Employee Name','Employee No.','Department','Company',
@@ -77,6 +115,9 @@ export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLe
   const [isMobile,       setIsMobile]       = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [tab,            setTab]            = useState<ReportTab>(canSeeLeaveFull ? 'leave' : 'pcr')
+  const [localLeave,     setLocalLeave]     = useState<LeaveRequest[]>(leaveReqs)
+  const [localPCR,       setLocalPCR]       = useState<PettyCashRequest[]>(pcrReqs)
+  const isAdmin = currentUser.role === 'admin'
 
   // Filters
   const [dateFrom,    setDateFrom]    = useState('')
@@ -97,23 +138,37 @@ export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLe
   }
 
   // ── Filtered datasets ────────────────────────────────────────────────────
-  const filteredLeave = useMemo(() => leaveReqs.filter(r => {
+  const filteredLeave = useMemo(() => localLeave.filter(r => {
     if (dateFrom && r.submitted_at.slice(0,10) < dateFrom) return false
     if (dateTo   && r.submitted_at.slice(0,10) > dateTo)   return false
     if (filterStatus && r.status !== filterStatus) return false
     if (filterCo     && r.company !== filterCo)    return false
     if (filterType   && r.leave_type !== filterType) return false
     return true
-  }), [leaveReqs, dateFrom, dateTo, filterStatus, filterCo, filterType])
+  }), [localLeave, dateFrom, dateTo, filterStatus, filterCo, filterType])
 
-  const filteredPCR = useMemo(() => pcrReqs.filter(r => {
+  const filteredPCR = useMemo(() => localPCR.filter(r => {
     const sub = r.submitted_at.slice(0,10)
     if (dateFrom && sub < dateFrom)               return false
     if (dateTo   && sub > dateTo)                 return false
     if (filterStatus && r.status !== filterStatus) return false
     if (filterCo     && r.company !== filterCo)    return false
     return true
-  }), [pcrReqs, dateFrom, dateTo, filterStatus, filterCo])
+  }), [localPCR, dateFrom, dateTo, filterStatus, filterCo])
+
+  // ── Delete handlers (admin only) ─────────────────────────────────────────
+  async function handleDeleteLeave(id: number) {
+    if (!confirm('Permanently delete this leave request? This cannot be undone.')) return
+    const res = await fetch(`/api/forms/leave/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (res.ok) setLocalLeave(prev => prev.filter(r => r.id !== id))
+    else alert('Delete failed. You may not have permission.')
+  }
+  async function handleDeletePCR(id: number) {
+    if (!confirm('Permanently delete this petty cash request? This cannot be undone.')) return
+    const res = await fetch(`/api/forms/petty-cash/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (res.ok) setLocalPCR(prev => prev.filter(r => r.id !== id))
+    else alert('Delete failed. You may not have permission.')
+  }
 
   // Summary stats
   const leaveTotalDays = filteredLeave.reduce((s,r) => s + r.days_requested, 0)
@@ -281,26 +336,32 @@ export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLe
               <Stat label="Rejected" value={String(filteredPCR.filter(r=>r.status==='rejected').length)} color="#b91c1c" />
             </>}
           </div>
-          <button
-            onClick={()=>{
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {(() => {
               const now = new Date().toISOString().slice(0,10)
-              if (tab==='leave') {
-                downloadCSV(buildLeaveCSV(filteredLeave), `leave-report-${now}.csv`)
-              } else {
-                downloadCSV(buildPCRCSV(filteredPCR), `petty-cash-report-${now}.csv`)
-              }
-            }}
-            style={{background:'#1a3a2a',color:'white',border:'none',padding:'9px 18px',borderRadius:6,fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7}}>
-            ⬇ Download CSV
-          </button>
+              const csvRows  = tab==='leave' ? buildLeaveCSV(filteredLeave)  : buildPCRCSV(filteredPCR)
+              const csvName  = tab==='leave' ? `leave-report-${now}.csv`     : `petty-cash-report-${now}.csv`
+              const xlsName  = tab==='leave' ? `leave-report-${now}.xls`     : `petty-cash-report-${now}.xls`
+              const pdfTitle = tab==='leave' ? `Leave Requests — ${now}`     : `Petty Cash Requests — ${now}`
+              const btnStyle = (bg: string): React.CSSProperties => ({
+                background: bg, color:'white', border:'none', padding:'9px 16px',
+                borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:6,
+              })
+              return <>
+                <button onClick={()=>downloadCSV(csvRows, csvName)}  style={btnStyle('#1a3a2a')}>⬇ CSV</button>
+                <button onClick={()=>downloadExcel(csvRows, xlsName)} style={btnStyle('#15803d')}>⬇ Excel</button>
+                <button onClick={()=>printPDF(pdfTitle, csvRows)}     style={btnStyle('#b5833a')}>🖨 PDF</button>
+              </>
+            })()}
+          </div>
         </div>
 
         {/* Table */}
         <div style={{background:'white',borderRadius:8,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflowX:'auto'}}>
           {tab==='leave' ? (
-            <LeaveTable rows={filteredLeave} />
+            <LeaveTable rows={filteredLeave} onDelete={isAdmin ? handleDeleteLeave : undefined} />
           ) : (
-            <PCRTable rows={filteredPCR} />
+            <PCRTable rows={filteredPCR} onDelete={isAdmin ? handleDeletePCR : undefined} />
           )}
         </div>
 
@@ -320,7 +381,7 @@ function Stat({ label, value, color='#1a3a2a' }: { label:string; value:string; c
 }
 
 // ── Leave table ──────────────────────────────────────────────────────────────
-function LeaveTable({ rows }: { rows: LeaveRequest[] }) {
+function LeaveTable({ rows, onDelete }: { rows: LeaveRequest[]; onDelete?: (id:number)=>void }) {
   const STATUS_STYLE: Record<LeaveStatus,{bg:string;color:string}> = {
     pending_hr: {bg:'#fef3c7',color:'#92400e'},
     pending_hk: {bg:'#ede9fe',color:'#5b21b6'},
@@ -340,7 +401,7 @@ function LeaveTable({ rows }: { rows: LeaveRequest[] }) {
     <table style={{width:'100%',borderCollapse:'collapse'}}>
       <thead>
         <tr>
-          {['Submitted','Employee','Dept','Company','Leave Type','From','To','Days','Status'].map(h=>(
+          {['Submitted','Employee','Dept','Company','Leave Type','From','To','Days','Status',...(onDelete?['']:[]  )].map(h=>(
             <th key={h} style={th}>{h}</th>
           ))}
         </tr>
@@ -363,6 +424,7 @@ function LeaveTable({ rows }: { rows: LeaveRequest[] }) {
                   {LEAVE_STATUS_LABELS[r.status]}
                 </span>
               </td>
+              {onDelete && <td style={td}><button onClick={()=>onDelete(r.id)} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:13,padding:'2px 6px',borderRadius:4}} title="Delete">✕</button></td>}
             </tr>
           )
         })}
@@ -372,7 +434,7 @@ function LeaveTable({ rows }: { rows: LeaveRequest[] }) {
 }
 
 // ── PCR table ────────────────────────────────────────────────────────────────
-function PCRTable({ rows }: { rows: PettyCashRequest[] }) {
+function PCRTable({ rows, onDelete }: { rows: PettyCashRequest[]; onDelete?: (id:number)=>void }) {
   const STATUS_STYLE: Record<PettyCashStatus,{bg:string;color:string}> = {
     pending_hos:     {bg:'#fef3c7',color:'#92400e'},
     pending_hod:     {bg:'#ede9fe',color:'#5b21b6'},
@@ -393,7 +455,7 @@ function PCRTable({ rows }: { rows: PettyCashRequest[] }) {
     <table style={{width:'100%',borderCollapse:'collapse'}}>
       <thead>
         <tr>
-          {['Req No.','Submitted','Employee','Company','Type','Amount (KSH)','Status'].map(h=>(
+          {['Req No.','Submitted','Employee','Company','Type','Amount (KSH)','Status',...(onDelete?['']:[]  )].map(h=>(
             <th key={h} style={th}>{h}</th>
           ))}
         </tr>
@@ -414,6 +476,7 @@ function PCRTable({ rows }: { rows: PettyCashRequest[] }) {
                   {PETTY_CASH_STATUS_LABELS[r.status]}
                 </span>
               </td>
+              {onDelete && <td style={td}><button onClick={()=>onDelete(r.id)} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:13,padding:'2px 6px',borderRadius:4}} title="Delete">✕</button></td>}
             </tr>
           )
         })}
