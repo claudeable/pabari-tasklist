@@ -308,8 +308,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     canViewAs:       ['admin','director'].includes(currentUser.role),
     canPostUpdate:   (task: Task) =>
       effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName),
+    // MY ATTENTION panel: Harshil (director+Director dept) and admin only
+    showAttentionPanel: currentUser.role === 'admin' ||
+                        (currentUser.role === 'director' && currentUser.department === 'Director'),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [currentUser.role, effectiveRole, effectiveName])
+  }), [currentUser.role, currentUser.department, effectiveRole, effectiveName])
 
   // ── Visible tasks (role + company access) ────────────────────────
   const visibleTasks = useMemo(() => {
@@ -319,14 +322,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     }
 
     // For all other roles, apply company access gate first
+    // Non-ALL users also see any task they're personally responsible for (cross-company assignments)
     const accessible = currentUser.companies.includes('ALL')
       ? tasks
-      : tasks.filter(t => currentUser.companies.includes(t.company))
+      : tasks.filter(t =>
+          currentUser.companies.includes(t.company) ||
+          nameMatch(t.responsible, currentUser.name)
+        )
 
     if (effectiveRole === 'ceo') {
       return accessible // CEO (Ahmad) sees all their company's tasks
     }
     if (effectiveRole === 'manager') {
+      // HOD-level managers (companies: ALL) see everything in their accessible companies
+      if (currentUser.companies.includes('ALL')) return accessible
       const myNames = [currentUser.name, ...subordinates]
       return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
     }
@@ -401,6 +410,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
     }
     if (currentUser.role === 'manager') {
+      // HOD-level managers (companies: ALL) see all awaiting-hod-approval
+      if (currentUser.companies.includes('ALL')) {
+        return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
+      }
       return visibleTasks.filter(t =>
         t.status === 'awaiting-hod-approval' &&
         subordinates.some(s => nameMatch(t.responsible, s))
@@ -1024,8 +1037,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         {/* SIDEBAR — hidden on mobile */}
         <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8,display:isMobile?'none':'block'}}>
 
-          {/* Director Attention — admin/director only */}
-          {perms.canHKComment && (
+          {/* My Attention — Harshil and admin only */}
+          {perms.showAttentionPanel && (
             <>
               <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#b5833a',letterSpacing:'0.7px',textTransform:'uppercase'}}>
                 My Attention

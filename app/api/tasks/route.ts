@@ -12,11 +12,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
-  // KISCOL tasks can only be created by director, ceo, or admin
+  // KISCOL tasks can only be created by users who have KISCOL (or ALL) company access
   if (body.company === 'KISCOL') {
     const token = req.cookies.get('pabari-session')?.value
     const user  = token ? await verifyToken(token) : null
-    if (!user || !['director', 'ceo', 'admin'].includes(user.role)) {
+    const hasKiscol = user && (user.companies.includes('ALL') || user.companies.includes('KISCOL'))
+    if (!hasKiscol) {
       return NextResponse.json({ error: 'Not authorised to create KISCOL tasks.' }, { status: 403 })
     }
   }
