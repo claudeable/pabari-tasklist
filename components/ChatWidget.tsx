@@ -104,6 +104,8 @@ export default function ChatWidget({ currentUser }: Props) {
   const [onlineIds,    setOnlineIds]    = useState<Set<string>>(new Set())
   const [dmUnreadFrom, setDmUnreadFrom] = useState<Set<string>>(new Set())
   const [notifPerm,   setNotifPerm]    = useState<NotificationPermission | null>(null)
+  const [connState,   setConnState]    = useState<'ok'|'reconnecting'|'lost'>('ok')
+  const pollFailsRef = useRef(0)
 
   // ── Refs (avoids stale closures in intervals) ────────────────────────────────
   const chLastId   = useRef<Partial<Record<Channel,number>>>({})
@@ -138,12 +140,23 @@ export default function ChatWidget({ currentUser }: Props) {
   const visTabs  = TABS.filter(t => t.visible)
   const visChans = visTabs.filter(t => CHANNELS.includes(t.id as Channel)).map(t => t.id as Channel)
 
+  // ── Connection state tracker ─────────────────────────────────────────────────
+  function onPollSuccess() {
+    if (pollFailsRef.current > 0) { pollFailsRef.current = 0; setConnState('ok') }
+  }
+  function onPollFailure() {
+    pollFailsRef.current += 1
+    if (pollFailsRef.current === 2) setConnState('reconnecting')
+    if (pollFailsRef.current >= 5) setConnState('lost')
+  }
+
   // ── Fetch channel messages ───────────────────────────────────────────────────
   async function fetchCh(ch: Channel, polling: boolean) {
     try {
       const since = chLastId.current[ch] ?? 0
       const res = await fetch(`/api/chat/messages?channel=${ch}&since=${since}`, { credentials:'include' })
-      if (!res.ok) return
+      if (res.status === 401) { window.location.href = '/login'; return }
+      if (!res.ok) { if (polling) onPollFailure(); return }
       const { messages: ms } = await res.json() as { messages: ChatMsg[] }
       if (!ms?.length) return
       const isActive = ch === activeTabR.current
@@ -159,7 +172,8 @@ export default function ChatWidget({ currentUser }: Props) {
           playNotifSound()
         }
       }
-    } catch { /**/ }
+      if (polling) onPollSuccess()
+    } catch { if (polling) onPollFailure() }
   }
 
   // ── Fetch DM messages ────────────────────────────────────────────────────────
@@ -179,7 +193,8 @@ export default function ChatWidget({ currentUser }: Props) {
   async function checkDMUnread() {
     try {
       const res = await fetch(`/api/chat/dm/unread?since=${dmUnreadSince.current}`, { credentials:'include' })
-      if (!res.ok) return
+      if (res.status === 401) { window.location.href = '/login'; return }
+      if (!res.ok) { onPollFailure(); return }
       const { count, maxId, senderIds } = await res.json() as { count: number; maxId: number; senderIds: string[] }
       if (count > 0) {
         const isViewingDMs = openR.current && activeTabR.current === 'direct' && dmWithR.current !== null
@@ -238,13 +253,15 @@ export default function ChatWidget({ currentUser }: Props) {
   // ── Presence ping + online fetch ─────────────────────────────────────────────
   async function pingAndRefreshOnline() {
     try {
-      await fetch('/api/chat/ping', { method:'POST', credentials:'include' })
+      const ping = await fetch('/api/chat/ping', { method:'POST', credentials:'include' })
+      if (ping.status === 401) { window.location.href = '/login'; return }
       const res = await fetch('/api/chat/online', { credentials:'include' })
       if (res.ok) {
         const { users } = await res.json() as { users: { user_id: string }[] }
         setOnlineIds(new Set(users.map(u => u.user_id)))
+        onPollSuccess()
       }
-    } catch { /**/ }
+    } catch { onPollFailure() }
   }
 
   // ── Polling setup ────────────────────────────────────────────────────────────
@@ -460,6 +477,16 @@ export default function ChatWidget({ currentUser }: Props) {
             <div style={{background:'#1a3a2a',color:'white',padding:'12px 16px',flexShrink:0}}>
               <div style={{fontSize:13,fontWeight:700}}>Organisation Chat</div>
               <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginTop:1}}>Pabari Group · Internal</div>
+            </div>
+          )}
+
+          {/* Connection lost banner */}
+          {connState !== 'ok' && (
+            <div style={{background: connState === 'lost' ? '#fef2f2' : '#fef9c3', borderBottom:`1px solid ${connState==='lost'?'#fecaca':'#fde047'}`, padding:'6px 14px', display:'flex', alignItems:'center', gap:8, flexShrink:0}}>
+              <span style={{fontSize:14}}>{connState === 'lost' ? '⚠️' : '🔄'}</span>
+              <span style={{fontSize:11, color: connState === 'lost' ? '#dc2626' : '#713f12', flex:1}}>
+                {connState === 'lost' ? 'Connection lost — messages may be delayed' : 'Reconnecting…'}
+              </span>
             </div>
           )}
 

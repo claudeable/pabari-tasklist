@@ -19,8 +19,19 @@ export default function LoginForm() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email, password }),
       })
-      const data = await res.json()
 
+      if (res.status === 429) {
+        setError('Too many login attempts. Please wait 15 minutes before trying again.')
+        setLoading(false)
+        return
+      }
+      if (res.status >= 500) {
+        setError('The server is temporarily unavailable. Please wait a moment and try again.')
+        setLoading(false)
+        return
+      }
+
+      const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Sign in failed.')
         setLoading(false)
@@ -29,7 +40,7 @@ export default function LoginForm() {
 
       window.location.href = '/'
     } catch {
-      setError('Network error. Please try again.')
+      setError('Cannot reach the server — please check your internet connection and try again.')
       setLoading(false)
     }
   }

@@ -570,6 +570,19 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Session guard — redirect to login if session expired when user returns to tab
+  useEffect(() => {
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' })
+        if (res.status === 401) window.location.href = '/login'
+      } catch { /**/ }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
