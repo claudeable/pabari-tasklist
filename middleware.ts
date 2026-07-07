@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const getSecret = () =>
-  process.env.JWT_SECRET ?? 'pabari-erp-default-secret-change-in-production'
+const getSecret = () => {
+  const s = process.env.JWT_SECRET
+  if (!s) throw new Error('JWT_SECRET environment variable is not set')
+  return s
+}
 
 async function verifyHS256(token: string): Promise<boolean> {
   try {

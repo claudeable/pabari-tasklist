@@ -33,5 +33,6 @@ export async function POST(req: NextRequest) {
   const hash    = await bcrypt.hash('changeme123', 10)
   const created = await createUser({ name, email, role, department: department || '', reports_to: reports_to || '', password_hash: hash })
 
-  return NextResponse.json(created, { status: 201 })
+  const { password_hash: _, ...safe } = created
+  return NextResponse.json(safe, { status: 201 })
 }

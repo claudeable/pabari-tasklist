@@ -12,10 +12,11 @@ export interface SessionUser {
   companies:  string[]
 }
 
-const secret = () =>
-  new TextEncoder().encode(
-    process.env.JWT_SECRET ?? 'pabari-erp-default-secret-change-in-production'
-  )
+const secret = () => {
+  const s = process.env.JWT_SECRET
+  if (!s) throw new Error('JWT_SECRET environment variable is not set — set it in Railway before deploying')
+  return new TextEncoder().encode(s)
+}
 
 export async function signToken(user: SessionUser): Promise<string> {
   return new SignJWT({

@@ -6,16 +6,23 @@ import { postSystemMessage } from '@/lib/chat'
 
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
+const LIMIT    = 5
+const WINDOW   = 15 * 60 * 1000 // 15 minutes
+
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
   const record = attempts.get(ip)
   if (!record || now > record.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + 5 * 60 * 1000 })
+    attempts.set(ip, { count: 1, resetAt: now + WINDOW })
     return false
   }
-  if (record.count >= 10) return true
+  if (record.count >= LIMIT) return true
   record.count++
   return false
+}
+
+function clearRateLimit(ip: string) {
+  attempts.delete(ip)
 }
 
 export async function POST(req: NextRequest) {
@@ -23,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   if (isRateLimited(ip)) {
     return NextResponse.json(
-      { error: 'Too many login attempts. Please wait 5 minutes.' },
+      { error: 'Too many login attempts. Please wait 15 minutes.' },
       { status: 429 }
     )
   }
@@ -54,6 +61,7 @@ export async function POST(req: NextRequest) {
     companies:  user.companies,
   })
 
+  clearRateLimit(ip)
   postSystemMessage(`🟢 ${user.name} logged in`).catch(() => {})
 
   const res = NextResponse.json({ ok: true, name: user.name, role: user.role })
