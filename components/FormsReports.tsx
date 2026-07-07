@@ -110,6 +110,163 @@ function buildPCRCSV(rows: PettyCashRequest[]): string[][] {
   return [header, ...data]
 }
 
+// ── Per-record PDF popups ────────────────────────────────────────────────────
+function printLeaveRecord(r: LeaveRequest) {
+  const safe = (s: unknown) => String(s ?? '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const statusBg:    Record<LeaveStatus,string> = { pending_hr:'#fef3c7', pending_hk:'#ede9fe', approved:'#d1fae5', rejected:'#fee2e2' }
+  const statusColor: Record<LeaveStatus,string> = { pending_hr:'#92400e', pending_hk:'#5b21b6', approved:'#065f46', rejected:'#991b1b' }
+  const w = window.open('', '_blank', 'width=900,height=720')
+  if (!w) { alert('Please allow popups for PDF export.'); return }
+  w.document.write(`<!DOCTYPE html><html><head><title>Leave Application — ${safe(r.employee_name)}</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}
+    .hdr{background:#1a3a2a;color:white;padding:14px 20px;display:flex;align-items:center;gap:14px;margin-bottom:20px;border-radius:4px}
+    .badge{background:#b5833a;color:white;font-weight:800;font-size:11px;padding:3px 10px;border-radius:3px;letter-spacing:1px}
+    .sec-title{font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin:16px 0 10px}
+    .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:4px}
+    .fl{font-size:8px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+    .fv{font-size:11px;color:#111;font-weight:500;padding:4px 0;border-bottom:1px solid #e5e7eb}
+    .reason{background:#f9fafb;border:1px solid #e5e7eb;padding:8px 10px;border-radius:3px;font-size:11px;min-height:36px}
+    .status{display:inline-block;padding:3px 10px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase}
+    .arow{display:flex;align-items:flex-start;padding:8px 10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;margin-bottom:8px;gap:12px}
+    .sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:24px}
+    .sig{border-top:1px solid #374151;padding-top:4px;text-align:center;font-size:9px;color:#6b7280;padding-bottom:28px}
+    .pbtn{margin-bottom:16px;padding:7px 18px;background:#1a3a2a;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+    @media print{.pbtn{display:none}body{padding:12px}}
+  </style></head><body>
+  <div class="hdr">
+    <span class="badge">PABARI</span>
+    <div><div style="font-size:14px;font-weight:700">LEAVE APPLICATION FORM</div><div style="font-size:10px;opacity:.7;margin-top:2px">Pabari Group — Human Resources</div></div>
+    <div style="margin-left:auto;text-align:right;font-size:10px;opacity:.9">
+      <div>Submitted: ${safe(fmtDate(r.submitted_at))}</div>
+      <span class="status" style="background:${statusBg[r.status]};color:${statusColor[r.status]};margin-top:4px;display:inline-block">${safe(LEAVE_STATUS_LABELS[r.status])}</span>
+    </div>
+  </div>
+  <button class="pbtn" onclick="window.print()">🖨 Print / Save as PDF</button>
+  <div class="sec-title">Employee Details</div>
+  <div class="grid">
+    <div><div class="fl">Full Name</div><div class="fv">${safe(r.employee_name)}</div></div>
+    <div><div class="fl">Employee No.</div><div class="fv">${safe(r.employee_no)}</div></div>
+    <div><div class="fl">Department</div><div class="fv">${safe(r.department)}</div></div>
+    <div><div class="fl">Job Title</div><div class="fv">${safe(r.job_title)}</div></div>
+    <div><div class="fl">Company</div><div class="fv">${safe(r.company)}</div></div>
+    <div><div class="fl">Telephone</div><div class="fv">${safe(r.telephone)}</div></div>
+    <div><div class="fl">Date of Employment</div><div class="fv">${r.date_of_employment ? safe(fmtDate(r.date_of_employment)) : '—'}</div></div>
+  </div>
+  <div class="sec-title">Leave Details</div>
+  <div class="grid">
+    <div><div class="fl">Leave Type</div><div class="fv">${safe(LEAVE_TYPE_LABELS[r.leave_type])}</div></div>
+    <div><div class="fl">From Date</div><div class="fv">${safe(fmtDate(r.date_from))}</div></div>
+    <div><div class="fl">To Date</div><div class="fv">${safe(fmtDate(r.date_to))}</div></div>
+    <div><div class="fl">Days Requested</div><div class="fv" style="font-weight:700;font-size:14px">${r.days_requested}</div></div>
+    <div><div class="fl">Cover Person</div><div class="fv">${safe(r.cover_person)}</div></div>
+  </div>
+  <div class="sec-title">Reason for Leave</div>
+  <div class="reason">${safe(r.reason) || '<em style="color:#9ca3af">No reason provided</em>'}</div>
+  <div class="sec-title">Approval Status</div>
+  <div class="arow">
+    <div style="min-width:110px"><div class="fl">HR Review</div>
+      <span class="status" style="background:${r.status==='pending_hr'?'#fef3c7':'#d1fae5'};color:${r.status==='pending_hr'?'#92400e':'#065f46'};margin-top:4px;display:inline-block">
+        ${r.status==='pending_hr'?'Pending':'Reviewed'}
+      </span>
+    </div>
+    ${r.hr_notes?`<div><div class="fl">HR Notes</div><div style="font-size:11px;color:#374151;margin-top:2px">${safe(r.hr_notes)}</div></div>`:''}
+  </div>
+  <div class="arow">
+    <div style="min-width:110px"><div class="fl">HK Approval</div>
+      <span class="status" style="background:${statusBg[r.status]};color:${statusColor[r.status]};margin-top:4px;display:inline-block">
+        ${r.status==='approved'?'Approved':r.status==='rejected'?'Rejected':'Pending'}
+      </span>
+    </div>
+    ${r.hk_notes?`<div><div class="fl">HK Notes</div><div style="font-size:11px;color:#374151;margin-top:2px">${safe(r.hk_notes)}</div></div>`:''}
+    ${r.rejection_reason?`<div><div class="fl" style="color:#dc2626">Rejection Reason</div><div style="font-size:11px;color:#dc2626;margin-top:2px">${safe(r.rejection_reason)}</div></div>`:''}
+  </div>
+  <div class="sigs">
+    <div class="sig">Employee Signature &amp; Date</div>
+    <div class="sig">HR Manager Signature &amp; Date</div>
+    <div class="sig">Director Signature &amp; Date</div>
+  </div>
+  </body></html>`)
+  w.document.close()
+}
+
+function printPCRRecord(r: PettyCashRequest) {
+  const safe = (s: unknown) => String(s ?? '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const statusBg:    Record<PettyCashStatus,string> = { pending_hos:'#fef3c7', pending_hod:'#ede9fe', pending_finance:'#dbeafe', approved:'#d1fae5', rejected:'#fee2e2' }
+  const statusColor: Record<PettyCashStatus,string> = { pending_hos:'#92400e', pending_hod:'#5b21b6', pending_finance:'#1e40af', approved:'#065f46', rejected:'#991b1b' }
+  const w = window.open('', '_blank', 'width=900,height=720')
+  if (!w) { alert('Please allow popups for PDF export.'); return }
+  const itemRows = r.items.map(i => `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${safe(i.description)}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${safe(i.account_no)}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${i.amount.toLocaleString('en-KE',{minimumFractionDigits:2})}</td></tr>`).join('')
+  w.document.write(`<!DOCTYPE html><html><head><title>Petty Cash — ${safe(r.req_no)}</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}
+    .hdr{background:#1a3a2a;color:white;padding:14px 20px;display:flex;align-items:center;gap:14px;margin-bottom:20px;border-radius:4px}
+    .badge{background:#b5833a;color:white;font-weight:800;font-size:11px;padding:3px 10px;border-radius:3px;letter-spacing:1px}
+    .sec-title{font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin:16px 0 10px}
+    .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:4px}
+    .fl{font-size:8px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+    .fv{font-size:11px;color:#111;font-weight:500;padding:4px 0;border-bottom:1px solid #e5e7eb}
+    table.items{width:100%;border-collapse:collapse;font-size:11px}
+    table.items thead th{background:#1a3a2a;color:white;padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase}
+    table.items thead th:last-child{text-align:right}
+    .tot td{padding:8px 10px;font-weight:700;background:#f0fdf4;font-size:12px;border-top:2px solid #1a3a2a}
+    .status{display:inline-block;padding:3px 10px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase}
+    .agrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .abox{border:1px solid #e5e7eb;border-radius:4px;padding:10px 12px}
+    .sigs{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;margin-top:24px}
+    .sig{border-top:1px solid #374151;padding-top:4px;text-align:center;font-size:9px;color:#6b7280;padding-bottom:28px}
+    .pbtn{margin-bottom:16px;padding:7px 18px;background:#1a3a2a;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+    @media print{.pbtn{display:none}body{padding:12px}}
+  </style></head><body>
+  <div class="hdr">
+    <span class="badge">PABARI</span>
+    <div><div style="font-size:14px;font-weight:700">PETTY CASH REQUEST${r.form_type==='kiscol'?' — KISCOL':''}</div><div style="font-size:10px;opacity:.7;margin-top:2px">Pabari Group · Finance Department</div></div>
+    <div style="margin-left:auto;text-align:right;font-size:10px;opacity:.9">
+      <div style="font-weight:700;font-size:13px">${safe(r.req_no)}</div>
+      <div style="margin-top:2px">${safe(fmtDate(r.request_date || r.submitted_at))}</div>
+      <span class="status" style="background:${statusBg[r.status]};color:${statusColor[r.status]};margin-top:4px;display:inline-block">${safe(PETTY_CASH_STATUS_LABELS[r.status])}</span>
+    </div>
+  </div>
+  <button class="pbtn" onclick="window.print()">🖨 Print / Save as PDF</button>
+  <div class="sec-title">Request Details</div>
+  <div class="grid">
+    <div><div class="fl">Company</div><div class="fv">${safe(r.company)}</div></div>
+    <div><div class="fl">Payment Method</div><div class="fv">${r.payment_method==='bank_transfer'?'Bank Transfer':r.payment_method==='mpesa'?'M-Pesa':'Cash'}</div></div>
+    <div><div class="fl">Voucher No.</div><div class="fv">${safe(r.voucher_no)||'—'}</div></div>
+    <div><div class="fl">Request Date</div><div class="fv">${safe(fmtDate(r.request_date||r.submitted_at))}</div></div>
+  </div>
+  <div class="sec-title">Requestor</div>
+  <div class="grid">
+    <div><div class="fl">Employee Name</div><div class="fv">${safe(r.employee_name)}</div></div>
+    <div><div class="fl">ID No.</div><div class="fv">${safe(r.employee_id_no)}</div></div>
+    <div><div class="fl">Department</div><div class="fv">${safe(r.department)}</div></div>
+    <div><div class="fl">HOD</div><div class="fv">${safe(r.hod_name)}</div></div>
+    ${r.delegate_name?`<div><div class="fl">Delegate</div><div class="fv">${safe(r.delegate_name)}</div></div><div><div class="fl">Delegate ID No.</div><div class="fv">${safe(r.delegate_id_no)}</div></div>`:''}
+  </div>
+  <div class="sec-title">Items Requested</div>
+  <table class="items">
+    <thead><tr><th>Description</th><th style="text-align:center">Account No.</th><th style="text-align:right">Amount (KSH)</th></tr></thead>
+    <tbody>
+      ${itemRows}
+      <tr class="tot"><td colspan="2" style="text-align:right">TOTAL</td><td style="text-align:right">${r.total_amount.toLocaleString('en-KE',{minimumFractionDigits:2})}</td></tr>
+    </tbody>
+  </table>
+  ${r.amount_in_words?`<div style="margin-top:8px;font-size:10px;color:#6b7280"><em>Amount in words: ${safe(r.amount_in_words)}</em></div>`:''}
+  <div class="sec-title">Approval Status</div>
+  <div class="agrid">
+    <div class="abox"><div class="fl">HOS (Krishna)</div><span class="status" style="margin-top:6px;background:${r.hos_approved_at?'#d1fae5':'#f3f4f6'};color:${r.hos_approved_at?'#065f46':'#6b7280'};display:inline-block">${r.hos_approved_at?'Approved · '+fmtDate(r.hos_approved_at):'Pending'}</span></div>
+    <div class="abox"><div class="fl">HOD</div><span class="status" style="margin-top:6px;background:${r.hod_approved_at?'#d1fae5':'#f3f4f6'};color:${r.hod_approved_at?'#065f46':'#6b7280'};display:inline-block">${r.hod_approved_at?'Approved · '+fmtDate(r.hod_approved_at):'Pending'}</span></div>
+    <div class="abox"><div class="fl">Finance (Andu)</div><span class="status" style="margin-top:6px;background:${r.finance_approved_at?'#d1fae5':'#f3f4f6'};color:${r.finance_approved_at?'#065f46':'#6b7280'};display:inline-block">${r.finance_approved_at?'Approved · '+fmtDate(r.finance_approved_at):'Pending'}</span></div>
+  </div>
+  ${r.rejection_reason?`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:8px 12px;margin-top:8px;font-size:11px;color:#dc2626"><strong>Rejection Reason:</strong> ${safe(r.rejection_reason)}</div>`:''}
+  <div class="sigs">
+    <div class="sig">Requestor Signature &amp; Date</div>
+    <div class="sig">HOS Signature &amp; Date</div>
+    <div class="sig">HOD Signature &amp; Date</div>
+    <div class="sig">Finance Signature &amp; Date</div>
+  </div>
+  </body></html>`)
+  w.document.close()
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLeaveFull, canSeePCRFull }: Props) {
   const [isMobile,       setIsMobile]       = useState(false)
@@ -359,9 +516,9 @@ export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLe
         {/* Table */}
         <div style={{background:'white',borderRadius:8,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflowX:'auto'}}>
           {tab==='leave' ? (
-            <LeaveTable rows={filteredLeave} onDelete={isAdmin ? handleDeleteLeave : undefined} />
+            <LeaveTable rows={filteredLeave} onDelete={isAdmin ? handleDeleteLeave : undefined} onPrint={printLeaveRecord} />
           ) : (
-            <PCRTable rows={filteredPCR} onDelete={isAdmin ? handleDeletePCR : undefined} />
+            <PCRTable rows={filteredPCR} onDelete={isAdmin ? handleDeletePCR : undefined} onPrint={printPCRRecord} />
           )}
         </div>
 
@@ -381,7 +538,7 @@ function Stat({ label, value, color='#1a3a2a' }: { label:string; value:string; c
 }
 
 // ── Leave table ──────────────────────────────────────────────────────────────
-function LeaveTable({ rows, onDelete }: { rows: LeaveRequest[]; onDelete?: (id:number)=>void }) {
+function LeaveTable({ rows, onDelete, onPrint }: { rows: LeaveRequest[]; onDelete?: (id:number)=>void; onPrint?: (r:LeaveRequest)=>void }) {
   const STATUS_STYLE: Record<LeaveStatus,{bg:string;color:string}> = {
     pending_hr: {bg:'#fef3c7',color:'#92400e'},
     pending_hk: {bg:'#ede9fe',color:'#5b21b6'},
@@ -401,8 +558,8 @@ function LeaveTable({ rows, onDelete }: { rows: LeaveRequest[]; onDelete?: (id:n
     <table style={{width:'100%',borderCollapse:'collapse'}}>
       <thead>
         <tr>
-          {['Submitted','Employee','Dept','Company','Leave Type','From','To','Days','Status',...(onDelete?['']:[]  )].map(h=>(
-            <th key={h} style={th}>{h}</th>
+          {['Submitted','Employee','Dept','Company','Leave Type','From','To','Days','Status','',...(onDelete?['']:[]  )].map((h,i)=>(
+            <th key={i} style={{...th,width:h===''?50:undefined}}>{h}</th>
           ))}
         </tr>
       </thead>
@@ -424,6 +581,12 @@ function LeaveTable({ rows, onDelete }: { rows: LeaveRequest[]; onDelete?: (id:n
                   {LEAVE_STATUS_LABELS[r.status]}
                 </span>
               </td>
+              <td style={{...td,width:50}}>
+                <button onClick={()=>onPrint?.(r)} title="Print / Save PDF"
+                  style={{background:'none',border:'1px solid #d1d5db',color:'#374151',cursor:'pointer',fontSize:11,padding:'2px 7px',borderRadius:4,lineHeight:1.4}}>
+                  🖨
+                </button>
+              </td>
               {onDelete && <td style={td}><button onClick={()=>onDelete(r.id)} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:13,padding:'2px 6px',borderRadius:4}} title="Delete">✕</button></td>}
             </tr>
           )
@@ -434,7 +597,7 @@ function LeaveTable({ rows, onDelete }: { rows: LeaveRequest[]; onDelete?: (id:n
 }
 
 // ── PCR table ────────────────────────────────────────────────────────────────
-function PCRTable({ rows, onDelete }: { rows: PettyCashRequest[]; onDelete?: (id:number)=>void }) {
+function PCRTable({ rows, onDelete, onPrint }: { rows: PettyCashRequest[]; onDelete?: (id:number)=>void; onPrint?: (r:PettyCashRequest)=>void }) {
   const STATUS_STYLE: Record<PettyCashStatus,{bg:string;color:string}> = {
     pending_hos:     {bg:'#fef3c7',color:'#92400e'},
     pending_hod:     {bg:'#ede9fe',color:'#5b21b6'},
@@ -455,8 +618,8 @@ function PCRTable({ rows, onDelete }: { rows: PettyCashRequest[]; onDelete?: (id
     <table style={{width:'100%',borderCollapse:'collapse'}}>
       <thead>
         <tr>
-          {['Req No.','Submitted','Employee','Company','Type','Amount (KSH)','Status',...(onDelete?['']:[]  )].map(h=>(
-            <th key={h} style={th}>{h}</th>
+          {['Req No.','Submitted','Employee','Company','Type','Amount (KSH)','Status','',...(onDelete?['']:[]  )].map((h,i)=>(
+            <th key={i} style={{...th,width:h===''?50:undefined}}>{h}</th>
           ))}
         </tr>
       </thead>
@@ -475,6 +638,12 @@ function PCRTable({ rows, onDelete }: { rows: PettyCashRequest[]; onDelete?: (id
                 <span style={{background:ss.bg,color:ss.color,padding:'2px 8px',borderRadius:10,fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
                   {PETTY_CASH_STATUS_LABELS[r.status]}
                 </span>
+              </td>
+              <td style={{...td,width:50}}>
+                <button onClick={()=>onPrint?.(r)} title="Print / Save PDF"
+                  style={{background:'none',border:'1px solid #d1d5db',color:'#374151',cursor:'pointer',fontSize:11,padding:'2px 7px',borderRadius:4,lineHeight:1.4}}>
+                  🖨
+                </button>
               </td>
               {onDelete && <td style={td}><button onClick={()=>onDelete(r.id)} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:13,padding:'2px 6px',borderRadius:4}} title="Delete">✕</button></td>}
             </tr>
