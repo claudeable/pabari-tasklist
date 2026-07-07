@@ -30,8 +30,8 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
   const [modalNotes,     setModalNotes]     = useState('')
   const [saving,         setSaving]         = useState(false)
 
-  const isHR    = currentUser.department === 'HR' || currentUser.role === 'admin'
-  const isAdmin = currentUser.role === 'admin'
+  const isHR    = currentUser.department === 'HR' || currentUser.role === 'admin' || currentUser.role === 'director'
+  const isHK    = currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
   const canSeeAll = currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.department === 'HR'
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
   const tabItems: { key: Tab; label: string; count: number; visible: boolean }[] = [
     { key: 'mine',       label: 'My Requests',       count: myRequests.length,  visible: true },
     { key: 'pending_hr', label: 'Pending HR Review',  count: pendingHR.length,   visible: isHR },
-    { key: 'pending_hk', label: 'Pending HK Approval',count: pendingHK.length,   visible: isAdmin },
+    { key: 'pending_hk', label: 'Pending HK Approval',count: pendingHK.length,   visible: isHK },
     { key: 'all',        label: 'All Requests',       count: requests.length,    visible: canSeeAll },
   ]
 
@@ -204,7 +204,7 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
               const st = STATUS_STYLE[req.status]
               const isMyReq = req.employee_id === Number(currentUser.id)
               const canHRAction  = isHR && req.status === 'pending_hr'
-              const canHKAction  = isAdmin && req.status === 'pending_hk'
+              const canHKAction  = isHK && req.status === 'pending_hk'
 
               return (
                 <div key={req.id} style={{background:'white',borderRadius:8,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden',border:'1px solid #f0f0f0'}}>
