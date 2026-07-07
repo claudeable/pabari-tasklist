@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { getPublicUsers, getSubordinates } from '@/lib/users'
 import { getTasks } from '@/lib/db'
+import { getManagerMembers } from '@/lib/managerMembers'
 import TaskBoard from '@/components/TaskBoard'
 
 export const dynamic = 'force-dynamic'
@@ -14,10 +15,11 @@ export default async function TasksPage() {
 
   if (!currentUser) redirect('/login')
 
-  const [tasks, allUsers, subordinates] = await Promise.all([
+  const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([
     getTasks(),
     getPublicUsers(),
     getSubordinates(currentUser.email),
+    currentUser.role === 'manager' ? getManagerMembers(currentUser.email) : Promise.resolve([]),
   ])
 
   const sorted = tasks.map(t => ({
@@ -33,6 +35,7 @@ export default async function TasksPage() {
       currentUser={currentUser}
       allUsers={allUsers}
       subordinates={subordinates}
+      teamMembers={teamMembers}
     />
   )
 }

@@ -134,9 +134,10 @@ interface Props {
   currentUser:   SessionUser
   allUsers:      PublicUser[]
   subordinates?: string[]
+  teamMembers?:  string[]
 }
 
-export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers, subordinates = [] }: Props) {
+export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers, subordinates = [], teamMembers: initialTeamMembers = [] }: Props) {
   // ── State ────────────────────────────────────────────────────────
   const [tasks,         setTasks]         = useState<Task[]>(initialTasks)
   const [allUsers,      setAllUsers]      = useState<PublicUser[]>(initialUsers)
@@ -192,6 +193,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [pwSaving,       setPwSaving]       = useState(false)
   const [isMobile,       setIsMobile]       = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [teamMembers,    setTeamMembers]    = useState<string[]>(initialTeamMembers)
+  const [showTeamAdd,    setShowTeamAdd]    = useState(false)
+  const [teamAddName,    setTeamAddName]    = useState('')
+  const [teamSaving,     setTeamSaving]     = useState(false)
 
   interface AuditEntry { id:string; changed_by:string; field:string|null; old_value:string|null; new_value:string|null; changed_at:string }
   const [taskAudit, setTaskAudit] = useState<AuditEntry[]>([])
@@ -342,7 +347,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       // Operations HOD and Group CEO have full cross-company visibility
       const FULL_ACCESS_DEPTS = ['Operations / AOB', 'Group CEO']
       if (FULL_ACCESS_DEPTS.includes(currentUser.department)) return accessible
-      // All other managers see only tasks where the responsible person is in their department
+      // Use manually configured team if set; fall back to department-based
+      if (teamMembers.length > 0) {
+        const myNames = [currentUser.name, ...teamMembers]
+        return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+      }
       const deptNames = allUsers
         .filter(u => u.department === currentUser.department)
         .map(u => u.name)
@@ -352,7 +361,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       )
     }
     return accessible // director / admin see everything in their accessible companies
-  }, [tasks, effectiveRole, effectiveName, currentUser.name, currentUser.companies, subordinates])
+  }, [tasks, effectiveRole, effectiveName, currentUser.name, currentUser.companies, subordinates, teamMembers])
 
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {
@@ -428,14 +437,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
     }
     if (currentUser.role === 'manager') {
-      // Only see tasks where direct subordinates submitted for HOD approval
+      const reviewers = teamMembers.length > 0 ? teamMembers : subordinates
       return visibleTasks.filter(t =>
         t.status === 'awaiting-hod-approval' &&
-        subordinates.some(s => nameMatch(t.responsible, s))
+        reviewers.some(s => nameMatch(t.responsible, s))
       )
     }
     return []
-  }, [visibleTasks, currentUser.role, subordinates, allUsers])
+  }, [visibleTasks, currentUser.role, subordinates, teamMembers, allUsers])
 
   const resolvedTasks = useMemo(() =>
     visibleTasks.filter(t => t.status === 'resolved'),
@@ -580,6 +589,26 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     await fetch(`/api/tasks/${id}`, { method:'DELETE' })
     setTasks(prev => prev.filter(t => t.id!==id))
     if (activeTask?.id===id) setActiveTask(null)
+  }
+
+  async function addTeamMember() {
+    if (!teamAddName || teamSaving) return
+    setTeamSaving(true)
+    await fetch('/api/manager-members', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberName: teamAddName }), credentials: 'include',
+    })
+    setTeamMembers(prev => [...prev, teamAddName].sort())
+    setTeamAddName('')
+    setShowTeamAdd(false)
+    setTeamSaving(false)
+  }
+
+  async function removeTeamMember(name: string) {
+    await fetch(`/api/manager-members/${encodeURIComponent(name)}`, {
+      method: 'DELETE', credentials: 'include',
+    })
+    setTeamMembers(prev => prev.filter(n => n !== name))
   }
 
   async function signOut() {
@@ -1123,6 +1152,54 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 {item.label||'All Sections'}
               </div>
             ))}
+          </>}
+
+          {/* My Team — managers with full company access only */}
+          {currentUser.role === 'manager' && !isKiscolOnly && <>
+            <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
+            <div style={{padding:'4px 14px 5px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>My Team</span>
+              <button onClick={()=>setShowTeamAdd(v=>!v)}
+                title={showTeamAdd ? 'Cancel' : 'Add person'}
+                style={{background:'none',border:'1px solid #d1d5db',borderRadius:3,width:18,height:18,fontSize:13,cursor:'pointer',color:'#9ca3af',padding:0,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
+                {showTeamAdd ? '−' : '+'}
+              </button>
+            </div>
+            {showTeamAdd && (
+              <div style={{padding:'2px 10px 8px',display:'flex',gap:4}}>
+                <select value={teamAddName} onChange={e=>setTeamAddName(e.target.value)}
+                  style={{flex:1,border:'1px solid #d1d5db',borderRadius:3,padding:'4px 5px',fontSize:11,color:'#374151',minWidth:0}}>
+                  <option value="">Pick person…</option>
+                  {allUsers.filter(u => u.name !== currentUser.name && !teamMembers.includes(u.name)).map(u=>(
+                    <option key={u.name} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
+                <button onClick={addTeamMember} disabled={!teamAddName || teamSaving}
+                  style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:3,padding:'4px 8px',fontSize:12,fontWeight:700,cursor:'pointer',opacity:!teamAddName||teamSaving?0.4:1}}>
+                  {teamSaving ? '…' : '✓'}
+                </button>
+              </div>
+            )}
+            <div style={{padding:'0 10px 6px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,padding:'4px 4px',borderRadius:4,background:'#f0fdf4',marginBottom:2}}>
+                <span style={{width:6,height:6,borderRadius:'50%',background:'#15803d',flexShrink:0,display:'inline-block'}}/>
+                <span style={{fontSize:11.5,color:'#1a3a2a',fontWeight:600,flex:1}}>{currentUser.name}</span>
+                <span style={{fontSize:9,color:'#9ca3af'}}>(you)</span>
+              </div>
+              {teamMembers.map(name=>(
+                <div key={name} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 4px',borderRadius:4}}>
+                  <span style={{width:6,height:6,borderRadius:'50%',background:'#d1d5db',flexShrink:0,display:'inline-block'}}/>
+                  <span style={{fontSize:11.5,color:'#374151',flex:1}}>{name}</span>
+                  <button onClick={()=>removeTeamMember(name)} title={`Remove ${name}`}
+                    style={{background:'none',border:'none',cursor:'pointer',color:'#d1d5db',fontSize:11,padding:'0 2px',lineHeight:1}}>✕</button>
+                </div>
+              ))}
+              {teamMembers.length === 0 && (
+                <div style={{fontSize:10.5,color:'#9ca3af',fontStyle:'italic',padding:'3px 4px'}}>
+                  Add people to see their tasks.
+                </div>
+              )}
+            </div>
           </>}
         </div>
 
