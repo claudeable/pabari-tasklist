@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['web-push'],
+  experimental: {
+    serverComponentsExternalPackages: ['web-push'],
+  },
 }
 module.exports = nextConfig
