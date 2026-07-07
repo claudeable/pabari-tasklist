@@ -84,23 +84,23 @@ export async function getAllLeaveRequests(): Promise<LeaveRequest[]> {
   return rows.map(rowToLeave)
 }
 
-export async function getMyLeaveRequests(employee_id: number): Promise<LeaveRequest[]> {
+export async function getMyLeaveRequests(employee_name: string): Promise<LeaveRequest[]> {
   await ensureTable()
   const rows = await query<Record<string, unknown>>(
-    'SELECT * FROM leave_requests WHERE employee_id = $1 ORDER BY submitted_at DESC',
-    [employee_id]
+    'SELECT * FROM leave_requests WHERE LOWER(employee_name) = LOWER($1) ORDER BY submitted_at DESC',
+    [employee_name]
   )
   return rows.map(rowToLeave)
 }
 
-export async function getLeaveBalance(employee_id: number, year: number): Promise<number> {
+export async function getLeaveBalance(employee_name: string, year: number): Promise<number> {
   await ensureTable()
   const rows = await query<{ total: string }>(
     `SELECT COALESCE(SUM(days_requested), 0) as total
      FROM leave_requests
-     WHERE employee_id = $1 AND leave_type = 'annual' AND year = $2
+     WHERE LOWER(employee_name) = LOWER($1) AND leave_type = 'annual' AND year = $2
      AND status NOT IN ('rejected')`,
-    [employee_id, year]
+    [employee_name, year]
   )
   return Number(rows[0]?.total || 0)
 }

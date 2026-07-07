@@ -15,10 +15,9 @@ export default async function LeaveFormPage() {
   const year = new Date().getFullYear()
   const canSeeAll = user.role === 'admin' || user.role === 'director' || user.department === 'HR'
 
-  const uid = parseInt(String(user.id ?? ''), 10) || 0
   const [requests, usedDays] = await Promise.all([
-    canSeeAll ? getAllLeaveRequests() : getMyLeaveRequests(uid),
-    getLeaveBalance(uid, year),
+    canSeeAll ? getAllLeaveRequests() : getMyLeaveRequests(user.name),
+    getLeaveBalance(user.name, year),
   ])
 
   return (

@@ -14,8 +14,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const uid = safeInt(user.id)
   const { action, notes } = await req.json()
 
-  const isHR    = user.department === 'HR' || user.role === 'admin'
-  const isAdmin = user.role === 'admin'
+  const isHR    = user.department === 'HR' || user.role === 'admin' || user.role === 'director'
+  const isAdmin = user.role === 'admin' || user.role === 'director'
 
   if (action === 'hr_approve') {
     if (!isHR) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

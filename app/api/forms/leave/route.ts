@@ -23,8 +23,8 @@ export async function GET() {
   const [requests, usedDays] = await Promise.all([
     (user.role === 'admin' || user.role === 'director' || user.department === 'HR')
       ? getAllLeaveRequests()
-      : getMyLeaveRequests(safeInt(user.id)),
-    getLeaveBalance(safeInt(user.id), year),
+      : getMyLeaveRequests(user.name),
+    getLeaveBalance(user.name, year),
   ])
 
   return NextResponse.json({
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   console.log('[LEAVE] user.id=%s safeInt=%d year=%d days=%s', user.id, safeInt(user.id), year, days_requested)
 
   if (leave_type === 'annual') {
-    const used = await getLeaveBalance(safeInt(user.id), year)
+    const used = await getLeaveBalance(user.name, year)
     if (used + Number(days_requested) > ANNUAL_LEAVE_LIMIT) {
       const remaining = Math.max(0, ANNUAL_LEAVE_LIMIT - used)
       return NextResponse.json({
