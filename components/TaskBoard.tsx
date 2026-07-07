@@ -403,24 +403,27 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   // ── Pending My Review & Resolved tabs ────────────────────────────
   const pendingMyReview = useMemo(() => {
     if (currentUser.role === 'director' || currentUser.role === 'admin') {
-      return visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
+      // Harshil/admin sees awaiting-hk-approval tasks, plus awaiting-hod-approval tasks
+      // where the responsible person is themselves a manager (HODs report directly to Harshil)
+      const hodNames = allUsers.filter(u => u.role === 'manager' || u.role === 'ceo').map(u => u.name)
+      return visibleTasks.filter(t =>
+        t.status === 'awaiting-hk-approval' ||
+        (t.status === 'awaiting-hod-approval' && hodNames.some(n => nameMatch(t.responsible, n)))
+      )
     }
     if (currentUser.role === 'ceo') {
       // CEO (Ahmad) sees KISCOL tasks staff has submitted for his review
       return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
     }
     if (currentUser.role === 'manager') {
-      // HOD-level managers (companies: ALL) see all awaiting-hod-approval
-      if (currentUser.companies.includes('ALL')) {
-        return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
-      }
+      // Only see tasks where direct subordinates submitted for HOD approval
       return visibleTasks.filter(t =>
         t.status === 'awaiting-hod-approval' &&
         subordinates.some(s => nameMatch(t.responsible, s))
       )
     }
     return []
-  }, [visibleTasks, currentUser.role, subordinates])
+  }, [visibleTasks, currentUser.role, subordinates, allUsers])
 
   const resolvedTasks = useMemo(() =>
     visibleTasks.filter(t => t.status === 'resolved'),
