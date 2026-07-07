@@ -43,7 +43,7 @@ const USERS = [
   { name: 'Simon',      email: 'sithibu@kwale-group.com',  role: 'staff',    department: 'Administration',                    reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Pedro',      email: 'hpedro@usm.co.ke',         role: 'manager',  department: 'IT',                                reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Duncan',     email: 'dmumo@usm.co.ke',          role: 'staff',    department: 'Administration',                    reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
-  { name: 'James',      email: 'joduor@usm.co.ke',         role: 'manager',  department: 'KISCOL',                            reports_to: 'ahmad@usm.co.ke',          companies: ['KISCOL']  },
+  { name: 'James',      email: 'joduor@usm.co.ke',         role: 'manager',  department: 'HR',                                reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
 ]
 
 // Old placeholder emails → real emails
