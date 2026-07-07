@@ -334,10 +334,22 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       return accessible // CEO (Ahmad) sees all their company's tasks
     }
     if (effectiveRole === 'manager') {
-      // HOD-level managers (companies: ALL) see everything in their accessible companies
-      if (currentUser.companies.includes('ALL')) return accessible
-      const myNames = [currentUser.name, ...subordinates]
-      return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+      // KISCOL-only managers: company filter + personally assigned already covered by accessible
+      if (!currentUser.companies.includes('ALL')) {
+        const myNames = [currentUser.name, ...subordinates]
+        return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+      }
+      // Operations HOD and Group CEO have full cross-company visibility
+      const FULL_ACCESS_DEPTS = ['Operations / AOB', 'Group CEO']
+      if (FULL_ACCESS_DEPTS.includes(currentUser.department)) return accessible
+      // All other managers see only tasks where the responsible person is in their department
+      const deptNames = allUsers
+        .filter(u => u.department === currentUser.department)
+        .map(u => u.name)
+      return accessible.filter(t =>
+        deptNames.some(n => nameMatch(t.responsible, n)) ||
+        nameMatch(t.responsible, currentUser.name)
+      )
     }
     return accessible // director / admin see everything in their accessible companies
   }, [tasks, effectiveRole, effectiveName, currentUser.name, currentUser.companies, subordinates])
