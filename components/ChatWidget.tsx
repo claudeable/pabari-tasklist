@@ -10,12 +10,12 @@ interface ChatMsg {
   to_user_id?: string; to_user_name?: string; created_at: string
 }
 interface DmUser { id: string; name: string; department: string; role: string }
-type Channel = 'all' | 'hod' | 'finance' | 'system'
+type Channel = 'all' | 'hod' | 'finance'
 type Tab     = Channel | 'direct'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
-const CHANNELS: Channel[] = ['all', 'hod', 'finance', 'system']
+const CHANNELS: Channel[] = ['all', 'hod', 'finance']
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ['#1a3a2a','#2d6a4f','#b5833a','#7b2d8b','#1e40af','#c2410c','#065f46','#92400e','#1d4ed8','#6d28d9']
@@ -129,17 +129,15 @@ export default function ChatWidget({ currentUser }: Props) {
 
   // ── Access flags ─────────────────────────────────────────────────────────────
   const email      = (currentUser.email ?? '').toLowerCase()
-  const isHarshil  = currentUser.role === 'director' && currentUser.department === 'Director'
   const canSeeHOD  = ['admin','director','manager'].includes(currentUser.role)
   const canFinance = ['admin','director','ceo'].includes(currentUser.role) || currentUser.department === 'Finance' || email === FINANCE_EMAIL
   const myId = String(currentUser.id)
 
   const TABS: { id: Tab; label: string; visible: boolean }[] = [
-    { id: 'all',    label: 'All Staff',           visible: true        },
-    { id: 'hod',    label: 'HOD',                 visible: canSeeHOD   },
-    { id: 'finance',label: 'Finance & Accounts',   visible: canFinance  },
-    { id: 'direct', label: '💬 Direct',           visible: true        },
-    { id: 'system', label: '🔔 Notifications',    visible: isHarshil   },
+    { id: 'all',    label: 'All Staff',         visible: true       },
+    { id: 'hod',    label: 'HOD',               visible: canSeeHOD  },
+    { id: 'finance',label: 'Finance & Accounts', visible: canFinance },
+    { id: 'direct', label: '💬 Direct',         visible: true       },
   ]
   const visTabs  = TABS.filter(t => t.visible)
   const visChans = visTabs.filter(t => CHANNELS.includes(t.id as Channel)).map(t => t.id as Channel)
@@ -373,7 +371,7 @@ export default function ChatWidget({ currentUser }: Props) {
 
   // ── Send handlers ─────────────────────────────────────────────────────────────
   async function sendMsg() {
-    if (!draft.trim() || sending || activeTab === 'system' || activeTab === 'direct') return
+    if (!draft.trim() || sending || activeTab === 'direct') return
     setSending(true)
     try {
       const res = await fetch('/api/chat/messages', {
@@ -553,7 +551,7 @@ export default function ChatWidget({ currentUser }: Props) {
             <div style={{flex:1,overflowY:'auto',padding:'12px 14px',display:'flex',flexDirection:'column',gap:8}}>
               {msgs.length === 0 && (
                 <div style={{textAlign:'center',color:'#9ca3af',fontSize:12,marginTop:40}}>
-                  {activeTab === 'system' ? 'Login and logout events will appear here.' : 'No messages yet. Say hello!'}
+                  {'No messages yet. Say hello!'}
                 </div>
               )}
               {msgs.map((msg, i) => <MsgBubble key={msg.id} msg={msg} i={i} list={msgs} myId={myId} />)}
@@ -626,7 +624,7 @@ export default function ChatWidget({ currentUser }: Props) {
           {/* ── Input area ─────────────────────────────────────────────── */}
 
           {/* Channel input */}
-          {activeTab !== 'system' && activeTab !== 'direct' && (
+          {activeTab !== 'direct' && (
             <div style={{borderTop:'1px solid #f0f0f0',padding:'10px 12px',display:'flex',gap:8,alignItems:'flex-end',flexShrink:0}}>
               <textarea
                 ref={inputR} value={draft}
