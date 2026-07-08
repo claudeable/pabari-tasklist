@@ -663,6 +663,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
             <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
           )}
+          {(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')) && (
+            <a href="/documents" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Documents</a>
+          )}
           {currentUser.role === 'admin' && (
             <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>
           )}
@@ -749,6 +752,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               {label:'Task Board',href:'/tasks'},
               ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Dashboard',href:'/dashboard'}] : []),
               ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Reports',href:'/reports'}] : []),
+              ...(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director') ? [{label:'Documents',href:'/documents'}] : []),
               ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
             ].map(item=>(
               <a key={item.href} href={item.href}

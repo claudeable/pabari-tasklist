@@ -110,12 +110,13 @@ const systems = [
     iconBg: '#f3e8ff',
     iconColor: '#7c3aed',
     label: 'Document Management',
-    description: 'Centralised document storage and management for all entities.',
-    badge: 'Coming Soon',
-    badgeBg: '#f3f4f6',
-    badgeColor: '#6b7280',
-    href: null,
-    detail: 'All entities · Version control · Expiry tracking',
+    description: 'Upload, organise, and access shared documents by folder.',
+    badge: 'Live',
+    badgeBg: '#dcfce7',
+    badgeColor: '#15803d',
+    href: '/documents',
+    detail: 'Upload · Folders · Download',
+    adminOnly: true, // Harshil + admin only for now
   },
 ]
 
@@ -278,7 +279,13 @@ export default function PortalHub({ currentUser }: Props) {
           gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
           gap: 20,
         }}>
-          {systems.map(sys => {
+          {systems.filter(sys => {
+            if ((sys as { adminOnly?: boolean }).adminOnly) {
+              return currentUser.role === 'admin' ||
+                (currentUser.role === 'director' && currentUser.department === 'Director')
+            }
+            return true
+          }).map(sys => {
             const isDisabled = !sys.href
             return (
               <div
