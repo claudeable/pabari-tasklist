@@ -5,6 +5,7 @@ import {
   getAllExpiringDocuments, getExpiringCount,
   saveDocument, createFolder, renameFolder, deleteFolder,
 } from '@/lib/documents'
+import { logActivity } from '@/lib/activityLog'
 
 function canAccess(user: { role: string; department: string } | null): boolean {
   if (!user) return false
@@ -54,14 +55,22 @@ export async function POST(req: NextRequest) {
     if (action === 'create-folder') {
       const name = (body.name as string | undefined)?.trim()
       if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
-      try { await createFolder(name); return NextResponse.json({ ok: true, name }, { status: 201 }) }
+      try {
+        await createFolder(name)
+        logActivity(user!.email, user!.name, 'folder_created', `Created folder "${name}"`).catch(() => {})
+        return NextResponse.json({ ok: true, name }, { status: 201 })
+      }
       catch (e: unknown) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed' }, { status: 400 }) }
     }
 
     if (action === 'rename-folder') {
       const { oldName, newName } = body as { oldName: string; newName: string }
       if (!oldName || !newName) return NextResponse.json({ error: 'oldName and newName required' }, { status: 400 })
-      try { await renameFolder(oldName.trim(), newName.trim()); return NextResponse.json({ ok: true }) }
+      try {
+        await renameFolder(oldName.trim(), newName.trim())
+        logActivity(user!.email, user!.name, 'folder_renamed', `Renamed folder "${oldName}" → "${newName}"`).catch(() => {})
+        return NextResponse.json({ ok: true })
+      }
       catch (e: unknown) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed' }, { status: 400 }) }
     }
 
@@ -70,6 +79,7 @@ export async function POST(req: NextRequest) {
       if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
       const result = await deleteFolder(name)
       if (!result.deleted) return NextResponse.json({ error: `Folder has ${result.count} file(s). Move or delete them first.` }, { status: 409 })
+      logActivity(user!.email, user!.name, 'folder_deleted', `Deleted folder "${name}"`).catch(() => {})
       return NextResponse.json({ ok: true })
     }
 
@@ -102,6 +112,8 @@ export async function POST(req: NextRequest) {
       uploader_name: user!.name,
       reference_no, description, year,
     })
+    logActivity(user!.email, user!.name, 'doc_uploaded',
+      `Uploaded "${file.name}" → [${entity}] ${folder}${reference_no ? ` (${reference_no})` : ''}`).catch(() => {})
     return NextResponse.json({ doc }, { status: 201 })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Upload failed' }, { status: 400 })

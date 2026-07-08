@@ -297,6 +297,7 @@ export default function DocumentManager({ currentUser }: Props) {
           style={{ background: '#b5833a', color: 'white', border: 'none', borderRadius: 5, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
           ↑ Upload
         </button>
+        <a href="/audit" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>Activity Log</a>
         {isAdmin && <a href="/admin/users" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>Users</a>}
         <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{currentUser.name}</span>
         <a href="/api/auth/logout" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: 12 }}>Sign out</a>
