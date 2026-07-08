@@ -298,6 +298,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     approval_type: '' as ApprovalType,
     initial_update:'', hk_comment:'', status_wk:'',
     due_date:'', recurrence:'none' as Recurrence,
+    legal_review: false,
   })
 
   // ── Roles & permissions ──────────────────────────────────────────
@@ -530,6 +531,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         ...form, sno:tasks.filter(t=>t.company===form.company).length+1, update_date:todayStr(),
+        legal_review: form.legal_review,
       }),
     })
     const { task } = await res.json()
@@ -542,7 +544,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => [...prev, withUpdates])
     setShowAddForm(false)
     setForm(f => ({...f,date:fmtDate(),section:'General',category:'Other',particulars:'',
-      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:'',due_date:'',recurrence:'none' as Recurrence}))
+      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:'',due_date:'',recurrence:'none' as Recurrence,legal_review:false}))
     setSaving(false)
   }
 
@@ -1348,6 +1350,27 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     </div>
                   </div>
                 )}
+                {/* Legal review — visible to managers and directors */}
+                {(currentUser.role === 'manager' || currentUser.role === 'director' || currentUser.role === 'admin') && (
+                  <div style={{gridColumn:'1/-1'}}>
+                    <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',
+                      background:form.legal_review?'#fdf4ff':'#f9fafb',
+                      border:`1px solid ${form.legal_review?'#d8b4fe':'#e5e7eb'}`,
+                      borderRadius:5,padding:'9px 12px'}}>
+                      <input type="checkbox" checked={form.legal_review}
+                        onChange={e=>setForm(v=>({...v,legal_review:e.target.checked}))}
+                        style={{width:14,height:14,accentColor:'#7c3aed',flexShrink:0}}/>
+                      <div>
+                        <span style={{fontSize:12,fontWeight:600,color:form.legal_review?'#7c3aed':'#374151'}}>
+                          ⚖️ Flag for Legal Review
+                        </span>
+                        <span style={{fontSize:10.5,color:'#9ca3af',marginLeft:8}}>
+                          Notifies Benson and Kulecho (Legal)
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
               <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
                 <button onClick={()=>setShowAddForm(false)} style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'6px 14px',fontSize:12,cursor:'pointer'}}>Cancel</button>
@@ -1473,6 +1496,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                           background:PRIORITY_STYLE[task.priority]?.bg, color:PRIORITY_STYLE[task.priority]?.color,
                           textTransform:'uppercase',letterSpacing:'0.5px',alignSelf:'flex-start'}}>
                           {PRIORITY_LABELS[task.priority]}
+                        </span>
+                      )}
+                      {task.legal_review && (
+                        <span title="Legal review requested" style={{display:'inline-block',fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,
+                          background:'#fdf4ff',color:'#7c3aed',border:'1px solid #e9d5ff',alignSelf:'flex-start',letterSpacing:'0.3px'}}>
+                          ⚖️ Legal
                         </span>
                       )}
                       {task.due_date && task.status !== 'resolved' && task.status !== 'expired' && (() => {
@@ -1805,6 +1834,37 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.4px',background:'#faf5ff',color:'#7c3aed',border:'1px solid #e9d5ff',padding:'2px 7px',borderRadius:8}}>
                     {activeTask.approval_type === 'ceo_approval' ? 'CEO Approval Flow' : 'No Approval Needed'}
                   </span>
+                </div>
+              )}
+
+              {/* Legal review toggle — managers and directors can flag/unflag */}
+              {(currentUser.role === 'manager' || currentUser.role === 'director' || currentUser.role === 'admin') && (
+                <div style={{marginTop:12,padding:'9px 12px',
+                  background:activeTask.legal_review?'#fdf4ff':'#f9fafb',
+                  border:`1px solid ${activeTask.legal_review?'#d8b4fe':'#e5e7eb'}`,borderRadius:5}}>
+                  <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}}>
+                    <input type="checkbox" checked={!!activeTask.legal_review}
+                      onChange={async e => {
+                        const val = e.target.checked
+                        await fetch(`/api/tasks/${activeTask.id}`,{
+                          method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',
+                          body:JSON.stringify({legal_review:val}),
+                        })
+                        setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,legal_review:val}:t))
+                        setActiveTask(p=>p?{...p,legal_review:val}:p)
+                      }}
+                      style={{width:14,height:14,accentColor:'#7c3aed',flexShrink:0}}/>
+                    <div>
+                      <span style={{fontSize:12,fontWeight:600,color:activeTask.legal_review?'#7c3aed':'#374151'}}>
+                        ⚖️ Needs Legal Review
+                      </span>
+                      {activeTask.legal_review && (
+                        <span style={{display:'block',fontSize:10,color:'#9ca3af',marginTop:1}}>
+                          Flagged — Benson & Kulecho notified
+                        </span>
+                      )}
+                    </div>
+                  </label>
                 </div>
               )}
 

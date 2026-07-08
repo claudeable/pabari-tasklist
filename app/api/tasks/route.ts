@@ -7,8 +7,6 @@ import { postDMMessage } from '@/lib/chat'
 
 export const dynamic = 'force-dynamic'
 
-const LEGAL_CATEGORIES = new Set(['Legal', 'Contract', 'Compliance', 'Litigation'])
-
 async function notifyLegal(
   sender: { id: string | number; name: string },
   taskDesc: string,
@@ -67,6 +65,7 @@ export async function POST(req: NextRequest) {
     due_date:        body.due_date ?? '',
     recurrence:      body.recurrence ?? 'none',
     parent_id:       body.parent_id ? String(body.parent_id) : undefined,
+    legal_review:    body.legal_review === true,
   })
 
   if (body.initial_update) {
@@ -80,7 +79,7 @@ export async function POST(req: NextRequest) {
     const desc = `Created task [${task.company}] "${task.particulars.slice(0, 80)}" → ${task.responsible}`
     logActivity(user.email, user.name, 'task_created', desc).catch(() => {})
 
-    if (LEGAL_CATEGORIES.has(body.category)) {
+    if (body.legal_review === true) {
       notifyLegal(user, task.particulars, task.company).catch(() => {})
     }
   }

@@ -157,6 +157,7 @@ export interface Task {
   due_date:        string   // YYYY-MM-DD, '' if not set
   recurrence:      Recurrence
   parent_id?:      string   // links follow-ups and recurrence cycles to their origin task
+  legal_review:    boolean  // HOD flagged this task as needing legal review
   created_at:      string
   updated_at:      string
   task_updates?:   TaskUpdate[]

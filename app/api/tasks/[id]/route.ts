@@ -1,11 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateTask, deleteTask, createTask } from '@/lib/db'
+import { updateTask, deleteTask, createTask, getTaskById } from '@/lib/db'
 import { verifyToken } from '@/lib/auth'
 import { RECURRENCE_OPTIONS, Task } from '@/types'
-import { getUserByName } from '@/lib/users'
+import { getUserByName, getUserByEmail } from '@/lib/users'
 import { postDMMessage } from '@/lib/chat'
 import { getSubscriptionsForUser, sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
+
+async function notifyLegal(
+  sender: { id: string | number; name: string },
+  taskDesc: string,
+  company: string
+) {
+  const msg = `⚖️ Legal review requested — [${company}] ${taskDesc}`
+  const recipients = [
+    'bnzuka@usm.co.ke',        // Benson (Group CEO)
+    'dkulecho@kwale-group.com', // David Kulecho (Legal)
+  ]
+  await Promise.all(recipients.map(async email => {
+    const u = await getUserByEmail(email)
+    if (u && String(u.id) !== String(sender.id)) {
+      await postDMMessage(String(sender.id), sender.name, String(u.id), u.name, msg)
+    }
+  }))
+}
 
 function advanceDate(fromISO: string, days: number): string {
   const d = fromISO ? new Date(fromISO) : new Date()
@@ -28,6 +46,7 @@ export async function PATCH(
   const changedBy = user?.name ?? 'Unknown'
 
   const body = await req.json()
+  const prev = await getTaskById(params.id)
   const task = await updateTask(params.id, body, changedBy)
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -58,6 +77,7 @@ export async function PATCH(
         due_date:        nextDue,
         recurrence:      task.recurrence,
         parent_id:       task.id,
+        legal_review:    false,
       })
     }
   }
@@ -78,6 +98,12 @@ export async function PATCH(
     } else if (body.hk_comment) {
       logActivity(user.email, user.name, 'task_commented',
         `[${task.company}] "${desc}"`).catch(() => {})
+    }
+    // Notify legal team when HOD newly flags a task for legal review
+    if (body.legal_review === true && prev && !prev.legal_review) {
+      logActivity(user.email, user.name, 'task_legal_flagged',
+        `[${task.company}] "${desc}"`).catch(() => {})
+      notifyLegal(user, task.particulars, task.company).catch(() => {})
     }
   }
 

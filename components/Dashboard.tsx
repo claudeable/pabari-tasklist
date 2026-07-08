@@ -105,7 +105,7 @@ export default function Dashboard({ currentUser, stats }: Props) {
   const personData = stats.byPerson.slice(0, 10).map(p => ({
     name:   p.name.split(' ')[0],
     full:   p.name,
-    Open:   p.open,
+    Open:   p.open - p.action,  // non-action-required tasks; stacks with Action to give true total
     Action: p.action,
   }))
 
@@ -325,15 +325,21 @@ export default function Dashboard({ currentUser, stats }: Props) {
 
           {/* People workload */}
           <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:'18px 16px'}}>
-            <div style={{fontSize:12,fontWeight:700,color:'#111827',marginBottom:14}}>Open Tasks by Person</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#111827'}}>Open Tasks by Person</div>
+              <div style={{display:'flex',gap:14,fontSize:10.5,color:'#6b7280'}}>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:10,height:10,borderRadius:2,background:'#93c5fd',display:'inline-block'}}/> Other Open</span>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:10,height:10,borderRadius:2,background:STATUS_COLOR['action-required'],display:'inline-block'}}/> Action Required</span>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={personData} layout="vertical" margin={{left:8,right:24,top:0,bottom:0}} barCategoryGap="28%">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6"/>
                 <XAxis type="number" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
                 <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={65} axisLine={false} tickLine={false} interval={0}/>
-                <Tooltip contentStyle={{fontSize:11,borderRadius:6}} formatter={(v,n) => [v, n==='Action'?'Action Required':'Open Tasks']}/>
-                <Bar dataKey="Open"   stackId="b" fill="#93c5fd" name="Open" />
-                <Bar dataKey="Action" stackId="b" fill={STATUS_COLOR['action-required']} name="Action Required" radius={[0,3,3,0]}/>
+                <Tooltip contentStyle={{fontSize:11,borderRadius:6}} formatter={(v,n) => [v, n==='Action'?'Action Required':'Other Open']}/>
+                <Bar dataKey="Open"   stackId="b" fill="#93c5fd" name="Other Open" />
+                <Bar dataKey="Action" stackId="b" fill={STATUS_COLOR['action-required']} name="Action" radius={[0,3,3,0]}/>
               </BarChart>
             </ResponsiveContainer>
           </div>
