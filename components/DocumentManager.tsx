@@ -233,11 +233,8 @@ export default function DocumentManager({ currentUser }: Props) {
         <span style={logoS}>PABARI</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>PABARI GROUP</span>
         <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }}/>
-        <a href="/"          style={navA}>← Portal</a>
+        <a href="/" style={navA}>← Portal</a>
         <div style={divS}/>
-        <a href="/tasks"     style={navA}>Task Board</a>
-        <a href="/dashboard" style={navA}>Dashboard</a>
-        <a href="/reports"   style={navA}>Reports</a>
         <a href="/documents" style={navAct}>Documents</a>
         {isAdmin && <><div style={divS}/><a href="/admin/users" style={navA}>Users</a></>}
         <div style={{ flex: 1 }}/>
