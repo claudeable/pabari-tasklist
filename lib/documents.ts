@@ -3,7 +3,8 @@ import { query, queryOne, execute } from './database'
 export interface DocMeta {
   id:            number
   name:          string
-  folder:        string
+  folder_id:     number | null
+  folder_path:   string
   mime_type:     string
   size:          number
   uploaded_by:   string
@@ -12,16 +13,20 @@ export interface DocMeta {
 }
 
 export interface FolderRecord {
+  id:         number
   name:       string
-  count:      number
+  parent_id:  number | null
+  path:       string
+  count:      number   // direct files in this folder
+  children:   number   // subfolders
   created_at: string
 }
 
-let ready       = false
-let folderReady = false
+let docTableReady    = false
+let folderTableReady = false
 
-async function ensureTable() {
-  if (ready) return
+async function ensureDocTable() {
+  if (docTableReady) return
   await execute(`
     CREATE TABLE IF NOT EXISTS documents (
       id            SERIAL PRIMARY KEY,
@@ -36,26 +41,60 @@ async function ensureTable() {
     )
   `)
   await execute(`CREATE INDEX IF NOT EXISTS idx_documents_folder ON documents(folder)`)
-  ready = true
+  docTableReady = true
 }
 
 async function ensureFolderTable() {
-  if (folderReady) return
+  if (folderTableReady) return
+
+  // Base table (idempotent)
   await execute(`
     CREATE TABLE IF NOT EXISTS document_folders (
       id         SERIAL PRIMARY KEY,
-      name       TEXT NOT NULL UNIQUE,
+      name       TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
-  folderReady = true
+
+  // Add new columns for subfolder support
+  await execute(`ALTER TABLE document_folders ADD COLUMN IF NOT EXISTS parent_id INTEGER`)
+  await execute(`ALTER TABLE document_folders ADD COLUMN IF NOT EXISTS path TEXT`)
+
+  // Add folder_id to documents (FK to document_folders)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS folder_id INTEGER`)
+
+  // Drop old unique-name constraint (may not exist)
+  await execute(`
+    DO $$ BEGIN
+      ALTER TABLE document_folders DROP CONSTRAINT document_folders_name_key;
+    EXCEPTION WHEN undefined_object THEN NULL; END $$
+  `)
+
+  // Per-parent unique indexes (NULL-safe)
+  await execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_df_root_name  ON document_folders(name)            WHERE parent_id IS NULL`)
+  await execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_df_child_name ON document_folders(name, parent_id) WHERE parent_id IS NOT NULL`)
+
+  // Set path = name for any existing root folders without path
+  await execute(`UPDATE document_folders SET path = name WHERE path IS NULL`)
+
+  // Link existing documents to folder_id by matching folder text → root folder name
+  await execute(`
+    UPDATE documents d SET folder_id = df.id
+    FROM document_folders df
+    WHERE df.name = d.folder AND df.parent_id IS NULL AND d.folder_id IS NULL
+  `)
+
+  folderTableReady = true
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function rowToMeta(r: Record<string, unknown>): DocMeta {
   return {
     id:            Number(r.id),
     name:          String(r.name),
-    folder:        String(r.folder),
+    folder_id:     r.folder_id ? Number(r.folder_id) : null,
+    folder_path:   String(r.folder_path || r.folder || ''),
     mime_type:     String(r.mime_type || ''),
     size:          Number(r.size),
     uploaded_by:   String(r.uploaded_by || ''),
@@ -64,106 +103,183 @@ function rowToMeta(r: Record<string, unknown>): DocMeta {
   }
 }
 
-export async function listDocuments(folder?: string): Promise<DocMeta[]> {
-  await ensureTable()
-  const rows = folder
-    ? await query<Record<string, unknown>>(
-        `SELECT id,name,folder,mime_type,size,uploaded_by,uploader_name,created_at
-         FROM documents WHERE folder=$1 ORDER BY created_at DESC`, [folder])
-    : await query<Record<string, unknown>>(
-        `SELECT id,name,folder,mime_type,size,uploaded_by,uploader_name,created_at
-         FROM documents ORDER BY created_at DESC`)
+function rowToFolder(r: Record<string, unknown>): FolderRecord {
+  return {
+    id:         Number(r.id),
+    name:       String(r.name),
+    parent_id:  r.parent_id ? Number(r.parent_id) : null,
+    path:       String(r.path || r.name),
+    count:      Number(r.count || 0),
+    children:   Number(r.children || 0),
+    created_at: String(r.created_at),
+  }
+}
+
+const FOLDER_SELECT = `
+  SELECT df.id, df.name, df.parent_id, df.path, df.created_at,
+    COALESCE(d.cnt, 0)      AS count,
+    COALESCE(c.children, 0) AS children
+  FROM document_folders df
+  LEFT JOIN (SELECT folder_id, COUNT(*)::int AS cnt FROM documents GROUP BY folder_id) d
+    ON d.folder_id = df.id
+  LEFT JOIN (SELECT parent_id, COUNT(*)::int AS children FROM document_folders WHERE parent_id IS NOT NULL GROUP BY parent_id) c
+    ON c.parent_id = df.id
+`
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/** Folders at a specific level. parentId=null → root level. */
+export async function getFolders(parentId: number | null = null): Promise<FolderRecord[]> {
+  await ensureDocTable()
+  await ensureFolderTable()
+  const rows = parentId === null
+    ? await query<Record<string, unknown>>(`${FOLDER_SELECT} WHERE df.parent_id IS NULL ORDER BY df.name`)
+    : await query<Record<string, unknown>>(`${FOLDER_SELECT} WHERE df.parent_id=$1 ORDER BY df.name`, [parentId])
+  return rows.map(rowToFolder)
+}
+
+/** All folders flat (for search / upload pickers). */
+export async function getAllFolders(): Promise<FolderRecord[]> {
+  await ensureDocTable()
+  await ensureFolderTable()
+  const rows = await query<Record<string, unknown>>(`${FOLDER_SELECT} ORDER BY df.path`)
+  return rows.map(rowToFolder)
+}
+
+export async function getFolderById(id: number): Promise<FolderRecord | null> {
+  await ensureFolderTable()
+  const rows = await query<Record<string, unknown>>(`${FOLDER_SELECT} WHERE df.id=$1`, [id])
+  return rows[0] ? rowToFolder(rows[0]) : null
+}
+
+export async function createFolder(name: string, parentId?: number | null): Promise<FolderRecord> {
+  await ensureFolderTable()
+  let path = name
+  if (parentId) {
+    const parent = await queryOne<Record<string, unknown>>(
+      `SELECT path FROM document_folders WHERE id=$1`, [parentId]
+    )
+    if (!parent) throw new Error('Parent folder not found')
+    path = `${String(parent.path)}/${name}`
+  }
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO document_folders (name, parent_id, path) VALUES ($1, $2, $3)
+     RETURNING id, name, parent_id, path, created_at`,
+    [name, parentId ?? null, path]
+  )
+  if (!row) throw new Error('Failed to create folder')
+  return rowToFolder({ ...row, count: 0, children: 0 })
+}
+
+export async function renameFolder(id: number, newName: string): Promise<void> {
+  await ensureDocTable()
+  await ensureFolderTable()
+  const current = await queryOne<Record<string, unknown>>(
+    `SELECT name, parent_id, path FROM document_folders WHERE id=$1`, [id]
+  )
+  if (!current) throw new Error('Folder not found')
+
+  const oldPath = String(current.path || current.name)
+  let newPath   = newName
+  if (current.parent_id) {
+    const parent = await queryOne<Record<string, unknown>>(
+      `SELECT path FROM document_folders WHERE id=$1`, [current.parent_id]
+    )
+    if (parent) newPath = `${String(parent.path)}/${newName}`
+  }
+
+  const oldLen = oldPath.length
+  // Update this folder
+  await execute(`UPDATE document_folders SET name=$1, path=$2 WHERE id=$3`, [newName, newPath, id])
+  // Update descendant folder paths
+  await execute(
+    `UPDATE document_folders SET path=$1 || SUBSTRING(path FROM ${oldLen + 1}) WHERE path LIKE $2`,
+    [newPath, `${oldPath}/%`]
+  )
+  // Update documents (keep folder text in sync for readability)
+  await execute(`UPDATE documents SET folder=$1 WHERE folder=$2`, [newPath, oldPath])
+  await execute(
+    `UPDATE documents SET folder=$1 || SUBSTRING(folder FROM ${oldLen + 1}) WHERE folder LIKE $2`,
+    [newPath, `${oldPath}/%`]
+  )
+}
+
+export async function deleteFolder(id: number): Promise<{ fileCount: number; childCount: number; deleted: boolean }> {
+  await ensureDocTable()
+  await ensureFolderTable()
+  const files    = await query<Record<string, unknown>>(`SELECT COUNT(*)::int AS cnt FROM documents WHERE folder_id=$1`, [id])
+  const children = await query<Record<string, unknown>>(`SELECT COUNT(*)::int AS cnt FROM document_folders WHERE parent_id=$1`, [id])
+  const fileCount  = Number((files[0] as Record<string, unknown>).cnt || 0)
+  const childCount = Number((children[0] as Record<string, unknown>).cnt || 0)
+  if (fileCount > 0 || childCount > 0) return { fileCount, childCount, deleted: false }
+  await execute(`DELETE FROM document_folders WHERE id=$1`, [id])
+  return { fileCount: 0, childCount: 0, deleted: true }
+}
+
+/** List documents. folderId = specific folder, undefined = all documents. */
+export async function listDocuments(folderId?: number): Promise<DocMeta[]> {
+  await ensureDocTable()
+  await ensureFolderTable()
+  const DOC_SELECT = `
+    SELECT d.id, d.name, d.folder_id,
+      COALESCE(df.path, d.folder) AS folder_path,
+      d.mime_type, d.size, d.uploaded_by, d.uploader_name, d.created_at
+    FROM documents d
+    LEFT JOIN document_folders df ON df.id = d.folder_id
+  `
+  const rows = folderId !== undefined
+    ? await query<Record<string, unknown>>(`${DOC_SELECT} WHERE d.folder_id=$1 ORDER BY d.created_at DESC`, [folderId])
+    : await query<Record<string, unknown>>(`${DOC_SELECT} ORDER BY d.created_at DESC`)
   return rows.map(rowToMeta)
 }
 
-export async function getFolders(): Promise<FolderRecord[]> {
-  await ensureTable()
-  await ensureFolderTable()
-  // Merge explicit folders + any orphan folders from uploaded docs
-  const rows = await query<Record<string, unknown>>(`
-    SELECT coalesce(f.name, d.folder) AS name,
-           coalesce(d.cnt, 0)         AS count,
-           coalesce(f.created_at, NOW()) AS created_at
-    FROM document_folders f
-    FULL OUTER JOIN (
-      SELECT folder, COUNT(*)::int AS cnt FROM documents GROUP BY folder
-    ) d ON d.folder = f.name
-    ORDER BY name
-  `)
-  return rows.map(r => ({
-    name:       String(r.name),
-    count:      Number(r.count),
-    created_at: String(r.created_at),
-  }))
-}
-
-export async function createFolder(name: string): Promise<FolderRecord> {
-  await ensureFolderTable()
-  await execute(
-    `INSERT INTO document_folders (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [name]
-  )
-  const row = await queryOne<Record<string, unknown>>(
-    `SELECT name, created_at FROM document_folders WHERE name=$1`, [name]
-  )
-  return { name: String(row!.name), count: 0, created_at: String(row!.created_at) }
-}
-
-export async function renameFolder(oldName: string, newName: string): Promise<void> {
-  await ensureTable()
-  await ensureFolderTable()
-  await execute(`UPDATE documents          SET folder=$1 WHERE folder=$2`, [newName, oldName])
-  await execute(`UPDATE document_folders   SET name=$1   WHERE name=$2`,   [newName, oldName])
-}
-
-export async function deleteFolder(name: string): Promise<{ fileCount: number; deleted: boolean }> {
-  await ensureTable()
-  await ensureFolderTable()
-  const rows  = await query<Record<string, unknown>>(`SELECT COUNT(*)::int AS cnt FROM documents WHERE folder=$1`, [name])
-  const count = Number((rows[0] as Record<string, unknown>).cnt || 0)
-  if (count > 0) return { fileCount: count, deleted: false }
-  await execute(`DELETE FROM document_folders WHERE name=$1`, [name])
-  return { fileCount: 0, deleted: true }
-}
-
 export async function saveDocument(data: {
-  name: string; folder: string; mime_type: string
+  name: string; folder_id: number; mime_type: string
   size: number; buffer: Buffer; uploaded_by: string; uploader_name: string
 }): Promise<DocMeta> {
-  await ensureTable()
+  await ensureDocTable()
   await ensureFolderTable()
-  // Ensure folder exists in document_folders
-  await execute(
-    `INSERT INTO document_folders (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [data.folder]
+  const folder = await queryOne<Record<string, unknown>>(
+    `SELECT id, path FROM document_folders WHERE id=$1`, [data.folder_id]
   )
+  if (!folder) throw new Error('Folder not found')
+  const folderPath = String(folder.path || '')
+
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO documents (name,folder,mime_type,size,data,uploaded_by,uploader_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
-     RETURNING id,name,folder,mime_type,size,uploaded_by,uploader_name,created_at`,
-    [data.name, data.folder, data.mime_type, data.size, data.buffer, data.uploaded_by, data.uploader_name]
+    `INSERT INTO documents (name, folder, folder_id, mime_type, size, data, uploaded_by, uploader_name)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, name, folder_id, mime_type, size, uploaded_by, uploader_name, created_at`,
+    [data.name, folderPath, data.folder_id, data.mime_type, data.size, data.buffer, data.uploaded_by, data.uploader_name]
   )
   if (!row) throw new Error('Upload failed')
-  return rowToMeta(row)
+  return rowToMeta({ ...row, folder_path: folderPath })
 }
 
 export async function getDocumentFile(id: number): Promise<{ name: string; mime_type: string; data: Buffer } | null> {
-  await ensureTable()
+  await ensureDocTable()
   const row = await queryOne<Record<string, unknown>>(
-    `SELECT name, mime_type, data FROM documents WHERE id=$1`, [id])
+    `SELECT name, mime_type, data FROM documents WHERE id=$1`, [id]
+  )
   if (!row) return null
   return { name: String(row.name), mime_type: String(row.mime_type || ''), data: row.data as Buffer }
 }
 
-export async function deleteDocument(id: number): Promise<boolean> {
-  await ensureTable()
-  const rows = await query(`DELETE FROM documents WHERE id=$1 RETURNING id`, [id])
+export async function moveDocument(docId: number, folderId: number): Promise<boolean> {
+  await ensureDocTable()
+  await ensureFolderTable()
+  const folder = await queryOne<Record<string, unknown>>(
+    `SELECT id, path FROM document_folders WHERE id=$1`, [folderId]
+  )
+  if (!folder) return false
+  const rows = await query(
+    `UPDATE documents SET folder_id=$1, folder=$2 WHERE id=$3 RETURNING id`,
+    [folderId, String(folder.path), docId]
+  )
   return rows.length > 0
 }
 
-export async function moveDocument(id: number, folder: string): Promise<boolean> {
-  await ensureTable()
-  const rows = await query(
-    `UPDATE documents SET folder=$1 WHERE id=$2 RETURNING id`,
-    [folder, id]
-  )
+export async function deleteDocument(id: number): Promise<boolean> {
+  await ensureDocTable()
+  const rows = await query(`DELETE FROM documents WHERE id=$1 RETURNING id`, [id])
   return rows.length > 0
 }

@@ -21,8 +21,8 @@ export async function GET(
   const doc = await getDocumentFile(Number(params.id))
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const forceDownload  = req.nextUrl.searchParams.get('download') === '1'
-  const disposition    = forceDownload
+  const forceDownload = req.nextUrl.searchParams.get('download') === '1'
+  const disposition   = forceDownload
     ? `attachment; filename*=UTF-8''${encodeURIComponent(doc.name)}`
     : `inline; filename*=UTF-8''${encodeURIComponent(doc.name)}`
 
@@ -42,12 +42,12 @@ export async function PATCH(
   const user  = token ? await verifyToken(token) : null
   if (!canAccess(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body   = await req.json()
-  const folder = (body.folder as string | undefined)?.trim()
-  if (!folder) return NextResponse.json({ error: 'folder is required' }, { status: 400 })
+  const body     = await req.json()
+  const folderId = body.folderId != null ? Number(body.folderId) : null
+  if (!folderId) return NextResponse.json({ error: 'folderId is required' }, { status: 400 })
 
-  const ok = await moveDocument(Number(params.id), folder)
-  if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const ok = await moveDocument(Number(params.id), folderId)
+  if (!ok) return NextResponse.json({ error: 'Not found or folder not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }
 

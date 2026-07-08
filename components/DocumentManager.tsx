@@ -4,225 +4,264 @@ import { SessionUser } from '@/types'
 import InactivityGuard from './InactivityGuard'
 
 interface DocMeta {
-  id: number; name: string; folder: string; mime_type: string
-  size: number; uploaded_by: string; uploader_name: string; created_at: string
+  id: number; name: string; folder_id: number | null; folder_path: string
+  mime_type: string; size: number; uploaded_by: string; uploader_name: string; created_at: string
 }
-interface FolderRecord { name: string; count: number; created_at: string }
+interface FolderRecord {
+  id: number; name: string; parent_id: number | null; path: string
+  count: number; children: number; created_at: string
+}
+interface Crumb { id: number; name: string }
 interface Props { currentUser: SessionUser }
 
-function fmtSize(bytes: number): string {
-  if (bytes < 1024)    return `${bytes} B`
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / 1048576).toFixed(1)} MB`
+function fmtSize(n: number) {
+  if (n < 1024)    return `${n} B`
+  if (n < 1048576) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / 1048576).toFixed(1)} MB`
 }
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+function fmtDate(s: string) {
+  return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
-
-function fileIcon(mime: string, name: string): string {
-  if (mime.startsWith('image/'))                                   return '🖼️'
-  if (mime === 'application/pdf' || /\.pdf$/i.test(name))        return '📄'
-  if (mime.includes('word')  || /\.(docx?|odt)$/i.test(name))   return '📝'
+function fileIcon(mime: string, name: string) {
+  if (mime.startsWith('image/'))                                    return '🖼️'
+  if (mime === 'application/pdf' || /\.pdf$/i.test(name))         return '📄'
+  if (mime.includes('word')  || /\.(docx?|odt)$/i.test(name))    return '📝'
   if (mime.includes('sheet') || /\.(xlsx?|csv|ods)$/i.test(name)) return '📊'
-  if (mime.includes('presentation') || /\.(pptx?|odp)$/i.test(name)) return '📈'
+  if (mime.includes('presentation') || /\.(pptx?)$/i.test(name))  return '📈'
   if (mime.includes('zip')  || /\.(zip|rar|7z|tar|gz)$/i.test(name)) return '🗜️'
   if (mime.startsWith('text/') || /\.(txt|md|json|xml)$/i.test(name)) return '📃'
-  return '📁'
+  return '📄'
 }
 
 export default function DocumentManager({ currentUser }: Props) {
-  const [activeTab,    setActiveTab]    = useState<'documents' | 'folders'>('documents')
-  const [folders,      setFolders]      = useState<FolderRecord[]>([])
-  const [docs,         setDocs]         = useState<DocMeta[]>([])
-  const [filterFolder, setFilterFolder] = useState<string | null>(null)
-  const [search,       setSearch]       = useState('')
-  const [loading,      setLoading]      = useState(true)
+  const [tab, setTab] = useState<'documents' | 'folders'>('folders')
 
-  // Upload state
+  // ── Documents tab ──────────────────────────────────────────────────────────
+  const [allDocs,     setAllDocs]     = useState<DocMeta[]>([])
+  const [docsLoading, setDocsLoading] = useState(false)
+  const [docSearch,   setDocSearch]   = useState('')
+
+  // ── Folders tab — navigation ───────────────────────────────────────────────
+  const [crumbs,      setCrumbs]     = useState<Crumb[]>([])         // breadcrumb
+  const [currentId,   setCurrentId]  = useState<number | null>(null) // null = root
+  const [subFolders,  setSubFolders] = useState<FolderRecord[]>([])
+  const [folderFiles, setFolderFiles] = useState<DocMeta[]>([])
+  const [navLoading,  setNavLoading]  = useState(false)
+
+  // ── All folders (for pickers) ──────────────────────────────────────────────
+  const [allFolders,  setAllFolders]  = useState<FolderRecord[]>([])
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
   const [showUpload,   setShowUpload]   = useState(false)
   const [uploading,    setUploading]    = useState(false)
-  const [uploadError,  setUploadError]  = useState('')
   const [uploadFile,   setUploadFile]   = useState<File | null>(null)
-  const [uploadFolder, setUploadFolder] = useState('')
+  const [uploadFolderId, setUploadFolderId] = useState<number | null>(null)
+  const [uploadError,  setUploadError]  = useState('')
   const [dragging,     setDragging]     = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Delete file state
-  const [deleteId,     setDeleteId]     = useState<number | null>(null)
-  const [deleteError,  setDeleteError]  = useState('')
+  // ── Delete file ────────────────────────────────────────────────────────────
+  const [delFileId,    setDelFileId]   = useState<number | null>(null)
 
-  // Move file state
-  const [moveDoc,      setMoveDoc]      = useState<DocMeta | null>(null)
-  const [moveTarget,   setMoveTarget]   = useState('')
-  const [moveSaving,   setMoveSaving]   = useState(false)
+  // ── Move file ──────────────────────────────────────────────────────────────
+  const [moveDoc,      setMoveDoc]     = useState<DocMeta | null>(null)
+  const [moveFolderId, setMoveFolderId] = useState<number | null>(null)
+  const [moveSaving,   setMoveSaving]  = useState(false)
 
-  // Folder management state
+  // ── Folder management ──────────────────────────────────────────────────────
   const [showCreateFolder, setShowCreateFolder] = useState(false)
   const [newFolderName,    setNewFolderName]    = useState('')
   const [folderSaving,     setFolderSaving]     = useState(false)
   const [folderError,      setFolderError]      = useState('')
-  const [renameFolder,     setRenameFolder]     = useState<FolderRecord | null>(null)
+  const [renameTarget,     setRenameTarget]     = useState<FolderRecord | null>(null)
   const [renameValue,      setRenameValue]      = useState('')
   const [renameSaving,     setRenameSaving]     = useState(false)
   const [renameError,      setRenameError]      = useState('')
-  const [deleteFolder,     setDeleteFolder]     = useState<FolderRecord | null>(null)
-  const [deleteFolderError, setDeleteFolderError] = useState('')
+  const [delFolderTarget,  setDelFolderTarget]  = useState<FolderRecord | null>(null)
+  const [delFolderError,   setDelFolderError]   = useState('')
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const isAdmin = currentUser.role === 'admin'
 
-  const loadFolders = useCallback(async () => {
-    const res = await fetch('/api/documents?mode=folders', { credentials: 'include' })
-    if (res.ok) setFolders(await res.json())
+  // ── Loaders ────────────────────────────────────────────────────────────────
+  const loadAllFolders = useCallback(async () => {
+    const res = await fetch('/api/documents?mode=all-folders', { credentials: 'include' })
+    if (res.ok) setAllFolders(await res.json())
   }, [])
 
-  const loadDocs = useCallback(async () => {
-    setLoading(true)
-    const url = filterFolder
-      ? `/api/documents?folder=${encodeURIComponent(filterFolder)}`
-      : '/api/documents'
-    const res = await fetch(url, { credentials: 'include' })
-    if (res.ok) setDocs(await res.json())
-    setLoading(false)
-  }, [filterFolder])
+  const loadAllDocs = useCallback(async () => {
+    setDocsLoading(true)
+    const res = await fetch('/api/documents', { credentials: 'include' })
+    if (res.ok) setAllDocs(await res.json())
+    setDocsLoading(false)
+  }, [])
 
-  useEffect(() => { loadFolders() }, [loadFolders])
-  useEffect(() => { loadDocs()    }, [loadDocs])
+  const loadCurrentFolder = useCallback(async (folderId: number | null) => {
+    setNavLoading(true)
+    const subRes  = folderId === null
+      ? await fetch('/api/documents?mode=folders', { credentials: 'include' })
+      : await fetch(`/api/documents?mode=folders&parentId=${folderId}`, { credentials: 'include' })
+    if (subRes.ok) setSubFolders(await subRes.json())
 
-  const totalCount = folders.reduce((s, f) => s + f.count, 0)
+    if (folderId !== null) {
+      const filesRes = await fetch(`/api/documents?folderId=${folderId}`, { credentials: 'include' })
+      if (filesRes.ok) setFolderFiles(await filesRes.json())
+    } else {
+      setFolderFiles([])
+    }
+    setNavLoading(false)
+  }, [])
 
-  // ── Upload ──────────────────────────────────────────────────────────────────
-  const openUpload = () => {
+  useEffect(() => { loadAllFolders(); loadAllDocs(); loadCurrentFolder(null) }, [loadAllFolders, loadAllDocs, loadCurrentFolder])
+
+  const totalFiles   = allDocs.length
+  const totalFolders = allFolders.length
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
+  const enterFolder = (f: FolderRecord) => {
+    setCrumbs(c => [...c, { id: f.id, name: f.name }])
+    setCurrentId(f.id)
+    loadCurrentFolder(f.id)
+  }
+
+  const navToCrumb = (index: number) => {
+    if (index < 0) {
+      setCrumbs([]); setCurrentId(null); loadCurrentFolder(null)
+    } else {
+      const target = crumbs[index]
+      setCrumbs(c => c.slice(0, index + 1))
+      setCurrentId(target.id); loadCurrentFolder(target.id)
+    }
+  }
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  const openUpload = (presetFolderId?: number) => {
     setUploadFile(null)
-    setUploadFolder(filterFolder || folders[0]?.name || '')
-    setUploadError('')
-    setShowUpload(true)
-  }
-
-  const handleFilePick = (files: FileList | null) => {
-    if (files?.[0]) setUploadFile(files[0])
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDragging(false)
-    handleFilePick(e.dataTransfer.files)
+    setUploadFolderId(presetFolderId ?? currentId ?? allFolders[0]?.id ?? null)
+    setUploadError(''); setShowUpload(true)
   }
 
   const doUpload = async () => {
-    if (!uploadFile)   { setUploadError('Please select a file'); return }
-    if (!uploadFolder) { setUploadError('Please choose a folder'); return }
+    if (!uploadFile)     { setUploadError('Select a file'); return }
+    if (!uploadFolderId) { setUploadError('Choose a folder'); return }
     setUploading(true); setUploadError('')
     try {
       const fd = new FormData()
-      fd.append('file',   uploadFile)
-      fd.append('folder', uploadFolder)
+      fd.append('file', uploadFile)
+      fd.append('folderId', String(uploadFolderId))
       const res  = await fetch('/api/documents', { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       setShowUpload(false)
-      await loadFolders()
-      if (filterFolder === null || filterFolder === uploadFolder) {
-        setDocs(d => [data.doc, ...d])
-      } else {
-        setFilterFolder(uploadFolder)
+      await loadAllFolders(); await loadAllDocs()
+      if (currentId === uploadFolderId) {
+        setFolderFiles(f => [data.doc, ...f])
       }
+      await loadCurrentFolder(currentId)
     } catch (e: unknown) { setUploadError(e instanceof Error ? e.message : 'Upload failed') }
     finally { setUploading(false) }
   }
 
-  // ── Delete file ─────────────────────────────────────────────────────────────
+  // ── Delete file ────────────────────────────────────────────────────────────
   const doDeleteFile = async (id: number) => {
-    setDeleteError('')
     const res = await fetch(`/api/documents/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (!res.ok) { setDeleteError('Delete failed'); return }
-    setDocs(d => d.filter(x => x.id !== id))
-    await loadFolders()
-    setDeleteId(null)
+    if (res.ok) {
+      setAllDocs(d => d.filter(x => x.id !== id))
+      setFolderFiles(d => d.filter(x => x.id !== id))
+      await loadAllFolders()
+      setDelFileId(null)
+    }
   }
 
-  // ── Move file ───────────────────────────────────────────────────────────────
+  // ── Move file ──────────────────────────────────────────────────────────────
   const doMove = async () => {
-    if (!moveDoc || !moveTarget.trim()) return
+    if (!moveDoc || !moveFolderId) return
     setMoveSaving(true)
     const res = await fetch(`/api/documents/${moveDoc.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ folder: moveTarget.trim() }),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ folderId: moveFolderId }),
     })
     if (res.ok) {
-      setDocs(d => d.map(x => x.id === moveDoc.id ? { ...x, folder: moveTarget.trim() } : x))
-      await loadFolders()
+      const targetFolder = allFolders.find(f => f.id === moveFolderId)
+      const newPath = targetFolder?.path || ''
+      setAllDocs(d => d.map(x => x.id === moveDoc.id ? { ...x, folder_id: moveFolderId, folder_path: newPath } : x))
+      setFolderFiles(d => d.filter(x => x.id !== moveDoc.id))
+      await loadAllFolders(); await loadCurrentFolder(currentId)
       setMoveDoc(null)
     }
     setMoveSaving(false)
   }
 
-  // ── Folder CRUD ──────────────────────────────────────────────────────────────
+  // ── Folder CRUD ────────────────────────────────────────────────────────────
   const doCreateFolder = async () => {
     const name = newFolderName.trim()
-    if (!name) { setFolderError('Enter a folder name'); return }
+    if (!name) { setFolderError('Enter a name'); return }
     setFolderSaving(true); setFolderError('')
     try {
       const res  = await fetch('/api/documents', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ action: 'create-folder', name }),
+        body: JSON.stringify({ action: 'create-folder', name, parentId: currentId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
       setShowCreateFolder(false); setNewFolderName('')
-      setFolders(f => [...f, data.folder].sort((a, b) => a.name.localeCompare(b.name)))
+      await loadAllFolders()
+      setSubFolders(f => [...f, data.folder].sort((a, b) => a.name.localeCompare(b.name)))
     } catch (e: unknown) { setFolderError(e instanceof Error ? e.message : 'Error') }
     finally { setFolderSaving(false) }
   }
 
   const doRenameFolder = async () => {
-    if (!renameFolder || !renameValue.trim()) return
+    if (!renameTarget || !renameValue.trim()) return
     setRenameSaving(true); setRenameError('')
     try {
       const res  = await fetch('/api/documents', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ action: 'rename-folder', oldName: renameFolder.name, newName: renameValue.trim() }),
+        body: JSON.stringify({ action: 'rename-folder', id: renameTarget.id, newName: renameValue.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      await loadFolders(); await loadDocs()
-      if (filterFolder === renameFolder.name) setFilterFolder(renameValue.trim())
-      setRenameFolder(null)
+      await loadAllFolders(); await loadCurrentFolder(currentId); await loadAllDocs()
+      setRenameTarget(null)
     } catch (e: unknown) { setRenameError(e instanceof Error ? e.message : 'Error') }
     finally { setRenameSaving(false) }
   }
 
   const doDeleteFolder = async (f: FolderRecord) => {
-    setDeleteFolderError('')
+    setDelFolderError('')
     const res  = await fetch('/api/documents', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-      body: JSON.stringify({ action: 'delete-folder', name: f.name }),
+      body: JSON.stringify({ action: 'delete-folder', id: f.id }),
     })
     const data = await res.json()
-    if (!res.ok) { setDeleteFolderError(data.error || 'Failed'); return }
-    setFolders(fl => fl.filter(x => x.name !== f.name))
-    if (filterFolder === f.name) setFilterFolder(null)
-    setDeleteFolder(null)
+    if (!res.ok) { setDelFolderError(data.error || 'Failed'); return }
+    await loadAllFolders()
+    setSubFolders(fl => fl.filter(x => x.id !== f.id))
+    setDelFolderTarget(null)
   }
 
-  const filtered = docs.filter(d =>
-    !search ||
-    d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.uploader_name.toLowerCase().includes(search.toLowerCase()) ||
-    d.folder.toLowerCase().includes(search.toLowerCase())
+  const filteredDocs = allDocs.filter(d =>
+    !docSearch ||
+    d.name.toLowerCase().includes(docSearch.toLowerCase()) ||
+    d.folder_path.toLowerCase().includes(docSearch.toLowerCase()) ||
+    d.uploader_name.toLowerCase().includes(docSearch.toLowerCase())
   )
 
-  // ── Styles ──────────────────────────────────────────────────────────────────
-  const navS: React.CSSProperties  = { background: '#1a3a2a', padding: '0 18px', display: 'flex', alignItems: 'center', gap: 12, height: 50, flexShrink: 0 }
-  const logoS: React.CSSProperties = { background: '#b5833a', color: 'white', fontWeight: 800, fontSize: 11, padding: '4px 9px', borderRadius: 4, letterSpacing: '1px' }
-  const navA: React.CSSProperties  = { color: 'rgba(255,255,255,0.6)', textDecoration: 'none', fontSize: 12 }
+  // ── Styles ─────────────────────────────────────────────────────────────────
+  const navS: React.CSSProperties   = { background: '#1a3a2a', padding: '0 18px', display: 'flex', alignItems: 'center', gap: 12, height: 50, flexShrink: 0 }
+  const logoS: React.CSSProperties  = { background: '#b5833a', color: 'white', fontWeight: 800, fontSize: 11, padding: '4px 9px', borderRadius: 4, letterSpacing: '1px' }
+  const navA: React.CSSProperties   = { color: 'rgba(255,255,255,0.6)', textDecoration: 'none', fontSize: 12 }
   const navAct: React.CSSProperties = { color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 600, borderBottom: '2px solid #b5833a', paddingBottom: 2 }
-  const divS: React.CSSProperties  = { width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }
-  const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }
-  const modalCard: React.CSSProperties = { background: 'white', borderRadius: 10, padding: 28, width: 480, maxWidth: '95vw', boxShadow: '0 8px 30px rgba(0,0,0,0.18)' }
-  const inp: React.CSSProperties = { border: '1px solid #d1d5db', borderRadius: 4, padding: '8px 11px', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' }
-  const lbl: React.CSSProperties = { display: 'block', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }
+  const divS: React.CSSProperties   = { width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }
+  const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  const modal: React.CSSProperties  = { background: 'white', borderRadius: 10, padding: 28, width: 460, maxWidth: '95vw', boxShadow: '0 8px 30px rgba(0,0,0,0.18)' }
+  const inp: React.CSSProperties    = { border: '1px solid #d1d5db', borderRadius: 4, padding: '8px 11px', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' }
+  const lbl: React.CSSProperties    = { display: 'block', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }
+  const btnPrimary = (disabled = false): React.CSSProperties => ({
+    background: disabled ? '#9ca3af' : '#1a3a2a', color: 'white', border: 'none',
+    borderRadius: 5, padding: '9px 22px', fontSize: 13, fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  })
+  const btnGhost: React.CSSProperties = { border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Inter,Arial,sans-serif', background: '#f3f4f6' }}>
@@ -244,83 +283,197 @@ export default function DocumentManager({ currentUser }: Props) {
 
       {/* PAGE HEADER + TABS */}
       <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '0 28px', flexShrink: 0 }}>
-        <div style={{ paddingTop: 20, paddingBottom: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 20, color: '#111', marginBottom: 2 }}>Document Library</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>{totalCount} file(s) · {folders.length} folder(s)</div>
+        <div style={{ paddingTop: 18, paddingBottom: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 20, color: '#111' }}>Document Library</div>
+          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{totalFiles} file(s) · {totalFolders} folder(s)</div>
         </div>
-        <div style={{ display: 'flex', gap: 0, marginTop: 16 }}>
-          {(['documents', 'folders'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
+        <div style={{ display: 'flex', gap: 0, marginTop: 14 }}>
+          {(['folders', 'documents'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '10px 20px',
-                fontSize: 13, fontWeight: 600, color: activeTab === tab ? '#1a3a2a' : '#9ca3af',
-                borderBottom: activeTab === tab ? '2px solid #1a3a2a' : '2px solid transparent',
-                textTransform: 'capitalize', letterSpacing: '0.2px',
+                background: 'none', border: 'none', cursor: 'pointer', padding: '10px 22px',
+                fontSize: 13, fontWeight: 600,
+                color: tab === t ? '#1a3a2a' : '#9ca3af',
+                borderBottom: tab === t ? '2px solid #1a3a2a' : '2px solid transparent',
               }}>
-              {tab === 'documents' ? '📄 Documents' : '📁 Folders'}
+              {t === 'folders' ? '📁 Folders' : '📄 Documents'}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ═══ DOCUMENTS TAB ════════════════════════════════════════════════════ */}
-      {activeTab === 'documents' && (
+      {/* ═══ FOLDERS TAB ══════════════════════════════════════════════════════ */}
+      {tab === 'folders' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-          {/* Toolbar */}
+          {/* Breadcrumb + toolbar */}
           <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '10px 28px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
-            {/* Folder pills */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1, alignItems: 'center' }}>
-              <button onClick={() => setFilterFolder(null)}
-                style={{
-                  border: 'none', borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  background: filterFolder === null ? '#1a3a2a' : '#f3f4f6',
-                  color: filterFolder === null ? 'white' : '#374151',
-                }}>
-                All ({totalCount})
+            {/* Breadcrumb */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, flexWrap: 'wrap' }}>
+              <button onClick={() => navToCrumb(-1)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: currentId === null ? '#1a3a2a' : '#6b7280', fontSize: 13, fontWeight: currentId === null ? 700 : 400, padding: '2px 4px' }}>
+                📁 All Folders
               </button>
-              {folders.map(f => (
-                <button key={f.name} onClick={() => setFilterFolder(f.name === filterFolder ? null : f.name)}
-                  style={{
-                    border: 'none', borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    background: filterFolder === f.name ? '#1a3a2a' : '#f3f4f6',
-                    color: filterFolder === f.name ? 'white' : '#374151',
-                  }}>
-                  {f.name} ({f.count})
-                </button>
+              {crumbs.map((c, i) => (
+                <span key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ color: '#d1d5db', fontSize: 12 }}>›</span>
+                  <button onClick={() => navToCrumb(i)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: i === crumbs.length - 1 ? '#1a3a2a' : '#6b7280', fontSize: 13, fontWeight: i === crumbs.length - 1 ? 700 : 400, padding: '2px 4px' }}>
+                    {c.name}
+                  </button>
+                </span>
               ))}
-              {folders.length === 0 && (
-                <span style={{ fontSize: 12, color: '#9ca3af' }}>No folders yet — create one in the Folders tab</span>
-              )}
             </div>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-              style={{ border: '1px solid #d1d5db', borderRadius: 5, padding: '6px 12px', fontSize: 13, width: 180, outline: 'none', flexShrink: 0 }}/>
-            <button onClick={openUpload} disabled={folders.length === 0}
-              style={{ background: folders.length === 0 ? '#9ca3af' : '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: folders.length === 0 ? 'not-allowed' : 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <button onClick={() => { setShowCreateFolder(true); setNewFolderName(''); setFolderError('') }}
+              style={{ ...btnPrimary(), whiteSpace: 'nowrap', padding: '7px 16px', fontSize: 12 }}>
+              + {currentId ? 'New Subfolder' : 'New Folder'}
+            </button>
+            {currentId !== null && (
+              <button onClick={() => openUpload(currentId)}
+                style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 5, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                ↑ Upload Here
+              </button>
+            )}
+          </div>
+
+          {/* Content area */}
+          <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
+            {navLoading ? (
+              <div style={{ color: '#9ca3af', fontSize: 14, padding: 20 }}>Loading…</div>
+            ) : (
+              <>
+                {/* Subfolders grid */}
+                {subFolders.length > 0 && (
+                  <div style={{ marginBottom: 28 }}>
+                    {currentId !== null && (
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: 12 }}>
+                        Subfolders
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
+                      {subFolders.map(f => (
+                        <div key={f.id}
+                          style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: 18, cursor: 'pointer', transition: 'box-shadow 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.08)')}
+                          onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+                        >
+                          {/* Click icon/name area to navigate in */}
+                          <div onClick={() => enterFolder(f)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                              📁
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</div>
+                              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                                {f.count} file{f.count !== 1 ? 's' : ''}
+                                {f.children > 0 ? ` · ${f.children} subfolder${f.children !== 1 ? 's' : ''}` : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 5 }}>
+                            <button onClick={() => enterFolder(f)}
+                              style={{ flex: 1, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 5, padding: '5px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                              Open →
+                            </button>
+                            <button onClick={() => { setRenameTarget(f); setRenameValue(f.name); setRenameError('') }}
+                              style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 5, padding: '5px 8px', fontSize: 11, cursor: 'pointer' }}>
+                              ✏️
+                            </button>
+                            <button onClick={() => { setDelFolderTarget(f); setDelFolderError('') }}
+                              style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 5, padding: '5px 8px', fontSize: 11, cursor: 'pointer' }}>
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Files in current folder (only when inside a folder) */}
+                {currentId !== null && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>Files in this folder ({folderFiles.length})</span>
+                      <button onClick={() => openUpload(currentId)}
+                        style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 4, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                        + Upload
+                      </button>
+                    </div>
+                    {folderFiles.length === 0 ? (
+                      <div style={{ background: 'white', border: '1px dashed #d1d5db', borderRadius: 8, padding: '32px 20px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>📂</div>
+                        <div style={{ fontSize: 13, color: '#9ca3af' }}>No files in this folder yet</div>
+                        <button onClick={() => openUpload(currentId)}
+                          style={{ marginTop: 12, background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                          Upload a file here
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                        {folderFiles.map((doc, i) => (
+                          <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: i < folderFiles.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                            <span style={{ fontSize: 18, flexShrink: 0 }}>{fileIcon(doc.mime_type, doc.name)}</span>
+                            <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
+                              style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#111', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.name}>
+                              {doc.name}
+                            </a>
+                            <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtSize(doc.size)}</span>
+                            <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtDate(doc.created_at)}</span>
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              <a href={`/api/documents/${doc.id}?download=1`}
+                                style={{ background: 'white', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 4, padding: '3px 9px', fontSize: 11, textDecoration: 'none' }}>↓</a>
+                              <button onClick={() => { setMoveDoc(doc); setMoveFolderId(doc.folder_id) }}
+                                style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '3px 9px', fontSize: 11, cursor: 'pointer' }}>Move</button>
+                              <button onClick={() => setDelFileId(doc.id)}
+                                style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 4, padding: '3px 9px', fontSize: 11, cursor: 'pointer' }}>Delete</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Root level — no folder selected yet */}
+                {currentId === null && subFolders.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#374151', marginBottom: 6 }}>No folders yet</div>
+                    <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>Create folders like Finance, Legal, HR to organise your documents</div>
+                    <button onClick={() => { setShowCreateFolder(true); setNewFolderName(''); setFolderError('') }}
+                      style={btnPrimary()}>
+                      + Create your first folder
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DOCUMENTS TAB ════════════════════════════════════════════════════ */}
+      {tab === 'documents' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '10px 28px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <input value={docSearch} onChange={e => setDocSearch(e.target.value)} placeholder="Search by file name, folder or uploader…"
+              style={{ border: '1px solid #d1d5db', borderRadius: 5, padding: '7px 12px', fontSize: 13, flex: 1, outline: 'none', maxWidth: 380 }}/>
+            <span style={{ fontSize: 12, color: '#9ca3af' }}>{filteredDocs.length} of {allDocs.length}</span>
+            <button onClick={() => openUpload()}
+              style={{ ...btnPrimary(allFolders.length === 0), whiteSpace: 'nowrap' }}>
               + Upload
             </button>
           </div>
-
-          {/* File list */}
           <div style={{ flex: 1, overflow: 'auto' }}>
-            {loading ? (
+            {docsLoading ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>Loading…</div>
-            ) : filtered.length === 0 ? (
+            ) : filteredDocs.length === 0 ? (
               <div style={{ padding: 60, textAlign: 'center' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
-                <div style={{ fontSize: 14, color: '#6b7280', fontWeight: 500 }}>
-                  {search ? 'No files match your search' : folders.length === 0 ? 'Create a folder first, then upload files' : 'No files here yet'}
+                <div style={{ fontSize: 14, color: '#6b7280' }}>
+                  {docSearch ? 'No files match your search' : 'No documents yet — upload your first file'}
                 </div>
-                {!search && folders.length > 0 && (
-                  <button onClick={openUpload} style={{ marginTop: 16, background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    Upload your first file
-                  </button>
-                )}
-                {folders.length === 0 && (
-                  <button onClick={() => setActiveTab('folders')} style={{ marginTop: 16, background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    Go to Folders →
-                  </button>
-                )}
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -332,9 +485,9 @@ export default function DocumentManager({ currentUser }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((doc, i) => (
+                  {filteredDocs.map((doc, i) => (
                     <tr key={doc.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
-                      <td style={{ padding: '11px 20px', maxWidth: 300 }}>
+                      <td style={{ padding: '11px 20px', maxWidth: 280 }}>
                         <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
                           style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: '#111' }}>
                           <span style={{ fontSize: 18, flexShrink: 0 }}>{fileIcon(doc.mime_type, doc.name)}</span>
@@ -342,9 +495,28 @@ export default function DocumentManager({ currentUser }: Props) {
                         </a>
                       </td>
                       <td style={{ padding: '11px 20px' }}>
-                        <span style={{ fontSize: 11, background: '#f3f4f6', color: '#374151', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          onClick={() => setFilterFolder(doc.folder)}>
-                          📁 {doc.folder}
+                        <span
+                          onClick={() => {
+                            // Navigate to that folder in Folders tab
+                            const f = allFolders.find(x => x.id === doc.folder_id)
+                            if (!f) return
+                            // Build crumb trail from path
+                            const segments = f.path.split('/')
+                            const allF = allFolders
+                            const newCrumbs: Crumb[] = []
+                            let searchPath = ''
+                            for (let s = 0; s < segments.length; s++) {
+                              searchPath = s === 0 ? segments[0] : `${searchPath}/${segments[s]}`
+                              const found = allF.find(x => x.path === searchPath)
+                              if (found) newCrumbs.push({ id: found.id, name: found.name })
+                            }
+                            setCrumbs(newCrumbs)
+                            setCurrentId(f.id)
+                            loadCurrentFolder(f.id)
+                            setTab('folders')
+                          }}
+                          style={{ fontSize: 11, background: '#f3f4f6', color: '#374151', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          📁 {doc.folder_path || '—'}
                         </span>
                       </td>
                       <td style={{ padding: '11px 20px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtSize(doc.size)}</td>
@@ -353,17 +525,11 @@ export default function DocumentManager({ currentUser }: Props) {
                       <td style={{ padding: '11px 20px' }}>
                         <div style={{ display: 'flex', gap: 5 }}>
                           <a href={`/api/documents/${doc.id}?download=1`}
-                            style={{ background: 'white', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 4, padding: '3px 10px', fontSize: 11, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                            ↓
-                          </a>
-                          <button onClick={() => { setMoveDoc(doc); setMoveTarget(doc.folder) }}
-                            style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>
-                            Move
-                          </button>
-                          <button onClick={() => { setDeleteId(doc.id); setDeleteError('') }}
-                            style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>
-                            Delete
-                          </button>
+                            style={{ background: 'white', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 4, padding: '3px 10px', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}>↓</a>
+                          <button onClick={() => { setMoveDoc(doc); setMoveFolderId(doc.folder_id) }}
+                            style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>Move</button>
+                          <button onClick={() => setDelFileId(doc.id)}
+                            style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -375,121 +541,50 @@ export default function DocumentManager({ currentUser }: Props) {
         </div>
       )}
 
-      {/* ═══ FOLDERS TAB ══════════════════════════════════════════════════════ */}
-      {activeTab === 'folders' && (
-        <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-            <div style={{ fontSize: 14, color: '#6b7280' }}>{folders.length} folder(s) total</div>
-            <button onClick={() => { setShowCreateFolder(true); setNewFolderName(''); setFolderError('') }}
-              style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              + Create Folder
-            </button>
-          </div>
-
-          {folders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: '#374151', marginBottom: 6 }}>No folders yet</div>
-              <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>Create folders to organise your documents by category or department</div>
-              <button onClick={() => { setShowCreateFolder(true); setNewFolderName(''); setFolderError('') }}
-                style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                + Create your first folder
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-              {folders.map(f => (
-                <div key={f.name} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 10, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                      📁
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</div>
-                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                        {f.count} {f.count === 1 ? 'file' : 'files'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => { setActiveTab('documents'); setFilterFolder(f.name) }}
-                      style={{ flex: 1, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 5, padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                      View Files
-                    </button>
-                    <button onClick={() => { setRenameFolder(f); setRenameValue(f.name); setRenameError('') }}
-                      style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 5, padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}>
-                      Rename
-                    </button>
-                    <button onClick={() => { setDeleteFolder(f); setDeleteFolderError('') }}
-                      style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 5, padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ UPLOAD MODAL ════════════════════════════════════════════════════ */}
+      {/* ═══ UPLOAD MODAL ═════════════════════════════════════════════════════ */}
       {showUpload && (
         <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setShowUpload(false) }}>
-          <div style={modalCard}>
+          <div style={modal}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ fontWeight: 700, fontSize: 16 }}>Upload Document</div>
               <button onClick={() => setShowUpload(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#9ca3af' }}>✕</button>
             </div>
-
-            {/* Drop zone */}
             <div
               onDragOver={e => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
-              onDrop={handleDrop}
+              onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files[0]) setUploadFile(e.dataTransfer.files[0]) }}
               onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${dragging ? '#1a3a2a' : uploadFile ? '#86efac' : '#d1d5db'}`,
-                borderRadius: 8, padding: '28px 20px', textAlign: 'center', cursor: 'pointer',
-                background: dragging || uploadFile ? '#f0fdf4' : '#fafafa',
-                marginBottom: 20, transition: 'all 0.15s',
-              }}
-            >
+              style={{ border: `2px dashed ${dragging ? '#1a3a2a' : uploadFile ? '#86efac' : '#d1d5db'}`, borderRadius: 8, padding: '26px 20px', textAlign: 'center', cursor: 'pointer', background: dragging || uploadFile ? '#f0fdf4' : '#fafafa', marginBottom: 20 }}>
               {uploadFile ? (
                 <>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>{fileIcon(uploadFile.type, uploadFile.name)}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{uploadFile.name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{fmtSize(uploadFile.size)}</div>
-                  <div style={{ fontSize: 11, color: '#1a3a2a', marginTop: 8, textDecoration: 'underline' }}>Click to change file</div>
+                  <div style={{ fontSize: 26, marginBottom: 5 }}>{fileIcon(uploadFile.type, uploadFile.name)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{uploadFile.name}</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{fmtSize(uploadFile.size)}</div>
+                  <div style={{ fontSize: 11, color: '#1a3a2a', marginTop: 6, textDecoration: 'underline' }}>Click to change</div>
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
+                  <div style={{ fontSize: 30, marginBottom: 6 }}>📁</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Drag & drop a file here</div>
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>or click to browse — max 20 MB</div>
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>or click to browse — max 20 MB</div>
                 </>
               )}
             </div>
-            <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => handleFilePick(e.target.files)} />
-
-            {/* Folder picker */}
+            <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && setUploadFile(e.target.files[0])} />
             <div style={{ marginBottom: 18 }}>
               <label style={lbl}>Save to Folder</label>
-              <select value={uploadFolder} onChange={e => setUploadFolder(e.target.value)}
+              <select value={uploadFolderId ?? ''} onChange={e => setUploadFolderId(Number(e.target.value))}
                 style={{ ...inp }}>
-                {folders.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
+                <option value="">— Select a folder —</option>
+                {allFolders.map(f => (
+                  <option key={f.id} value={f.id}>{f.path}</option>
+                ))}
               </select>
             </div>
-
             {uploadError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 12, background: '#fef2f2', borderRadius: 4, padding: '6px 10px' }}>{uploadError}</div>}
-
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowUpload(false)}
-                style={{ border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button onClick={doUpload} disabled={uploading || !uploadFile}
-                style={{ background: uploading || !uploadFile ? '#9ca3af' : '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: uploading || !uploadFile ? 'not-allowed' : 'pointer' }}>
+              <button onClick={() => setShowUpload(false)} style={btnGhost}>Cancel</button>
+              <button onClick={doUpload} disabled={uploading || !uploadFile} style={btnPrimary(uploading || !uploadFile)}>
                 {uploading ? 'Uploading…' : 'Upload'}
               </button>
             </div>
@@ -497,86 +592,57 @@ export default function DocumentManager({ currentUser }: Props) {
         </div>
       )}
 
-      {/* ═══ DELETE FILE CONFIRM ═════════════════════════════════════════════ */}
-      {deleteId !== null && (
-        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setDeleteId(null) }}>
-          <div style={{ ...modalCard, width: 360 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Delete File?</div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>This will permanently delete the file and cannot be undone.</div>
-            {deleteError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 10 }}>{deleteError}</div>}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteId(null)} style={{ border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => doDeleteFile(deleteId)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 5, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ MOVE FILE MODAL ═════════════════════════════════════════════════ */}
-      {moveDoc && (
-        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setMoveDoc(null) }}>
-          <div style={{ ...modalCard, width: 380 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Move File</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>{moveDoc.name}</div>
-            <label style={lbl}>Move to Folder</label>
-            <select value={moveTarget} onChange={e => setMoveTarget(e.target.value)} style={{ ...inp, marginBottom: 20 }}>
-              {folders.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
-            </select>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setMoveDoc(null)} style={{ border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={doMove} disabled={moveSaving} style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: moveSaving ? 0.7 : 1 }}>
-                {moveSaving ? 'Moving…' : 'Move'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ CREATE FOLDER MODAL ═════════════════════════════════════════════ */}
+      {/* ═══ CREATE / RENAME FOLDER MODAL ════════════════════════════════════ */}
       {showCreateFolder && (
         <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setShowCreateFolder(false) }}>
-          <div style={{ ...modalCard, width: 400 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>Create Folder</div>
+          <div style={{ ...modal, width: 400 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>
+                {currentId ? 'Create Subfolder' : 'Create Folder'}
+              </div>
               <button onClick={() => setShowCreateFolder(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#9ca3af' }}>✕</button>
             </div>
-            <label style={lbl}>Folder / Category Name</label>
+            {currentId !== null && (
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, background: '#f9fafb', borderRadius: 5, padding: '6px 10px' }}>
+                Creating inside: <strong>{crumbs[crumbs.length - 1]?.name}</strong>
+              </div>
+            )}
+            <label style={lbl}>Folder Name</label>
             <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && doCreateFolder()}
-              placeholder="e.g. Finance, Legal, HR, Contracts…"
-              style={{ ...inp, marginBottom: 8 }}/>
+              placeholder={currentId ? 'e.g. KISCOL, USM, 2024, 2025…' : 'e.g. Finance, Legal, HR, Contracts…'}
+              style={{ ...inp, marginBottom: 6 }}/>
             <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16 }}>
-              Examples: Finance · Legal · Human Resources · Group Contracts · KISCOL Ops · Board Minutes
+              {currentId ? `Will be created inside "${crumbs[crumbs.length - 1]?.name}"` : 'Top-level category. You can add subfolders inside it.'}
             </div>
             {folderError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 12, background: '#fef2f2', borderRadius: 4, padding: '6px 10px' }}>{folderError}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCreateFolder(false)} style={{ border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={doCreateFolder} disabled={folderSaving}
-                style={{ background: folderSaving ? '#9ca3af' : '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: folderSaving ? 'not-allowed' : 'pointer' }}>
-                {folderSaving ? 'Creating…' : 'Create Folder'}
+              <button onClick={() => setShowCreateFolder(false)} style={btnGhost}>Cancel</button>
+              <button onClick={doCreateFolder} disabled={folderSaving} style={btnPrimary(folderSaving)}>
+                {folderSaving ? 'Creating…' : 'Create'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══ RENAME FOLDER MODAL ═════════════════════════════════════════════ */}
-      {renameFolder && (
-        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setRenameFolder(null) }}>
-          <div style={{ ...modalCard, width: 400 }}>
+      {renameTarget && (
+        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setRenameTarget(null) }}>
+          <div style={{ ...modal, width: 400 }}>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Rename Folder</div>
             <label style={lbl}>New Name</label>
             <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && doRenameFolder()}
-              style={{ ...inp, marginBottom: 8 }}/>
+              style={{ ...inp, marginBottom: 6 }}/>
             <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16 }}>
-              All {renameFolder.count} file(s) in this folder will move to the new name automatically.
+              {renameTarget.count > 0 || renameTarget.children > 0
+                ? `All files and subfolders inside will be updated automatically.`
+                : 'This folder is empty.'}
             </div>
             {renameError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 12, background: '#fef2f2', borderRadius: 4, padding: '6px 10px' }}>{renameError}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setRenameFolder(null)} style={{ border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={doRenameFolder} disabled={renameSaving}
-                style={{ background: renameSaving ? '#9ca3af' : '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: renameSaving ? 'not-allowed' : 'pointer' }}>
+              <button onClick={() => setRenameTarget(null)} style={btnGhost}>Cancel</button>
+              <button onClick={doRenameFolder} disabled={renameSaving} style={btnPrimary(renameSaving)}>
                 {renameSaving ? 'Renaming…' : 'Rename'}
               </button>
             </div>
@@ -584,27 +650,65 @@ export default function DocumentManager({ currentUser }: Props) {
         </div>
       )}
 
-      {/* ═══ DELETE FOLDER CONFIRM ═══════════════════════════════════════════ */}
-      {deleteFolder && (
-        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setDeleteFolder(null) }}>
-          <div style={{ ...modalCard, width: 380 }}>
+      {/* ═══ DELETE FOLDER ════════════════════════════════════════════════════ */}
+      {delFolderTarget && (
+        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setDelFolderTarget(null) }}>
+          <div style={{ ...modal, width: 380 }}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Delete Folder?</div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
-              Delete folder <strong>"{deleteFolder.name}"</strong>?
-            </div>
-            {deleteFolder.count > 0 ? (
-              <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', borderRadius: 5, padding: '8px 12px', marginTop: 8, marginBottom: 16 }}>
-                This folder has {deleteFolder.count} file(s). Move or delete all files before deleting the folder.
+            {(delFolderTarget.count > 0 || delFolderTarget.children > 0) ? (
+              <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', borderRadius: 5, padding: '8px 12px', marginBottom: 16 }}>
+                {delFolderTarget.count > 0 && <div>This folder has {delFolderTarget.count} file(s).</div>}
+                {delFolderTarget.children > 0 && <div>This folder has {delFolderTarget.children} subfolder(s).</div>}
+                <div style={{ marginTop: 4 }}>Move or delete all contents first.</div>
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4, marginBottom: 16 }}>This folder is empty and can be deleted.</div>
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+                Delete <strong>"{delFolderTarget.name}"</strong>? This folder is empty.
+              </div>
             )}
-            {deleteFolderError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 10 }}>{deleteFolderError}</div>}
+            {delFolderError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 10 }}>{delFolderError}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteFolder(null)} style={{ border: '1px solid #d1d5db', background: 'white', borderRadius: 5, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => doDeleteFolder(deleteFolder)} disabled={deleteFolder.count > 0}
-                style={{ background: deleteFolder.count > 0 ? '#9ca3af' : '#dc2626', color: 'white', border: 'none', borderRadius: 5, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: deleteFolder.count > 0 ? 'not-allowed' : 'pointer' }}>
-                Delete Folder
+              <button onClick={() => setDelFolderTarget(null)} style={btnGhost}>Cancel</button>
+              <button onClick={() => doDeleteFolder(delFolderTarget)}
+                disabled={delFolderTarget.count > 0 || delFolderTarget.children > 0}
+                style={{ ...btnPrimary(delFolderTarget.count > 0 || delFolderTarget.children > 0), background: delFolderTarget.count > 0 || delFolderTarget.children > 0 ? '#9ca3af' : '#dc2626' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DELETE FILE CONFIRM ══════════════════════════════════════════════ */}
+      {delFileId !== null && (
+        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setDelFileId(null) }}>
+          <div style={{ ...modal, width: 360 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Delete File?</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>This will permanently delete the file.</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setDelFileId(null)} style={btnGhost}>Cancel</button>
+              <button onClick={() => doDeleteFile(delFileId)} style={{ ...btnPrimary(), background: '#dc2626' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MOVE FILE MODAL ══════════════════════════════════════════════════ */}
+      {moveDoc && (
+        <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setMoveDoc(null) }}>
+          <div style={{ ...modal, width: 380 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Move File</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveDoc.name}</div>
+            <label style={lbl}>Move to</label>
+            <select value={moveFolderId ?? ''} onChange={e => setMoveFolderId(Number(e.target.value))}
+              style={{ ...inp, marginBottom: 20 }}>
+              <option value="">— Select folder —</option>
+              {allFolders.map(f => <option key={f.id} value={f.id}>{f.path}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setMoveDoc(null)} style={btnGhost}>Cancel</button>
+              <button onClick={doMove} disabled={moveSaving} style={btnPrimary(moveSaving)}>
+                {moveSaving ? 'Moving…' : 'Move'}
               </button>
             </div>
           </div>
