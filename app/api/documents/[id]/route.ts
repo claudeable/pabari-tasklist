@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { getDocumentFile, deleteDocument, moveDocument } from '@/lib/documents'
+import { getDocumentFile, deleteDocument, moveDocument, updateDocumentExpiry } from '@/lib/documents'
 
 function canAccess(user: { role: string; department: string } | null): boolean {
   if (!user) return false
@@ -42,13 +42,21 @@ export async function PATCH(
   const user  = token ? await verifyToken(token) : null
   if (!canAccess(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body     = await req.json()
-  const folderId = body.folderId != null ? Number(body.folderId) : null
-  if (!folderId) return NextResponse.json({ error: 'folderId is required' }, { status: 400 })
+  const body = await req.json()
 
-  const ok = await moveDocument(Number(params.id), folderId)
-  if (!ok) return NextResponse.json({ error: 'Not found or folder not found' }, { status: 404 })
-  return NextResponse.json({ ok: true })
+  if ('folder' in body) {
+    const folder = (body.folder as string | undefined)?.trim()
+    if (!folder) return NextResponse.json({ error: 'folder required' }, { status: 400 })
+    const ok = await moveDocument(Number(params.id), folder)
+    return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if ('expiry_date' in body) {
+    const ok = await updateDocumentExpiry(Number(params.id), body.expiry_date ?? null)
+    return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 }
 
 export async function DELETE(
@@ -60,6 +68,5 @@ export async function DELETE(
   if (!canAccess(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const ok = await deleteDocument(Number(params.id))
-  if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ ok: true })
+  return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'Not found' }, { status: 404 })
 }
