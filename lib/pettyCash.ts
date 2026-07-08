@@ -96,11 +96,14 @@ export async function getAllPettyCashRequests(): Promise<PettyCashRequest[]> {
   return rows.map(rowToPettyCash)
 }
 
-export async function getMyPettyCashRequests(employee_id: number): Promise<PettyCashRequest[]> {
+export async function getMyPettyCashRequests(employee_id: number, employee_name?: string): Promise<PettyCashRequest[]> {
   await ensureTable()
   const rows = await query<Record<string, unknown>>(
-    'SELECT * FROM petty_cash_requests WHERE employee_id = $1 ORDER BY submitted_at DESC',
-    [employee_id]
+    `SELECT * FROM petty_cash_requests
+     WHERE employee_id = $1
+        OR ($2::text IS NOT NULL AND LOWER(employee_name) = LOWER($2))
+     ORDER BY submitted_at DESC`,
+    [employee_id, employee_name ?? null]
   )
   return rows.map(rowToPettyCash)
 }

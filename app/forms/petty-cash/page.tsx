@@ -23,7 +23,7 @@ export default async function PettyCashPage() {
   const uid = parseInt(String(user.id ?? ''), 10) || 0
   const requests = canSeeAll
     ? await getAllPettyCashRequests()
-    : await getMyPettyCashRequests(uid)
+    : await getMyPettyCashRequests(uid, user.name)
 
   return <PettyCashList currentUser={user} requests={requests} />
 }

@@ -41,7 +41,10 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const myRequests     = requests.filter(r => r.employee_id === Number(currentUser.id))
+  const myRequests     = requests.filter(r =>
+    r.employee_id === Number(currentUser.id) ||
+    (r.employee_name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
+  )
   const pendingHR      = requests.filter(r => r.status === 'pending_hr')
   const pendingHK      = requests.filter(r => r.status === 'pending_hk')
 
