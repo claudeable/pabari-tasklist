@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { listDocuments, getFolders, saveDocument } from '@/lib/documents'
+import { listDocuments, getFolders, saveDocument, createFolder, renameFolder, deleteFolder } from '@/lib/documents'
 
 function canAccess(user: { role: string; department: string } | null): boolean {
   if (!user) return false
@@ -31,6 +31,39 @@ export async function POST(req: NextRequest) {
   const user  = token ? await verifyToken(token) : null
   if (!canAccess(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const contentType = req.headers.get('content-type') || ''
+
+  // JSON body: folder management actions
+  if (contentType.includes('application/json')) {
+    const body   = await req.json()
+    const action = body.action as string
+
+    if (action === 'create-folder') {
+      const name = (body.name as string | undefined)?.trim()
+      if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+      const folder = await createFolder(name)
+      return NextResponse.json({ folder }, { status: 201 })
+    }
+
+    if (action === 'rename-folder') {
+      const { oldName, newName } = body as { oldName: string; newName: string }
+      if (!oldName || !newName) return NextResponse.json({ error: 'oldName and newName required' }, { status: 400 })
+      await renameFolder(oldName.trim(), newName.trim())
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'delete-folder') {
+      const name = (body.name as string | undefined)?.trim()
+      if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+      const result = await deleteFolder(name)
+      if (!result.deleted) return NextResponse.json({ error: `Folder has ${result.fileCount} file(s). Move or delete them first.` }, { status: 409 })
+      return NextResponse.json({ ok: true })
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  }
+
+  // Multipart: file upload
   const formData = await req.formData()
   const file     = formData.get('file') as File | null
   const folder   = ((formData.get('folder') as string) || 'General').trim() || 'General'
