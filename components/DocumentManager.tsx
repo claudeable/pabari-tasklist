@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { SessionUser } from '@/types'
-import { DOC_ENTITIES } from '@/lib/documents'
+import { DOC_ENTITIES } from '@/lib/doc-constants'
 import InactivityGuard from './InactivityGuard'
 
 interface DocMeta {
