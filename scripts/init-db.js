@@ -29,7 +29,7 @@ const USERS = [
   { name: 'Andu',       email: 'ateferi@kwale-group.com',  role: 'manager',  department: 'Accounts',                          reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },
   { name: 'Yared',      email: 'yyigezu@usm.co.ke',        role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Yalelet',    email: 'yaynalem@usm.co.ke',       role: 'staff',    department: 'KISCOL',                            reports_to: 'ahmad@usm.co.ke',          companies: ['KISCOL']  },
-  { name: 'Lulie Aynalem Ewnetu', email: 'lanalem@kwale-group.com', role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
+  { name: 'Lulie Aynalem Ewnetu', email: 'lanalem@kwale-group.com', role: 'staff',    department: 'KISCOL',                            reports_to: 'ahmad@usm.co.ke',          companies: ['KISCOL']  },
   { name: 'Duran',      email: 'dligaga@usm.co.ke',        role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Juma',       email: 'johasa@usm.co.ke',         role: 'staff',    department: 'Accounts',                          reports_to: 'ateferi@kwale-group.com',  companies: ['ALL']     },
   { name: 'Benson',     email: 'bnzuka@usm.co.ke',          role: 'director', department: 'Executive',                           reports_to: 'hkotecha@kwale-group.com', companies: ['ALL']     },

@@ -6,6 +6,9 @@ async function ensureParentId() {
   if (parentColReady) return
   await execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_id INTEGER')
   await execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS legal_review BOOLEAN NOT NULL DEFAULT false')
+  // One-time: move Lulie to KISCOL-only access (was incorrectly set to ALL)
+  await execute(`UPDATE users SET companies = '["KISCOL"]', department = 'KISCOL', reports_to = 'ahmad@usm.co.ke'
+    WHERE email = 'lanalem@kwale-group.com' AND companies::text = '["ALL"]'`)
   parentColReady = true
 }
 

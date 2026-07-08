@@ -5,11 +5,16 @@ import InactivityGuard from './InactivityGuard'
 
 interface UserRow {
   id: string; name: string; email: string; role: UserRole
-  department: string; reports_to: string; created_at: string
+  department: string; reports_to: string; companies: string[]; created_at: string
 }
 interface Props { currentUser: SessionUser; initialUsers: UserRow[] }
 
 const ROLES: UserRole[] = ['admin','director','ceo','manager','staff']
+
+const ACCESS_OPTIONS = [
+  { value: 'ALL',    label: 'All Companies',  desc: 'Full group-wide access' },
+  { value: 'KISCOL', label: 'KISCOL Only',    desc: 'Restricted to KISCOL tasks' },
+]
 const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
   admin:    { bg:'#1a3a2a', color:'white'   },
   director: { bg:'#b5833a', color:'white'   },
@@ -18,7 +23,7 @@ const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
   staff:    { bg:'#f3f4f6', color:'#374151' },
 }
 
-const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'' }
+const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', companies: ['ALL'] as string[] }
 
 export default function AdminUsers({ currentUser, initialUsers }: Props) {
   const [users,    setUsers]    = useState<UserRow[]>(initialUsers)
@@ -33,7 +38,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
 
   const openAdd  = () => { setForm(BLANK); setEditId(null); setError(''); setShowForm(true) }
   const openEdit = (u: UserRow) => {
-    setForm({ name:u.name, email:u.email, role:u.role, department:u.department, reports_to:u.reports_to })
+    setForm({ name:u.name, email:u.email, role:u.role, department:u.department, reports_to:u.reports_to, companies: u.companies ?? ['ALL'] })
     setEditId(u.id); setError(''); setShowForm(true)
   }
 
@@ -142,6 +147,32 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                   {managerOptions.map(u=><option key={u.id} value={u.email}>{u.name} ({u.role})</option>)}
                 </select>
               </div>
+              <div>
+                <label style={lbl}>Company Access</label>
+                <div style={{display:'flex',gap:8}}>
+                  {ACCESS_OPTIONS.map(opt => {
+                    const active = form.companies.includes(opt.value) && !(opt.value === 'ALL' && form.companies.includes('KISCOL') && !form.companies.includes('ALL'))
+                    const isSelected = opt.value === 'KISCOL' ? !form.companies.includes('ALL') : form.companies.includes('ALL')
+                    return (
+                      <label key={opt.value} style={{
+                        display:'flex',gap:8,alignItems:'flex-start',cursor:'pointer',flex:1,
+                        background: isSelected && opt.value === 'ALL' || !form.companies.includes('ALL') && opt.value === 'KISCOL' ? '#f0fdf4' : 'white',
+                        border:`1px solid ${isSelected && opt.value === 'ALL' || !form.companies.includes('ALL') && opt.value === 'KISCOL' ? '#86efac' : '#e5e7eb'}`,
+                        borderRadius:5,padding:'7px 10px',
+                      }}>
+                        <input type="radio" name="companies" value={opt.value}
+                          checked={opt.value === 'ALL' ? form.companies.includes('ALL') : !form.companies.includes('ALL')}
+                          onChange={() => setForm(f => ({ ...f, companies: opt.value === 'ALL' ? ['ALL'] : ['KISCOL'] }))}
+                          style={{marginTop:2,accentColor:'#1a3a2a'}}/>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{opt.label}</div>
+                          <div style={{fontSize:10,color:'#9ca3af',marginTop:1}}>{opt.desc}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
               {!editId && (
                 <div style={{display:'flex',alignItems:'flex-end'}}>
                   <div style={{background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:4,padding:'7px 10px',fontSize:12,color:'#6b7280',width:'100%'}}>
@@ -175,7 +206,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
           <table style={{width:'100%',borderCollapse:'collapse'}}>
             <thead>
               <tr style={{background:'#f9fafb'}}>
-                {['Name','Email','Role','Department','Reports To','Actions'].map(h=>(
+                {['Name','Email','Role','Department','Reports To','Access','Actions'].map(h=>(
                   <th key={h} style={{padding:'9px 16px',textAlign:'left',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.5px',textTransform:'uppercase',borderBottom:'1px solid #e5e7eb'}}>{h}</th>
                 ))}
               </tr>
@@ -194,6 +225,12 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                   <td style={{padding:'11px 16px',fontSize:12,color:'#374151'}}>{u.department||'—'}</td>
                   <td style={{padding:'11px 16px',fontSize:12,color:'#6b7280'}}>
                     {u.reports_to ? (users.find(x=>x.email===u.reports_to)?.name || u.reports_to) : '—'}
+                  </td>
+                  <td style={{padding:'11px 16px'}}>
+                    {(u.companies ?? ['ALL']).includes('ALL')
+                      ? <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#dbeafe',color:'#1d4ed8'}}>All Companies</span>
+                      : <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#dcfce7',color:'#15803d'}}>KISCOL Only</span>
+                    }
                   </td>
                   <td style={{padding:'11px 16px'}}>
                     <div style={{display:'flex',gap:5}}>

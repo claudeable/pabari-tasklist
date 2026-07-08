@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(users.map(u => ({
     id: u.id, name: u.name, email: u.email,
     role: u.role, department: u.department, reports_to: u.reports_to,
+    companies: u.companies,
     created_at: u.created_at,
   })))
 }
@@ -24,14 +25,14 @@ export async function POST(req: NextRequest) {
   if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, email, role, department, reports_to } = body
+  const { name, email, role, department, reports_to, companies } = body
 
   if (!name || !email || !role) {
     return NextResponse.json({ error: 'Name, email and role are required' }, { status: 400 })
   }
 
   const hash    = await bcrypt.hash('changeme123', 10)
-  const created = await createUser({ name, email, role, department: department || '', reports_to: reports_to || '', password_hash: hash })
+  const created = await createUser({ name, email, role, department: department || '', reports_to: reports_to || '', companies: Array.isArray(companies) ? companies : ['ALL'], password_hash: hash })
 
   const { password_hash: _, ...safe } = created
   return NextResponse.json(safe, { status: 201 })

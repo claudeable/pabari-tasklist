@@ -86,12 +86,13 @@ export async function getSubordinates(email: string): Promise<string[]> {
 
 export async function createUser(data: {
   name: string; email: string; role: UserRole
-  department: string; reports_to: string; password_hash: string
+  department: string; reports_to: string; password_hash: string; companies?: string[]
 }): Promise<StoredUser> {
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO users (name, email, role, department, reports_to, password_hash)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [data.name, data.email, data.role, data.department, data.reports_to, data.password_hash]
+    `INSERT INTO users (name, email, role, department, reports_to, companies, password_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [data.name, data.email, data.role, data.department, data.reports_to,
+     JSON.stringify(data.companies ?? ['ALL']), data.password_hash]
   )
   if (!row) throw new Error('Failed to create user')
   return rowToUser(row)
@@ -99,13 +100,18 @@ export async function createUser(data: {
 
 export async function updateUser(id: string, data: {
   name?: string; email?: string; role?: UserRole
-  department?: string; reports_to?: string
+  department?: string; reports_to?: string; companies?: string[]
 }): Promise<StoredUser | null> {
+  const { companies, ...rest } = data
   const allowed = ['name', 'email', 'role', 'department', 'reports_to']
-  const fields  = Object.keys(data).filter(k => allowed.includes(k))
+  const fields  = Object.keys(rest).filter(k => allowed.includes(k))
+
+  // companies is JSONB — handle separately
+  if (companies !== undefined) fields.push('companies')
   if (!fields.length) return null
+
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
-  const values = fields.map(f => (data as Record<string, unknown>)[f])
+  const values = fields.map(f => f === 'companies' ? JSON.stringify(companies) : (rest as Record<string, unknown>)[f])
   const row = await queryOne<Record<string, unknown>>(
     `UPDATE users SET ${set} WHERE id = $1 RETURNING *`,
     [id, ...values]
