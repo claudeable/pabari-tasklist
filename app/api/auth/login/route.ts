@@ -4,6 +4,7 @@ import { getUserByEmail } from '@/lib/users'
 import { signToken } from '@/lib/auth'
 import { postSystemMessage } from '@/lib/chat'
 import { logActivity } from '@/lib/activityLog'
+import { resolveLocation } from '@/lib/geoip'
 
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
@@ -64,7 +65,9 @@ export async function POST(req: NextRequest) {
 
   clearRateLimit(ip)
   postSystemMessage(`🟢 ${user.name} logged in`).catch(() => {})
-  logActivity(user.email, user.name, 'login', `Logged in from ${ip}`).catch(() => {})
+  resolveLocation(ip)
+    .then(location => logActivity(user.email, user.name, 'login', `Logged in from ${location}`))
+    .catch(() => logActivity(user.email, user.name, 'login', `Logged in from ${ip}`).catch(() => {}))
 
   const res = NextResponse.json({ ok: true, name: user.name, role: user.role })
   res.cookies.set('pabari-session', token, {
