@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { getAllPettyCashRequests, getMyPettyCashRequests, createPettyCashRequest } from '@/lib/pettyCash'
 import { query } from '@/lib/database'
+import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +98,8 @@ export async function POST(req: NextRequest) {
       hod_name,
       year,
     })
+    logActivity(user.email, user.name, 'petty_cash_submitted',
+      `${user.name} submitted petty cash request — KES ${pcr.total_amount ?? ''} [${pcr.company}]`).catch(() => {})
     return NextResponse.json({ pcr })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

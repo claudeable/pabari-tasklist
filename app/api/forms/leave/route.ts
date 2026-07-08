@@ -5,6 +5,7 @@ import {
   getAllLeaveRequests, getMyLeaveRequests, getLeaveBalance,
   createLeaveRequest, ANNUAL_LEAVE_LIMIT,
 } from '@/lib/leave'
+import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,8 @@ export async function POST(req: NextRequest) {
       cover_person:       cover_person || '',
       year,
     })
+    logActivity(user.email, user.name, 'leave_submitted',
+      `${user.name} submitted ${leave_type} leave request: ${date_from} – ${date_to} (${days_requested} day${Number(days_requested) !== 1 ? 's' : ''})`).catch(() => {})
     return NextResponse.json({ leave })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

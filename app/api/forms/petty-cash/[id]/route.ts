@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { approveHOS, approveHOD, approveHODFinal, approveFinance, rejectPettyCash, deletePettyCashRequest, getAllPettyCashRequests } from '@/lib/pettyCash'
+import { logActivity } from '@/lib/activityLog'
 
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS
 const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance
@@ -27,16 +28,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const isKiscol = pcr.form_type === 'kiscol'
 
+  const pcrDesc = `${pcr.employee_name}'s petty cash KES ${pcr.total_amount ?? ''} [${pcr.company}]`
+
   if (action === 'hos_approve') {
     const allowed = isAdmin || (isKiscol ? user.email === SURESH_EMAIL : user.email === HOS_EMAIL)
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     await approveHOS(id, uid)
+    logActivity(user.email, user.name, 'petty_cash_hos_approved', `HOS approved ${pcrDesc}`).catch(() => {})
 
   } else if (action === 'hod_approve') {
     if (isKiscol) {
-      // Ahmad is final approver for KISCOL — goes directly to 'approved'
       if (!isAdmin && user.email !== AHMAD_EMAIL) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       await approveHODFinal(id, uid)
+      logActivity(user.email, user.name, 'petty_cash_approved', `Final approval for ${pcrDesc}`).catch(() => {})
     } else {
       const nameMatch   = !!pcr.hod_name && !!user.name &&
         pcr.hod_name.split(' ')[0].toLowerCase() === user.name.split(' ')[0].toLowerCase()
@@ -45,12 +49,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const isHOD       = pcr.hod_id === uid || nameMatch || isDeputyHOD
       if (!isAdmin && !isHOD) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       await approveHOD(id, uid)
+      logActivity(user.email, user.name, 'petty_cash_hod_approved', `HOD approved ${pcrDesc}`).catch(() => {})
     }
 
   } else if (action === 'finance_approve') {
     if (isKiscol) return NextResponse.json({ error: 'Not applicable for KISCOL form.' }, { status: 400 })
     if (!isAdmin && user.email !== FINANCE_EMAIL) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     await approveFinance(id, uid)
+    logActivity(user.email, user.name, 'petty_cash_finance_approved', `Finance approved ${pcrDesc}`).catch(() => {})
 
   } else if (action === 'reject') {
     const hosEmail  = isKiscol ? SURESH_EMAIL : HOS_EMAIL
@@ -60,6 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       || (user.email === SABINA_EMAIL && isPaulHOD)
     if (!canReject) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     await rejectPettyCash(id, notes || 'Rejected')
+    logActivity(user.email, user.name, 'petty_cash_rejected', `Rejected ${pcrDesc}${notes ? ` — ${notes}` : ''}`).catch(() => {})
 
   } else {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

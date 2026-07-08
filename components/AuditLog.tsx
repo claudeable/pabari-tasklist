@@ -28,6 +28,16 @@ const ACTION_LABELS: Record<string, { label: string; color: string; icon: string
   folder_created:       { label: 'Folder Created',   color: '#2563eb', icon: '📂' },
   folder_renamed:       { label: 'Folder Renamed',   color: '#d97706', icon: '✏️' },
   folder_deleted:       { label: 'Folder Deleted',   color: '#dc2626', icon: '🗑' },
+  leave_submitted:      { label: 'Leave Submitted',  color: '#0891b2', icon: '📝' },
+  leave_hr_approved:    { label: 'Leave HR Approved',color: '#16a34a', icon: '✅' },
+  leave_hk_approved:    { label: 'Leave Approved',   color: '#16a34a', icon: '🎉' },
+  leave_rejected:       { label: 'Leave Rejected',   color: '#dc2626', icon: '❌' },
+  petty_cash_submitted: { label: 'Petty Cash Req',   color: '#0891b2', icon: '💵' },
+  petty_cash_hos_approved:     { label: 'Petty Cash HOS ✓', color: '#16a34a', icon: '✅' },
+  petty_cash_hod_approved:     { label: 'Petty Cash HOD ✓', color: '#16a34a', icon: '✅' },
+  petty_cash_finance_approved: { label: 'Petty Cash Finance ✓', color: '#16a34a', icon: '✅' },
+  petty_cash_approved:  { label: 'Petty Cash Approved', color: '#16a34a', icon: '🎉' },
+  petty_cash_rejected:  { label: 'Petty Cash Rejected', color: '#dc2626', icon: '❌' },
 }
 
 function fmtDateTime(s: string) {
