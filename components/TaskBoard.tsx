@@ -313,9 +313,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     canViewAs:       ['admin','director'].includes(currentUser.role),
     canPostUpdate:   (task: Task) =>
       effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName),
-    // MY ATTENTION panel: Harshil (director+Director dept) and admin only
-    showAttentionPanel: currentUser.role === 'admin' ||
-                        (currentUser.role === 'director' && currentUser.department === 'Director'),
+    // MY ATTENTION panel: all directors (Harshil, Benson) and admin
+    showAttentionPanel: currentUser.role === 'admin' || currentUser.role === 'director',
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [currentUser.role, currentUser.department, effectiveRole, effectiveName])
 

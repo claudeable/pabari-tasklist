@@ -3,6 +3,27 @@
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/types'
 
+interface ActivityEntry {
+  id: number
+  user_name: string
+  action: string
+  details: string
+  created_at: string
+}
+
+const ACTION_LABELS: Record<string, { label: string; dot: string }> = {
+  login:               { label: 'Logged in',          dot: '#15803d' },
+  logout:              { label: 'Logged out',          dot: '#6b7280' },
+  task_created:        { label: 'Created task',        dot: '#1d4ed8' },
+  task_status_changed: { label: 'Changed task status', dot: '#b45309' },
+  task_commented:      { label: 'HK commented',        dot: '#7c3aed' },
+  task_update_posted:  { label: 'Posted update',       dot: '#0891b2' },
+  leave_submitted:     { label: 'Submitted leave',     dot: '#b5833a' },
+  pcr_submitted:       { label: 'Submitted petty cash',dot: '#b5833a' },
+  leave_approved:      { label: 'Approved leave',      dot: '#15803d' },
+  leave_rejected:      { label: 'Rejected leave',      dot: '#dc2626' },
+}
+
 interface Props {
   currentUser: SessionUser
 }
@@ -66,6 +87,16 @@ export default function PortalHub({ currentUser }: Props) {
   const [pendingForms, setPendingForms] = useState(0)
   const firstName = currentUser.name.split(' ')[0]
 
+  const isDirector = currentUser.role === 'director' || currentUser.role === 'admin'
+
+  // Activity log state (directors/admin only)
+  const [activityLog,   setActivityLog]   = useState<ActivityEntry[]>([])
+  const [activityFrom,  setActivityFrom]  = useState('')
+  const [activityTo,    setActivityTo]    = useState('')
+  const [activityUser,  setActivityUser]  = useState('')
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [allUserNames,  setAllUserNames]  = useState<string[]>([])
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
@@ -79,6 +110,34 @@ export default function PortalHub({ currentUser }: Props) {
       .then(d => { if (d) setPendingForms(d.total) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!isDirector) return
+    fetch('/api/users', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setAllUserNames(data.map((u: { name: string }) => u.name).sort()) })
+      .catch(() => {})
+    fetchActivity()
+  }, [isDirector])
+
+  function fetchActivity() {
+    if (!isDirector) return
+    setActivityLoading(true)
+    const params = new URLSearchParams({ limit: '200' })
+    if (activityFrom) params.set('from', activityFrom)
+    if (activityTo)   params.set('to', activityTo)
+    if (activityUser) params.set('user', activityUser)
+    fetch(`/api/activity-log?${params}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setActivityLog(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setActivityLoading(false))
+  }
+
+  function fmtTs(ts: string) {
+    const d = new Date(ts)
+    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -253,9 +312,82 @@ export default function PortalHub({ currentUser }: Props) {
           })}
         </div>
 
+        {/* Activity Log — directors only */}
+        {isDirector && (
+          <div style={{ marginTop: 40 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Activity Log</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>User activity trail — visible to directors only</div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div style={{ background: 'white', borderRadius: 8, padding: '12px 16px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb' }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>From</div>
+                <input type="date" value={activityFrom} onChange={e => setActivityFrom(e.target.value)}
+                  style={{ border: '1px solid #d1d5db', borderRadius: 5, padding: '5px 8px', fontSize: 12 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>To</div>
+                <input type="date" value={activityTo} onChange={e => setActivityTo(e.target.value)}
+                  style={{ border: '1px solid #d1d5db', borderRadius: 5, padding: '5px 8px', fontSize: 12 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>User</div>
+                <select value={activityUser} onChange={e => setActivityUser(e.target.value)}
+                  style={{ border: '1px solid #d1d5db', borderRadius: 5, padding: '5px 8px', fontSize: 12, color: '#374151' }}>
+                  <option value="">All Users</option>
+                  {allUserNames.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <button onClick={fetchActivity}
+                style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end' }}>
+                {activityLoading ? 'Loading…' : 'Filter'}
+              </button>
+              <button onClick={() => { setActivityFrom(''); setActivityTo(''); setActivityUser('') }}
+                style={{ background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-end' }}>
+                Reset
+              </button>
+            </div>
+
+            {/* Log list */}
+            <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb', maxHeight: 480, overflowY: 'auto' }}>
+              {activityLoading ? (
+                <div style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading…</div>
+              ) : activityLog.length === 0 ? (
+                <div style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No activity recorded yet.</div>
+              ) : activityLog.map((entry, i) => {
+                const meta = ACTION_LABELS[entry.action] ?? { label: entry.action, dot: '#9ca3af' }
+                return (
+                  <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 16px', borderBottom: i < activityLog.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.dot, flexShrink: 0, marginTop: 5 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, fontSize: 12, color: '#111827' }}>{entry.user_name}</span>
+                        <span style={{ fontSize: 11, color: '#6b7280' }}>{meta.label}</span>
+                      </div>
+                      {entry.details && (
+                        <div style={{ fontSize: 11, color: '#374151', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                          {entry.details}
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 10, color: '#9ca3af', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {fmtTs(entry.created_at)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6, textAlign: 'right' }}>{activityLog.length} entries shown</div>
+          </div>
+        )}
+
         {/* Footer note */}
         <div style={{
-          marginTop: 48, padding: '14px 20px',
+          marginTop: 32, padding: '14px 20px',
           background: '#f0fdf4', border: '1px solid #bbf7d0',
           borderRadius: 8, fontSize: 13, color: '#15803d',
         }}>

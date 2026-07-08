@@ -5,6 +5,7 @@ import { RECURRENCE_OPTIONS, Task } from '@/types'
 import { getUserByName } from '@/lib/users'
 import { postDMMessage } from '@/lib/chat'
 import { getSubscriptionsForUser, sendPush } from '@/lib/push'
+import { logActivity } from '@/lib/activityLog'
 
 function advanceDate(fromISO: string, days: number): string {
   const d = fromISO ? new Date(fromISO) : new Date()
@@ -66,6 +67,18 @@ export async function PATCH(
     notifyResponsible(user, task, body.hk_comment.trim()).catch(err =>
       console.error('[task PATCH] notifyResponsible failed:', err)
     )
+  }
+
+  // Activity log: status changes and comments
+  if (user) {
+    const desc = task.particulars.slice(0, 70)
+    if (body.status) {
+      logActivity(user.email, user.name, 'task_status_changed',
+        `[${task.company}] "${desc}" → ${body.status}`).catch(() => {})
+    } else if (body.hk_comment) {
+      logActivity(user.email, user.name, 'task_commented',
+        `[${task.company}] "${desc}"`).catch(() => {})
+    }
   }
 
   return NextResponse.json({ ok: true })
