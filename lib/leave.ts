@@ -90,9 +90,9 @@ export async function getMyLeaveRequests(employee_name: string, employee_id?: nu
   const rows = await query<Record<string, unknown>>(
     `SELECT * FROM leave_requests
      WHERE LOWER(employee_name) = LOWER($1)
-        OR ($2::int IS NOT NULL AND employee_id = $2)
+        OR ($2 IS NOT NULL AND employee_id = $2)
      ORDER BY submitted_at DESC`,
-    [employee_name, employee_id ?? null]
+    [employee_name, (employee_id != null && !isNaN(employee_id)) ? employee_id : null]
   )
   return rows.map(rowToLeave)
 }
