@@ -24,7 +24,7 @@ export async function GET() {
   const [requests, usedDays] = await Promise.all([
     (user.role === 'admin' || user.role === 'director' || user.department === 'HR')
       ? getAllLeaveRequests()
-      : getMyLeaveRequests(user.name),
+      : getMyLeaveRequests(user.name, Number(user.id)),
     getLeaveBalance(user.name, year),
   ])
 
