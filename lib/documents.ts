@@ -14,6 +14,9 @@ export interface DocMeta {
   uploaded_by:   string
   uploader_name: string
   created_at:    string
+  reference_no:  string | null
+  description:   string
+  year:          number
 }
 
 export interface FolderSummary {
@@ -41,10 +44,13 @@ async function ensureDocTable() {
     )
   `)
   // New columns (idempotent)
-  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS entity      TEXT NOT NULL DEFAULT 'Group'`)
-  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS expiry_date DATE`)
-  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type    TEXT NOT NULL DEFAULT ''`)
-  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS folder_id   INTEGER`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS entity       TEXT NOT NULL DEFAULT 'Group'`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS expiry_date  DATE`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type     TEXT NOT NULL DEFAULT ''`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS folder_id    INTEGER`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_no TEXT`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS description  TEXT NOT NULL DEFAULT ''`)
+  await execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS year         INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW())::int`)
   await execute(`CREATE INDEX IF NOT EXISTS idx_docs_entity ON documents(entity)`)
   await execute(`CREATE INDEX IF NOT EXISTS idx_docs_folder ON documents(folder)`)
   docReady = true
@@ -87,6 +93,9 @@ function rowToDoc(r: Record<string, unknown>): DocMeta {
     uploaded_by:   String(r.uploaded_by || ''),
     uploader_name: String(r.uploader_name || ''),
     created_at:    String(r.created_at),
+    reference_no:  r.reference_no ? String(r.reference_no) : null,
+    description:   String(r.description || ''),
+    year:          Number(r.year || new Date().getFullYear()),
   }
 }
 
@@ -151,11 +160,11 @@ export async function listDocuments(entity: string, folder?: string): Promise<Do
   await ensureDocTable()
   const rows = folder
     ? await query<Record<string, unknown>>(
-        `SELECT id,name,entity,folder,doc_type,expiry_date,mime_type,size,uploaded_by,uploader_name,created_at
+        `SELECT id,name,entity,folder,doc_type,expiry_date,mime_type,size,uploaded_by,uploader_name,created_at,reference_no,description,year
          FROM documents WHERE entity=$1 AND folder=$2 ORDER BY created_at DESC`,
         [entity, folder])
     : await query<Record<string, unknown>>(
-        `SELECT id,name,entity,folder,doc_type,expiry_date,mime_type,size,uploaded_by,uploader_name,created_at
+        `SELECT id,name,entity,folder,doc_type,expiry_date,mime_type,size,uploaded_by,uploader_name,created_at,reference_no,description,year
          FROM documents WHERE entity=$1 ORDER BY created_at DESC`,
         [entity])
   return rows.map(rowToDoc)
@@ -164,7 +173,7 @@ export async function listDocuments(entity: string, folder?: string): Promise<Do
 export async function getAllExpiringDocuments(): Promise<DocMeta[]> {
   await ensureDocTable()
   const rows = await query<Record<string, unknown>>(
-    `SELECT id,name,entity,folder,doc_type,expiry_date,mime_type,size,uploaded_by,uploader_name,created_at
+    `SELECT id,name,entity,folder,doc_type,expiry_date,mime_type,size,uploaded_by,uploader_name,created_at,reference_no,description,year
      FROM documents
      WHERE expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE + INTERVAL '30 days'
      ORDER BY expiry_date ASC`
@@ -184,18 +193,22 @@ export async function saveDocument(data: {
   name: string; entity: string; folder: string; doc_type: string
   expiry_date?: string | null; mime_type: string; size: number
   buffer: Buffer; uploaded_by: string; uploader_name: string
+  reference_no?: string | null; description?: string; year?: number
 }): Promise<DocMeta> {
   await ensureDocTable()
   await ensureFolderTable()
-  // Ensure folder exists
   await execute(`INSERT INTO document_folders (name, path) VALUES ($1, $1) ON CONFLICT (name) DO NOTHING`, [data.folder])
 
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO documents (name, entity, folder, doc_type, expiry_date, mime_type, size, data, uploaded_by, uploader_name)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING id, name, entity, folder, doc_type, expiry_date, mime_type, size, uploaded_by, uploader_name, created_at`,
+    `INSERT INTO documents
+       (name, entity, folder, doc_type, expiry_date, mime_type, size, data,
+        uploaded_by, uploader_name, reference_no, description, year)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     RETURNING id,name,entity,folder,doc_type,expiry_date,mime_type,size,
+               uploaded_by,uploader_name,created_at,reference_no,description,year`,
     [data.name, data.entity, data.folder, data.doc_type || '', data.expiry_date || null,
-     data.mime_type, data.size, data.buffer, data.uploaded_by, data.uploader_name]
+     data.mime_type, data.size, data.buffer, data.uploaded_by, data.uploader_name,
+     data.reference_no || null, data.description || '', data.year || new Date().getFullYear()]
   )
   if (!row) throw new Error('Upload failed')
   return rowToDoc(row)

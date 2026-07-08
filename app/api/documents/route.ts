@@ -77,12 +77,16 @@ export async function POST(req: NextRequest) {
   }
 
   // File upload (multipart)
-  const formData    = await req.formData()
-  const file        = formData.get('file') as File | null
-  const entity      = (formData.get('entity') as string | null) || 'Group'
-  const folder      = ((formData.get('folder') as string | null) || 'General').trim()
-  const doc_type    = ((formData.get('doc_type') as string | null) || '').trim()
-  const expiry_date = (formData.get('expiry_date') as string | null) || null
+  const formData     = await req.formData()
+  const file         = formData.get('file') as File | null
+  const entity       = (formData.get('entity') as string | null) || 'Group'
+  const folder       = ((formData.get('folder') as string | null) || 'General').trim()
+  const doc_type     = ((formData.get('doc_type') as string | null) || '').trim()
+  const expiry_date  = (formData.get('expiry_date') as string | null) || null
+  const reference_no = ((formData.get('reference_no') as string | null) || '').trim() || null
+  const description  = ((formData.get('description') as string | null) || '').trim()
+  const yearRaw      = formData.get('year') as string | null
+  const year         = yearRaw ? parseInt(yearRaw) : new Date().getFullYear()
 
   if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   if (file.size > 20 * 1024 * 1024) return NextResponse.json({ error: 'File too large (max 20 MB)' }, { status: 400 })
@@ -96,6 +100,7 @@ export async function POST(req: NextRequest) {
       size:          file.size, buffer,
       uploaded_by:   user!.email,
       uploader_name: user!.name,
+      reference_no, description, year,
     })
     return NextResponse.json({ doc }, { status: 201 })
   } catch (e: unknown) {

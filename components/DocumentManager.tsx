@@ -9,6 +9,7 @@ interface DocMeta {
   doc_type: string; expiry_date: string | null
   mime_type: string; size: number
   uploaded_by: string; uploader_name: string; created_at: string
+  reference_no: string | null; description: string; year: number
 }
 interface FolderSummary { name: string; count: number; expiring_count: number }
 interface Props { currentUser: SessionUser }
@@ -65,7 +66,7 @@ export default function DocumentManager({ currentUser }: Props) {
   const [showUpload,  setShowUpload]  = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const [uploadFile,  setUploadFile]  = useState<File | null>(null)
-  const [uploadForm,  setUploadForm]  = useState({ entity: 'Group', folder: '', doc_type: '', has_expiry: false, expiry_date: '' })
+  const [uploadForm,  setUploadForm]  = useState({ entity: 'Group', folder: '', doc_type: '', has_expiry: false, expiry_date: '', reference_no: '', description: '', year: new Date().getFullYear() })
   const [uploadError, setUploadError] = useState('')
   const [dragging,    setDragging]    = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -147,7 +148,7 @@ export default function DocumentManager({ currentUser }: Props) {
   // ── Upload ──────────────────────────────────────────────────────────────────
   const openUpload = () => {
     setUploadFile(null); setUploadError('')
-    setUploadForm({ entity, folder: activeFolder || allFolderNames[0] || '', doc_type: '', has_expiry: false, expiry_date: '' })
+    setUploadForm({ entity, folder: activeFolder || allFolderNames[0] || '', doc_type: '', has_expiry: false, expiry_date: '', reference_no: '', description: '', year: new Date().getFullYear() })
     setShowUpload(true)
   }
 
@@ -158,11 +159,14 @@ export default function DocumentManager({ currentUser }: Props) {
     setUploading(true); setUploadError('')
     try {
       const fd = new FormData()
-      fd.append('file',        uploadFile)
-      fd.append('entity',      uploadForm.entity)
-      fd.append('folder',      uploadForm.folder)
-      fd.append('doc_type',    uploadForm.doc_type)
-      fd.append('expiry_date', uploadForm.has_expiry ? uploadForm.expiry_date : '')
+      fd.append('file',         uploadFile)
+      fd.append('entity',       uploadForm.entity)
+      fd.append('folder',       uploadForm.folder)
+      fd.append('doc_type',     uploadForm.doc_type)
+      fd.append('expiry_date',  uploadForm.has_expiry ? uploadForm.expiry_date : '')
+      fd.append('reference_no', uploadForm.reference_no)
+      fd.append('description',  uploadForm.description)
+      fd.append('year',         String(uploadForm.year))
       const res  = await fetch('/api/documents', { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
@@ -437,12 +441,23 @@ export default function DocumentManager({ currentUser }: Props) {
 
                     {/* Name + meta */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
-                        style={{ fontWeight: 600, fontSize: 14, color: '#111', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {doc.name}
-                      </a>
-                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                        {[doc.doc_type, `Uploaded ${fmtDate(doc.created_at)} by ${doc.uploader_name || doc.uploaded_by}`].filter(Boolean).join(' · ')}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
+                          style={{ fontWeight: 600, fontSize: 14, color: '#111', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {doc.name}
+                        </a>
+                        {doc.reference_no && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {doc.reference_no}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10, color: '#d1d5db', flexShrink: 0 }}>{doc.year}</span>
+                      </div>
+                      {doc.description && (
+                        <div style={{ fontSize: 12, color: '#4b5563', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.description}</div>
+                      )}
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
+                        {[doc.doc_type, `${fmtDate(doc.created_at)} · ${doc.uploader_name || doc.uploaded_by}`].filter(Boolean).join(' · ')}
                         {!activeFolder && <span style={{ marginLeft: 6, background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>📁 {doc.folder}</span>}
                       </div>
                     </div>
@@ -551,6 +566,16 @@ export default function DocumentManager({ currentUser }: Props) {
                 </select>
               </div>
               <div>
+                <label style={lbl}>Year</label>
+                <input type="number" value={uploadForm.year} onChange={e => setUploadForm(f => ({ ...f, year: parseInt(e.target.value) || new Date().getFullYear() }))}
+                  min={2000} max={2100} style={{ ...inp }}/>
+              </div>
+              <div>
+                <label style={lbl}>Reference No. (optional)</label>
+                <input type="text" value={uploadForm.reference_no} onChange={e => setUploadForm(f => ({ ...f, reference_no: e.target.value }))}
+                  placeholder="e.g. HKA.1025" style={{ ...inp }}/>
+              </div>
+              <div>
                 <label style={lbl}>
                   <input type="checkbox" checked={uploadForm.has_expiry} onChange={e => setUploadForm(f => ({ ...f, has_expiry: e.target.checked }))} style={{ marginRight: 5 }}/>
                   Has Expiry Date
@@ -559,6 +584,13 @@ export default function DocumentManager({ currentUser }: Props) {
                   <input type="date" value={uploadForm.expiry_date} onChange={e => setUploadForm(f => ({ ...f, expiry_date: e.target.value }))} style={{ ...inp }} min={new Date().toISOString().slice(0, 10)}/>
                 )}
               </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={lbl}>Description / Particulars (optional)</label>
+              <textarea value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Brief description of what this document is about…"
+                rows={2} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }}/>
             </div>
 
             {uploadError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 12, background: '#fef2f2', borderRadius: 4, padding: '6px 10px' }}>{uploadError}</div>}
