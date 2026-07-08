@@ -10,8 +10,10 @@ export async function GET(req: NextRequest) {
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
 
-  // Only directors (Harshil, Benson) and admin
-  if (!user || (user.role !== 'director' && user.role !== 'admin')) {
+  // Only Harshil (Director dept), Benson (Executive dept), and admin
+  const canSeeLog = user?.role === 'admin' ||
+    (user?.role === 'director' && (user.department === 'Director' || user.department === 'Executive'))
+  if (!canSeeLog) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

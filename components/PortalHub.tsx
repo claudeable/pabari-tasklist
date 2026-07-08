@@ -124,7 +124,9 @@ export default function PortalHub({ currentUser }: Props) {
   const [pendingForms, setPendingForms] = useState(0)
   const firstName = currentUser.name.split(' ')[0]
 
-  const isDirector = currentUser.role === 'director' || currentUser.role === 'admin'
+  // Activity log visible only to Harshil, Benson, and admin — not other future directors
+  const isDirector = currentUser.role === 'admin' ||
+    (currentUser.role === 'director' && (currentUser.department === 'Director' || currentUser.department === 'Executive'))
 
   // Activity log state (directors/admin only)
   const [activityLog,   setActivityLog]   = useState<ActivityEntry[]>([])
