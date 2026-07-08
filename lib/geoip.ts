@@ -2,12 +2,20 @@ const LOCAL_PREFIXES = ['127.', '::1', '192.168.', '10.', '172.16.', '172.17.', 
   '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.',
   '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.']
 
+// Known office / site IPs — add more here as needed
+const KNOWN_LOCATIONS: Record<string, string> = {
+  '196.201.225.58': '📍 EPPL Office, Baba Dogo Rd, Nairobi',
+}
+
 function isPrivate(ip: string) {
   return LOCAL_PREFIXES.some(p => ip.startsWith(p))
 }
 
 export async function resolveLocation(ip: string): Promise<string> {
   if (!ip || isPrivate(ip)) return `${ip} (local network)`
+
+  // Check known office IPs first — no API call needed
+  if (KNOWN_LOCATIONS[ip]) return KNOWN_LOCATIONS[ip]
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 3000)
