@@ -12,16 +12,53 @@ interface ActivityEntry {
 }
 
 const ACTION_LABELS: Record<string, { label: string; dot: string }> = {
-  login:               { label: 'Logged in',          dot: '#15803d' },
-  logout:              { label: 'Logged out',          dot: '#6b7280' },
-  task_created:        { label: 'Created task',        dot: '#1d4ed8' },
-  task_status_changed: { label: 'Changed task status', dot: '#b45309' },
-  task_commented:      { label: 'HK commented',        dot: '#7c3aed' },
-  task_update_posted:  { label: 'Posted update',       dot: '#0891b2' },
-  leave_submitted:     { label: 'Submitted leave',     dot: '#b5833a' },
-  pcr_submitted:       { label: 'Submitted petty cash',dot: '#b5833a' },
-  leave_approved:      { label: 'Approved leave',      dot: '#15803d' },
-  leave_rejected:      { label: 'Rejected leave',      dot: '#dc2626' },
+  login:               { label: 'Logged in',             dot: '#15803d' },
+  logout:              { label: 'Logged out',             dot: '#6b7280' },
+  task_created:        { label: 'Created task',           dot: '#1d4ed8' },
+  task_status_changed: { label: 'Changed task status',    dot: '#b45309' },
+  task_commented:      { label: 'HK commented',           dot: '#7c3aed' },
+  task_update_posted:  { label: 'Posted update',          dot: '#0891b2' },
+  task_legal_flagged:  { label: 'Flagged for legal review', dot: '#7c3aed' },
+  leave_submitted:     { label: 'Submitted leave',        dot: '#b5833a' },
+  pcr_submitted:       { label: 'Submitted petty cash',   dot: '#b5833a' },
+  leave_approved:      { label: 'Approved leave',         dot: '#15803d' },
+  leave_rejected:      { label: 'Rejected leave',         dot: '#dc2626' },
+}
+
+interface Session {
+  user:    string
+  loginAt: string
+  logoutAt: string | null
+  entries: ActivityEntry[]
+}
+
+function buildSessions(entries: ActivityEntry[]): Session[] {
+  // entries arrive newest-first; work oldest-first to build sessions, then reverse
+  const asc = [...entries].reverse()
+  const sessions: Session[] = []
+  const openSessions: Record<string, Session> = {}
+
+  for (const e of asc) {
+    if (e.action === 'login') {
+      const s: Session = { user: e.user_name, loginAt: e.created_at, logoutAt: null, entries: [e] }
+      openSessions[e.user_name] = s
+      sessions.push(s)
+    } else if (e.action === 'logout') {
+      const s = openSessions[e.user_name]
+      if (s) { s.logoutAt = e.created_at; s.entries.push(e); delete openSessions[e.user_name] }
+      else sessions.push({ user: e.user_name, loginAt: e.created_at, logoutAt: e.created_at, entries: [e] })
+    } else {
+      const s = openSessions[e.user_name]
+      if (s) s.entries.push(e)
+      else {
+        // activity without a login in range — create an implicit session
+        const implicit: Session = { user: e.user_name, loginAt: e.created_at, logoutAt: null, entries: [e] }
+        openSessions[e.user_name] = implicit
+        sessions.push(implicit)
+      }
+    }
+  }
+  return sessions.reverse() // newest session first
 }
 
 interface Props {
@@ -352,35 +389,81 @@ export default function PortalHub({ currentUser }: Props) {
               </button>
             </div>
 
-            {/* Log list */}
-            <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb', maxHeight: 480, overflowY: 'auto' }}>
-              {activityLoading ? (
-                <div style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading…</div>
-              ) : activityLog.length === 0 ? (
-                <div style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No activity recorded yet.</div>
-              ) : activityLog.map((entry, i) => {
-                const meta = ACTION_LABELS[entry.action] ?? { label: entry.action, dot: '#9ca3af' }
-                return (
-                  <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 16px', borderBottom: i < activityLog.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.dot, flexShrink: 0, marginTop: 5 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 12, color: '#111827' }}>{entry.user_name}</span>
-                        <span style={{ fontSize: 11, color: '#6b7280' }}>{meta.label}</span>
-                      </div>
-                      {entry.details && (
-                        <div style={{ fontSize: 11, color: '#374151', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                          {entry.details}
+            {/* Session-grouped log */}
+            {activityLoading ? (
+              <div style={{ background: 'white', borderRadius: 8, border: '1px solid #e5e7eb', padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading…</div>
+            ) : activityLog.length === 0 ? (
+              <div style={{ background: 'white', borderRadius: 8, border: '1px solid #e5e7eb', padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No activity recorded yet.</div>
+            ) : (() => {
+              const sessions = buildSessions(activityLog)
+              const fmtShort = (ts: string) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+              const fmtDay   = (ts: string) => new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+              const actionCount = (s: Session) => s.entries.filter(e => e.action !== 'login' && e.action !== 'logout').length
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {sessions.map((session, si) => {
+                    const actions = actionCount(session)
+                    const stillActive = !session.logoutAt
+                    return (
+                      <div key={si} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                        {/* Session header */}
+                        <div style={{ background: stillActive ? '#f0fdf4' : '#f9fafb', borderBottom: '1px solid #e5e7eb', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#1a3a2a', color: 'white', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {session.user.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0,2)}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontWeight: 700, fontSize: 12, color: '#111827' }}>{session.user}</span>
+                            <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 8 }}>
+                              {fmtDay(session.loginAt)} · {fmtShort(session.loginAt)}
+                              {session.logoutAt ? ` – ${fmtShort(session.logoutAt)}` : ''}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                            {stillActive && (
+                              <span style={{ fontSize: 9, fontWeight: 700, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 10, padding: '1px 7px' }}>ACTIVE</span>
+                            )}
+                            {actions > 0 && (
+                              <span style={{ fontSize: 10, color: '#9ca3af' }}>{actions} action{actions !== 1 ? 's' : ''}</span>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <span style={{ fontSize: 10, color: '#9ca3af', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      {fmtTs(entry.created_at)}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
+                        {/* Session entries */}
+                        <div style={{ padding: '4px 0' }}>
+                          {session.entries.map((entry, ei) => {
+                            const meta = ACTION_LABELS[entry.action] ?? { label: entry.action, dot: '#9ca3af' }
+                            const isLogin  = entry.action === 'login'
+                            const isLogout = entry.action === 'logout'
+                            return (
+                              <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 14px 7px 14px', borderBottom: ei < session.entries.length - 1 ? '1px solid #f9fafb' : 'none' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: 4 }}>
+                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, display: 'block' }} />
+                                  {ei < session.entries.length - 1 && (
+                                    <span style={{ width: 1, height: 16, background: '#e5e7eb', display: 'block', marginTop: 3 }} />
+                                  )}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: isLogin ? '#15803d' : isLogout ? '#6b7280' : '#374151' }}>
+                                      {meta.label}
+                                    </span>
+                                    <span style={{ fontSize: 10, color: '#9ca3af' }}>{fmtShort(entry.created_at)}</span>
+                                  </div>
+                                  {entry.details && (
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1, lineHeight: 1.4 }}>
+                                      {entry.details}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6, textAlign: 'right' }}>{activityLog.length} entries shown</div>
           </div>
         )}
