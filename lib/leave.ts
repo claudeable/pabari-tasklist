@@ -36,7 +36,8 @@ async function ensureTable() {
       year INTEGER NOT NULL DEFAULT 0
     )
   `)
-  await execute(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS year INTEGER NOT NULL DEFAULT 0`)
+  await execute(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS year        INTEGER NOT NULL DEFAULT 0`)
+  await execute(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS employee_id INTEGER`)
   tableReady = true
 }
 
