@@ -12,33 +12,11 @@ function isPrivate(ip: string) {
 }
 
 export async function resolveLocation(ip: string): Promise<string> {
-  if (!ip || isPrivate(ip)) return `${ip} (local network)`
+  if (!ip || isPrivate(ip)) return `In Office · ${ip}`
 
-  // Check known office IPs first — no API call needed
-  if (KNOWN_LOCATIONS[ip]) return KNOWN_LOCATIONS[ip]
+  // Known office IPs — return office label immediately
+  if (KNOWN_LOCATIONS[ip]) return `In Office · ${KNOWN_LOCATIONS[ip]}`
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 3000)
-
-  try {
-    const res = await fetch(`https://ipapi.co/${ip}/json/`, {
-      headers: { 'User-Agent': 'Pabari-ERP/1.0' },
-      signal: controller.signal,
-    })
-    clearTimeout(timer)
-    if (!res.ok) return ip
-
-    const d = await res.json()
-    if (d.error) return ip
-
-    const city    = d.city        ?? ''
-    const country = d.country_name ?? ''
-    const org     = (d.org ?? '').replace(/^AS\d+\s*/, '') // strip AS number prefix
-
-    const parts = [city, country, org].filter(Boolean)
-    return parts.length ? `${parts.join(', ')} · ${ip}` : ip
-  } catch {
-    clearTimeout(timer)
-    return ip
-  }
+  // Any unrecognised IP = out of office
+  return `Out of Office · ${ip}`
 }
