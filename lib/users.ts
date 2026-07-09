@@ -51,6 +51,7 @@ export async function getUsers(): Promise<StoredUser[]> {
 }
 
 export async function getUserByName(name: string): Promise<StoredUser | undefined> {
+  await ensureUserCols()
   const row = await queryOne<Record<string, unknown>>(
     'SELECT * FROM users WHERE LOWER(name) = LOWER($1)',
     [name]
@@ -59,6 +60,7 @@ export async function getUserByName(name: string): Promise<StoredUser | undefine
 }
 
 export async function getUserByEmail(email: string): Promise<StoredUser | undefined> {
+  await ensureUserCols()
   const row = await queryOne<Record<string, unknown>>(
     'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
     [email]
@@ -67,6 +69,7 @@ export async function getUserByEmail(email: string): Promise<StoredUser | undefi
 }
 
 export async function getPublicUsers() {
+  await ensureUserCols()
   const rows = await query<Record<string, unknown>>(
     'SELECT id, name, email, role, department, reports_to, hod_email, companies FROM users ORDER BY name'
   )
