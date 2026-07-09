@@ -326,6 +326,7 @@ export default function ChatWidget({ currentUser }: Props) {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     navigator.serviceWorker.register('/sw.js').catch(err => console.error('[sw]', err))
+    if (!('Notification' in window)) return
     setNotifPerm(Notification.permission)
     if (Notification.permission === 'granted') subscribeToPush()
   }, []) // eslint-disable-line
