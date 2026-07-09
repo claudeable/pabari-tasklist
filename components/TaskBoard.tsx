@@ -347,6 +347,16 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       // Operations HOD and Group CEO have full cross-company visibility
       const FULL_ACCESS_DEPTS = ['Operations / AOB', 'Group CEO']
       if (FULL_ACCESS_DEPTS.includes(currentUser.department)) return accessible
+      // Legal & Corporate always sees all tasks flagged for legal review
+      if (currentUser.department === 'Legal & Corporate') {
+        const myNames = teamMembers.length > 0
+          ? [currentUser.name, ...teamMembers]
+          : [currentUser.name, ...allUsers.filter(u => u.department === 'Legal & Corporate').map(u => u.name)]
+        return accessible.filter(t =>
+          t.legal_review === true ||
+          myNames.some(n => nameMatch(t.responsible, n))
+        )
+      }
       // Use manually configured team if set; fall back to department-based
       if (teamMembers.length > 0) {
         const myNames = [currentUser.name, ...teamMembers]
@@ -355,14 +365,6 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       const deptNames = allUsers
         .filter(u => u.department === currentUser.department)
         .map(u => u.name)
-      // Legal & Corporate also sees all tasks flagged for legal review
-      if (currentUser.department === 'Legal & Corporate') {
-        return accessible.filter(t =>
-          t.legal_review === true ||
-          deptNames.some(n => nameMatch(t.responsible, n)) ||
-          nameMatch(t.responsible, currentUser.name)
-        )
-      }
       return accessible.filter(t =>
         deptNames.some(n => nameMatch(t.responsible, n)) ||
         nameMatch(t.responsible, currentUser.name)
