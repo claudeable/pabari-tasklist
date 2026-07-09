@@ -73,8 +73,10 @@ export async function POST(req: NextRequest) {
     const userRecord      = await getUserByEmail(user.email).catch(() => null)
     const supervisorEmail = userRecord?.reports_to || user.reports_to || ''
     // Managers and above ARE the HOD — skip that step for them
+    // Also skip HOD if it's the same person as supervisor (avoid double approval)
     const isManagerOrAbove = ['manager','director','ceo','admin'].includes(user.role)
-    const hodEmail = isManagerOrAbove ? '' : (userRecord?.hod_email || '')
+    const rawHod  = isManagerOrAbove ? '' : (userRecord?.hod_email || '')
+    const hodEmail = (rawHod && rawHod !== supervisorEmail) ? rawHod : ''
 
     const leave = await createLeaveRequest({
       employee_id:        safeInt(user.id),
