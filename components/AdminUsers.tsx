@@ -118,83 +118,6 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
           </button>
         </div>
 
-        {/* ADD / EDIT FORM */}
-        {showForm && (
-          <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:24,marginBottom:20}}>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:16,display:'flex',justifyContent:'space-between'}}>
-              {editId ? 'Edit User' : 'Add New User'}
-              <button onClick={()=>setShowForm(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'#9ca3af'}}>✕</button>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:14}}>
-              <div><label style={lbl}>Full Name</label><input value={form.name} onChange={e=>setF('name',e.target.value)} style={inp} placeholder="e.g. John Doe"/></div>
-              <div><label style={lbl}>Email</label><input value={form.email} onChange={e=>setF('email',e.target.value)} style={inp} placeholder="john@usm.co.ke" type="email"/></div>
-              <div>
-                <label style={lbl}>Role</label>
-                <select value={form.role} onChange={e=>setF('role',e.target.value)} style={inp}>
-                  {ROLES.map(r=><option key={r} value={r}>{r.charAt(0).toUpperCase()+r.slice(1)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Department</label>
-                <select value={form.department} onChange={e=>setF('department',e.target.value)} style={inp}>
-                  <option value="">— Select —</option>
-                  {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Reports To (HOD)</label>
-                <select value={form.reports_to} onChange={e=>setF('reports_to',e.target.value)} style={inp}>
-                  <option value="">— None / Top level —</option>
-                  {managerOptions.map(u=><option key={u.id} value={u.email}>{u.name} ({u.role})</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Company Access</label>
-                <div style={{display:'flex',gap:8}}>
-                  {ACCESS_OPTIONS.map(opt => {
-                    const active = form.companies.includes(opt.value) && !(opt.value === 'ALL' && form.companies.includes('KISCOL') && !form.companies.includes('ALL'))
-                    const isSelected = opt.value === 'KISCOL' ? !form.companies.includes('ALL') : form.companies.includes('ALL')
-                    return (
-                      <label key={opt.value} style={{
-                        display:'flex',gap:8,alignItems:'flex-start',cursor:'pointer',flex:1,
-                        background: isSelected && opt.value === 'ALL' || !form.companies.includes('ALL') && opt.value === 'KISCOL' ? '#f0fdf4' : 'white',
-                        border:`1px solid ${isSelected && opt.value === 'ALL' || !form.companies.includes('ALL') && opt.value === 'KISCOL' ? '#86efac' : '#e5e7eb'}`,
-                        borderRadius:5,padding:'7px 10px',
-                      }}>
-                        <input type="radio" name="companies" value={opt.value}
-                          checked={opt.value === 'ALL' ? form.companies.includes('ALL') : !form.companies.includes('ALL')}
-                          onChange={() => setForm(f => ({ ...f, companies: opt.value === 'ALL' ? ['ALL'] : ['KISCOL'] }))}
-                          style={{marginTop:2,accentColor:'#1a3a2a'}}/>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{opt.label}</div>
-                          <div style={{fontSize:10,color:'#9ca3af',marginTop:1}}>{opt.desc}</div>
-                        </div>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-              {!editId && (
-                <div style={{display:'flex',alignItems:'flex-end'}}>
-                  <div style={{background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:4,padding:'7px 10px',fontSize:12,color:'#6b7280',width:'100%'}}>
-                    Default password: <strong>changeme123</strong>
-                  </div>
-                </div>
-              )}
-            </div>
-            {error && <div style={{color:'#dc2626',fontSize:12,marginBottom:10}}>{error}</div>}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={save} disabled={saving}
-                style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer',opacity:saving?0.7:1}}>
-                {saving ? 'Saving…' : editId ? 'Save Changes' : 'Create User'}
-              </button>
-              <button onClick={()=>setShowForm(false)}
-                style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'8px 16px',fontSize:13,cursor:'pointer'}}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* SEARCH */}
         <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,overflow:'hidden'}}>
@@ -263,6 +186,86 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
         <span>·</span><span>Admin Panel — User Management</span>
         <span>·</span><span>{currentUser.name}</span>
       </div>
+
+      {/* ADD / EDIT MODAL */}
+      {showForm && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:900,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={e=>{ if(e.target===e.currentTarget) setShowForm(false) }}>
+          <div style={{background:'white',borderRadius:10,padding:28,width:'100%',maxWidth:700,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}}>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              {editId ? 'Edit User' : 'Add New User'}
+              <button onClick={()=>setShowForm(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,color:'#9ca3af',lineHeight:1}}>✕</button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:14}}>
+              <div><label style={lbl}>Full Name</label><input value={form.name} onChange={e=>setF('name',e.target.value)} style={inp} placeholder="e.g. John Doe"/></div>
+              <div><label style={lbl}>Email</label><input value={form.email} onChange={e=>setF('email',e.target.value)} style={inp} placeholder="john@usm.co.ke" type="email"/></div>
+              <div>
+                <label style={lbl}>Role</label>
+                <select value={form.role} onChange={e=>setF('role',e.target.value)} style={inp}>
+                  {ROLES.map(r=><option key={r} value={r}>{r.charAt(0).toUpperCase()+r.slice(1)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Department</label>
+                <select value={form.department} onChange={e=>setF('department',e.target.value)} style={inp}>
+                  <option value="">— Select —</option>
+                  {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Reports To (Supervisor)</label>
+                <select value={form.reports_to} onChange={e=>setF('reports_to',e.target.value)} style={inp}>
+                  <option value="">— None / Top level —</option>
+                  {managerOptions.map(u=><option key={u.id} value={u.email}>{u.name} ({u.role})</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Company Access</label>
+                <div style={{display:'flex',gap:8}}>
+                  {ACCESS_OPTIONS.map(opt => {
+                    const isSelected = opt.value === 'ALL' ? form.companies.includes('ALL') : !form.companies.includes('ALL')
+                    return (
+                      <label key={opt.value} style={{
+                        display:'flex',gap:8,alignItems:'flex-start',cursor:'pointer',flex:1,
+                        background: isSelected ? '#f0fdf4' : 'white',
+                        border:`1px solid ${isSelected ? '#86efac' : '#e5e7eb'}`,
+                        borderRadius:5,padding:'7px 10px',
+                      }}>
+                        <input type="radio" name="companies" value={opt.value}
+                          checked={isSelected}
+                          onChange={() => setForm(f => ({ ...f, companies: opt.value === 'ALL' ? ['ALL'] : ['KISCOL'] }))}
+                          style={{marginTop:2,accentColor:'#1a3a2a'}}/>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{opt.label}</div>
+                          <div style={{fontSize:10,color:'#9ca3af',marginTop:1}}>{opt.desc}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+              {!editId && (
+                <div style={{display:'flex',alignItems:'flex-end'}}>
+                  <div style={{background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:4,padding:'7px 10px',fontSize:12,color:'#6b7280',width:'100%'}}>
+                    Default password: <strong>changeme123</strong>
+                  </div>
+                </div>
+              )}
+            </div>
+            {error && <div style={{color:'#dc2626',fontSize:12,marginBottom:10}}>{error}</div>}
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end',borderTop:'1px solid #f3f4f6',paddingTop:16,marginTop:4}}>
+              <button onClick={()=>setShowForm(false)}
+                style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'8px 18px',fontSize:13,cursor:'pointer'}}>
+                Cancel
+              </button>
+              <button onClick={save} disabled={saving}
+                style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'8px 22px',fontSize:13,fontWeight:600,cursor:'pointer',opacity:saving?0.7:1}}>
+                {saving ? 'Saving…' : editId ? 'Save Changes' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
