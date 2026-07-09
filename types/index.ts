@@ -74,6 +74,9 @@ export const DEPARTMENTS = [
   'GHPL / Hospitality',
   'Project Management',
   'Administration',
+  'IT',
+  'HR',
+  'Executive',
   'Director',
   'System',
 ] as const
