@@ -79,7 +79,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
     u.department.toLowerCase().includes(search.toLowerCase())
   )
 
-  const managerOptions = users.filter(u => u.role === 'manager' || u.role === 'director')
+  const managerOptions = users.filter(u => u.role !== 'staff')
 
   const inp: React.CSSProperties = { border:'1px solid #d1d5db',borderRadius:4,padding:'7px 10px',fontSize:13,width:'100%' }
   const lbl: React.CSSProperties = { display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4 }
