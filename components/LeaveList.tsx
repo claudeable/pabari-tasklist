@@ -99,6 +99,17 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
     return false
   }
 
+  async function deleteRequest(id: number) {
+    if (!confirm('Delete this leave request? This cannot be undone.')) return
+    setSaving(true)
+    try {
+      await fetch(`/api/forms/leave/${id}`, { method: 'DELETE', credentials: 'include' })
+      setRequests(rs => rs.filter(r => r.id !== id))
+      setExpandedId(null)
+    } catch { alert('Network error.') }
+    finally { setSaving(false) }
+  }
+
   async function skipHOD(id: number) {
     if (!confirm('Skip HOD step and move to HR?')) return
     setSaving(true)
@@ -303,9 +314,11 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
                         <div style={{marginBottom:20,padding:'12px 16px',background:'white',borderRadius:6,border:'1px solid #e5e7eb'}}>
                           <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:10}}>Approval Progress</div>
                           <div style={{display:'flex',gap:0,alignItems:'center'}}>
-                            {CHAIN_STEPS.map((step, i) => {
-                              const done    = chainIdx > i || req.status === 'approved'
-                              const current = chainIdx === i && req.status !== 'approved' && req.status !== 'rejected'
+                            {CHAIN_STEPS
+                              .filter(step => !(step.status === 'pending_hod' && !req.hod_email))
+                              .map((step, i, arr) => {
+                              const done    = chainIdx > CHAIN_STEPS.indexOf(step) || req.status === 'approved'
+                              const current = CHAIN_STEPS.indexOf(step) === chainIdx && req.status !== 'approved' && req.status !== 'rejected'
                               return (
                                 <div key={step.status} style={{display:'flex',alignItems:'center',flex:1}}>
                                   <div style={{textAlign:'center',flex:1}}>
@@ -321,7 +334,7 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
                                       {step.label}
                                     </div>
                                   </div>
-                                  {i < CHAIN_STEPS.length - 1 && (
+                                  {i < arr.length - 1 && (
                                     <div style={{height:2,flex:0.5,background: done ? '#1a3a2a' : '#e5e7eb',margin:'0 2px 16px'}}/>
                                   )}
                                 </div>
@@ -377,8 +390,8 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
                       )}
 
                       {/* Action buttons */}
-                      {(canDo || rejectable || (isAdmin && req.status === 'pending_hod' && !req.hod_email)) && (
-                        <div style={{display:'flex',gap:8,marginTop:8}}>
+                      {(canDo || rejectable || isAdmin || (isAdmin && req.status === 'pending_hod' && !req.hod_email)) && (
+                        <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
                           {canDo && actionType && (
                             <button
                               onClick={() => { setModal({ id: req.id, action: actionType }); setModalNotes('') }}
@@ -398,6 +411,13 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
                               onClick={() => { setModal({ id: req.id, action: 'reject' }); setModalNotes('') }}
                               style={{background:'#dc2626',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
                               Decline
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => deleteRequest(req.id)}
+                              style={{background:'white',color:'#dc2626',border:'1px solid #fca5a5',padding:'8px 14px',borderRadius:5,fontSize:12,cursor:'pointer',marginLeft:'auto'}}>
+                              Delete
                             </button>
                           )}
                         </div>
