@@ -69,15 +69,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Resolve approval chain: supervisor = user's reports_to, HOD = supervisor's reports_to
-    const supervisorEmail = user.reports_to || ''
-    let hodEmail = ''
-    if (supervisorEmail) {
-      const supervisor = await getUserByEmail(supervisorEmail).catch(() => null)
-      hodEmail = supervisor?.reports_to || ''
-      // If HOD is the same as supervisor (or empty), leave hod_email blank so that step is skipped
-      if (hodEmail === supervisorEmail) hodEmail = ''
-    }
+    // Resolve approval chain from user's profile (supervisor + HOD set explicitly in User Management)
+    const userRecord      = await getUserByEmail(user.email).catch(() => null)
+    const supervisorEmail = userRecord?.reports_to || user.reports_to || ''
+    const hodEmail        = userRecord?.hod_email  || ''
 
     const leave = await createLeaveRequest({
       employee_id:        safeInt(user.id),

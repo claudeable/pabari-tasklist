@@ -24,6 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     role:       body.role,
     department: body.department,
     reports_to: body.reports_to,
+    hod_email:  body.hod_email,
     companies:  Array.isArray(body.companies) ? body.companies : undefined,
   })
   return NextResponse.json(updated)

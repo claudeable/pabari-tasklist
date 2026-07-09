@@ -7,6 +7,7 @@ export interface SessionUser {
   role:       UserRole
   department: string
   reports_to: string
+  hod_email:  string
   companies:  string[]   // ['ALL'] or ['KISCOL'] etc.
 }
 
@@ -17,6 +18,7 @@ export interface PublicUser {
   role:       UserRole
   department: string
   reports_to: string
+  hod_email:  string
   companies:  string[]
 }
 

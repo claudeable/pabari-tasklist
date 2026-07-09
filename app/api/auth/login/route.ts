@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
     role:       user.role,
     department: user.department,
     reports_to: user.reports_to,
+    hod_email:  user.hod_email || '',
     companies:  user.companies,
   })
 

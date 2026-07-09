@@ -8,6 +8,7 @@ export interface StoredUser {
   role:          UserRole
   department:    string
   reports_to:    string
+  hod_email:     string
   companies:     string[]
   password_hash: string
   created_at:    string
@@ -27,6 +28,7 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
     role:          row.role as UserRole,
     department:    String(row.department || ''),
     reports_to:    String(row.reports_to || ''),
+    hod_email:     String(row.hod_email || ''),
     companies,
     password_hash: String(row.password_hash),
     created_at:    String(row.created_at),
@@ -58,7 +60,7 @@ export async function getUserByEmail(email: string): Promise<StoredUser | undefi
 
 export async function getPublicUsers() {
   const rows = await query<Record<string, unknown>>(
-    'SELECT id, name, email, role, department, reports_to, companies FROM users ORDER BY name'
+    'SELECT id, name, email, role, department, reports_to, hod_email, companies FROM users ORDER BY name'
   )
   return rows.map(r => {
     let companies: string[] = ['ALL']
@@ -71,6 +73,7 @@ export async function getPublicUsers() {
       role:       r.role as UserRole,
       department: String(r.department || ''),
       reports_to: String(r.reports_to || ''),
+      hod_email:  String(r.hod_email || ''),
       companies,
     }
   })
@@ -86,12 +89,13 @@ export async function getSubordinates(email: string): Promise<string[]> {
 
 export async function createUser(data: {
   name: string; email: string; role: UserRole
-  department: string; reports_to: string; password_hash: string; companies?: string[]
+  department: string; reports_to: string; hod_email?: string; password_hash: string; companies?: string[]
 }): Promise<StoredUser> {
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO users (name, email, role, department, reports_to, companies, password_hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    `INSERT INTO users (name, email, role, department, reports_to, hod_email, companies, password_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
     [data.name, data.email, data.role, data.department, data.reports_to,
+     data.hod_email ?? '',
      JSON.stringify(data.companies ?? ['ALL']), data.password_hash]
   )
   if (!row) throw new Error('Failed to create user')
@@ -100,10 +104,10 @@ export async function createUser(data: {
 
 export async function updateUser(id: string, data: {
   name?: string; email?: string; role?: UserRole
-  department?: string; reports_to?: string; companies?: string[]
+  department?: string; reports_to?: string; hod_email?: string; companies?: string[]
 }): Promise<StoredUser | null> {
   const { companies, ...rest } = data
-  const allowed = ['name', 'email', 'role', 'department', 'reports_to']
+  const allowed = ['name', 'email', 'role', 'department', 'reports_to', 'hod_email']
   const fields  = Object.keys(rest).filter(k => allowed.includes(k))
 
   // companies is JSONB — handle separately

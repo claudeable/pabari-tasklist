@@ -5,7 +5,7 @@ import InactivityGuard from './InactivityGuard'
 
 interface UserRow {
   id: string; name: string; email: string; role: UserRole
-  department: string; reports_to: string; companies: string[]; created_at: string
+  department: string; reports_to: string; hod_email: string; companies: string[]; created_at: string
 }
 interface Props { currentUser: SessionUser; initialUsers: UserRow[] }
 
@@ -23,7 +23,7 @@ const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
   staff:    { bg:'#f3f4f6', color:'#374151' },
 }
 
-const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', companies: ['ALL'] as string[] }
+const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', hod_email:'', companies: ['ALL'] as string[] }
 
 export default function AdminUsers({ currentUser, initialUsers }: Props) {
   const [users,    setUsers]    = useState<UserRow[]>(initialUsers)
@@ -38,7 +38,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
 
   const openAdd  = () => { setForm(BLANK); setEditId(null); setError(''); setShowForm(true) }
   const openEdit = (u: UserRow) => {
-    setForm({ name:u.name, email:u.email, role:u.role, department:u.department, reports_to:u.reports_to, companies: u.companies ?? ['ALL'] })
+    setForm({ name:u.name, email:u.email, role:u.role, department:u.department, reports_to:u.reports_to, hod_email:u.hod_email||'', companies: u.companies ?? ['ALL'] })
     setEditId(u.id); setError(''); setShowForm(true)
   }
 
@@ -130,7 +130,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
           <table style={{width:'100%',borderCollapse:'collapse'}}>
             <thead>
               <tr style={{background:'#f9fafb'}}>
-                {['Name','Email','Role','Department','Reports To','Access','Actions'].map(h=>(
+                {['Name','Email','Role','Department','Supervisor','HOD','Access','Actions'].map(h=>(
                   <th key={h} style={{padding:'9px 16px',textAlign:'left',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.5px',textTransform:'uppercase',borderBottom:'1px solid #e5e7eb'}}>{h}</th>
                 ))}
               </tr>
@@ -149,6 +149,9 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                   <td style={{padding:'11px 16px',fontSize:12,color:'#374151'}}>{u.department||'—'}</td>
                   <td style={{padding:'11px 16px',fontSize:12,color:'#6b7280'}}>
                     {u.reports_to ? (users.find(x=>x.email===u.reports_to)?.name || u.reports_to) : '—'}
+                  </td>
+                  <td style={{padding:'11px 16px',fontSize:12,color:'#6b7280'}}>
+                    {u.hod_email ? (users.find(x=>x.email===u.hod_email)?.name || u.hod_email) : '—'}
                   </td>
                   <td style={{padding:'11px 16px'}}>
                     {(u.companies ?? ['ALL']).includes('ALL')
@@ -213,9 +216,16 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                 </select>
               </div>
               <div>
-                <label style={lbl}>Reports To (Supervisor)</label>
+                <label style={lbl}>Supervisor (Reports To)</label>
                 <select value={form.reports_to} onChange={e=>setF('reports_to',e.target.value)} style={inp}>
-                  <option value="">— None / Top level —</option>
+                  <option value="">— None —</option>
+                  {managerOptions.map(u=><option key={u.id} value={u.email}>{u.name} ({u.role})</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>HOD (Head of Department)</label>
+                <select value={form.hod_email} onChange={e=>setF('hod_email',e.target.value)} style={inp}>
+                  <option value="">— None / Same as Supervisor —</option>
                   {managerOptions.map(u=><option key={u.id} value={u.email}>{u.name} ({u.role})</option>)}
                 </select>
               </div>
