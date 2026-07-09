@@ -69,10 +69,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Resolve approval chain from user's profile (supervisor + HOD set explicitly in User Management)
+    // Resolve approval chain from user's profile
     const userRecord      = await getUserByEmail(user.email).catch(() => null)
     const supervisorEmail = userRecord?.reports_to || user.reports_to || ''
-    const hodEmail        = userRecord?.hod_email  || ''
+    // Managers and above ARE the HOD — skip that step for them
+    const isManagerOrAbove = ['manager','director','ceo','admin'].includes(user.role)
+    const hodEmail = isManagerOrAbove ? '' : (userRecord?.hod_email || '')
 
     const leave = await createLeaveRequest({
       employee_id:        safeInt(user.id),
