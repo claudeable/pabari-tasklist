@@ -6,7 +6,12 @@ export type { PettyCashStatus, PettyCashItem, PettyCashRequest } from './pettyCa
 let initPromise: Promise<void> | null = null
 
 function ensureTable(): Promise<void> {
-  if (!initPromise) initPromise = _initTable()
+  if (!initPromise) {
+    initPromise = _initTable().catch(err => {
+      initPromise = null
+      throw err
+    })
+  }
   return initPromise
 }
 

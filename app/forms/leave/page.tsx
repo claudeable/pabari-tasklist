@@ -14,11 +14,20 @@ export default async function LeaveFormPage() {
 
   const year = new Date().getFullYear()
   const canSeeAll = user.role === 'admin' || user.role === 'director' || user.department === 'HR'
+  const empId = parseInt(String(user.id ?? ''), 10) || undefined
 
-  const [requests, usedDays] = await Promise.all([
-    canSeeAll ? getAllLeaveRequests() : getMyLeaveRequests(user.name, parseInt(String(user.id ?? ''), 10) || undefined),
-    getLeaveBalance(user.name, year),
-  ])
+  let requests = []
+  let usedDays = 0
+  try {
+    const results = await Promise.all([
+      canSeeAll ? getAllLeaveRequests() : getMyLeaveRequests(user.name, empId),
+      getLeaveBalance(user.name, year),
+    ])
+    requests = results[0]
+    usedDays = results[1]
+  } catch (err) {
+    console.error('[leave page]', err)
+  }
 
   return (
     <LeaveList

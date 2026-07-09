@@ -21,9 +21,15 @@ export default async function PettyCashPage() {
     || user.email === SABINA_EMAIL
 
   const uid = parseInt(String(user.id ?? ''), 10) || 0
-  const requests = canSeeAll
-    ? await getAllPettyCashRequests()
-    : await getMyPettyCashRequests(uid, user.name)
+
+  let requests = []
+  try {
+    requests = canSeeAll
+      ? await getAllPettyCashRequests()
+      : await getMyPettyCashRequests(uid, user.name)
+  } catch (err) {
+    console.error('[petty-cash page]', err)
+  }
 
   return <PettyCashList currentUser={user} requests={requests} />
 }
