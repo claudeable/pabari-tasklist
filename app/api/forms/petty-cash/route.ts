@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth'
 import { getAllPettyCashRequests, getMyPettyCashRequests, createPettyCashRequest } from '@/lib/pettyCash'
 import { query } from '@/lib/database'
 import { logActivity } from '@/lib/activityLog'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  if (rateLimit(ip, 10, 60 * 60 * 1000))
+    return NextResponse.json({ error: 'Too many requests. Please wait before submitting again.' }, { status: 429 })
+
   const cookieStore = cookies()
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null

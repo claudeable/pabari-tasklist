@@ -3,10 +3,14 @@ import type { PettyCashStatus, PettyCashItem, PettyCashRequest } from './pettyCa
 export { PETTY_CASH_STATUS_LABELS } from './pettyCashTypes'
 export type { PettyCashStatus, PettyCashItem, PettyCashRequest } from './pettyCashTypes'
 
-let tableReady = false
+let initPromise: Promise<void> | null = null
 
-async function ensureTable() {
-  if (tableReady) return
+function ensureTable(): Promise<void> {
+  if (!initPromise) initPromise = _initTable()
+  return initPromise
+}
+
+async function _initTable(): Promise<void> {
   await execute(`
     CREATE TABLE IF NOT EXISTS petty_cash_requests (
       id SERIAL PRIMARY KEY,
@@ -40,7 +44,6 @@ async function ensureTable() {
     )
   `)
   await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash'`)
-  tableReady = true
 }
 
 function parseItems(val: unknown): PettyCashItem[] {

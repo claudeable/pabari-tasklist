@@ -3,10 +3,14 @@ import type { LeaveType, LeaveStatus, LeaveRequest } from './leaveTypes'
 export { LEAVE_COMPANIES, LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, ANNUAL_LEAVE_LIMIT } from './leaveTypes'
 export type { LeaveType, LeaveStatus, LeaveRequest } from './leaveTypes'
 
-let tableReady = false
+let initPromise: Promise<void> | null = null
 
-async function ensureTable() {
-  if (tableReady) return
+function ensureTable(): Promise<void> {
+  if (!initPromise) initPromise = _initTable()
+  return initPromise
+}
+
+async function _initTable(): Promise<void> {
   await execute(`
     CREATE TABLE IF NOT EXISTS leave_requests (
       id SERIAL PRIMARY KEY,
@@ -38,7 +42,6 @@ async function ensureTable() {
   `)
   await execute(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS year        INTEGER NOT NULL DEFAULT 0`)
   await execute(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS employee_id INTEGER`)
-  tableReady = true
 }
 
 function dateStr(val: unknown): string {
