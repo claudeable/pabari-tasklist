@@ -17,6 +17,7 @@ export default async function LeaveFormPage() {
   const canSeeAll = user.role === 'admin' || user.role === 'director' || user.department === 'HR'
   const empId = parseInt(String(user.id ?? ''), 10) || undefined
 
+  console.log('[leave page] user=%s id=%s role=%s dept=%s canSeeAll=%s', user.name, user.id, user.role, user.department, canSeeAll)
   let requests: LeaveRequest[] = []
   let usedDays = 0
   try {
@@ -26,8 +27,9 @@ export default async function LeaveFormPage() {
     ])
     requests = results[0]
     usedDays = results[1]
+    console.log('[leave page] requests=%d usedDays=%d', requests.length, usedDays)
   } catch (err) {
-    console.error('[leave page]', err)
+    console.error('[leave page] ERROR', err)
   }
 
   return (
