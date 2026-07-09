@@ -182,11 +182,16 @@ export async function createLeaveRequest(data: {
 }
 
 export async function approveBySupervisor(id: number, approverName: string, notes: string): Promise<void> {
+  // Skip HOD step if no hod_email set on this request
+  const row = await queryOne<{ hod_email: string }>(
+    'SELECT hod_email FROM leave_requests WHERE id=$1', [id]
+  )
+  const nextStatus = row?.hod_email ? 'pending_hod' : 'pending_hr'
   await execute(
     `UPDATE leave_requests
-     SET status='pending_hod', supervisor_notes=$1, supervisor_approved_by=$2, supervisor_approved_at=NOW()
-     WHERE id=$3`,
-    [notes, approverName, id]
+     SET status=$1, supervisor_notes=$2, supervisor_approved_by=$3, supervisor_approved_at=NOW()
+     WHERE id=$4`,
+    [nextStatus, notes, approverName, id]
   )
 }
 

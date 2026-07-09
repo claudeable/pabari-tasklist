@@ -99,6 +99,23 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
     return false
   }
 
+  async function skipHOD(id: number) {
+    if (!confirm('Skip HOD step and move to HR?')) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/forms/leave/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'skip_hod' }),
+      })
+      if (!res.ok) { const e = await res.json().catch(()=>({})); alert(e.error || 'Failed'); return }
+      const refreshed = await fetch('/api/forms/leave', { credentials: 'include' })
+      if (refreshed.ok) { const data = await refreshed.json(); if (data.requests) setRequests(data.requests) }
+      setExpandedId(null)
+    } catch { alert('Network error.') }
+    finally { setSaving(false) }
+  }
+
   async function handleAction() {
     if (!modal) return
     setSaving(true)
@@ -360,13 +377,20 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
                       )}
 
                       {/* Action buttons */}
-                      {(canDo || rejectable) && (
+                      {(canDo || rejectable || (isAdmin && req.status === 'pending_hod' && !req.hod_email)) && (
                         <div style={{display:'flex',gap:8,marginTop:8}}>
                           {canDo && actionType && (
                             <button
                               onClick={() => { setModal({ id: req.id, action: actionType }); setModalNotes('') }}
                               style={{background:'#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
                               Approve
+                            </button>
+                          )}
+                          {isAdmin && req.status === 'pending_hod' && !req.hod_email && (
+                            <button
+                              onClick={() => skipHOD(req.id)}
+                              style={{background:'#d97706',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                              Skip HOD → HR
                             </button>
                           )}
                           {rejectable && (

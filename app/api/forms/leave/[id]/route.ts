@@ -58,6 +58,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ ok: true })
   }
 
+  // ── Admin: skip HOD step (for employees with no HOD) ────────────────
+  if (action === 'skip_hod') {
+    if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (request.status !== 'pending_hod') return NextResponse.json({ error: 'Not at HOD step' }, { status: 400 })
+    const { execute: exec } = await import('@/lib/database')
+    await exec(`UPDATE leave_requests SET status='pending_hr', hod_approved_by=$1, hod_approved_at=NOW() WHERE id=$2`,
+      ['(skipped — no HOD)', id])
+    notifyHR(user,
+      `📋 Leave request pending HR review.\n\n${request.employee_name} — ${request.leave_type} leave\n${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor approved. HOD step skipped (no HOD assigned).`
+    ).catch(() => {})
+    return NextResponse.json({ ok: true })
+  }
+
   // ── HOD approve ─────────────────────────────────────────────────────
   if (action === 'hod_approve') {
     const isHOD = user.email === request.hod_email || isAdmin
