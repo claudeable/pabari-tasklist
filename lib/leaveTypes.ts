@@ -51,7 +51,7 @@ export const APPROVAL_CHAIN: { status: LeaveStatus; label: string }[] = [
   { status: 'pending_director',   label: 'Director' },
 ]
 
-export const ANNUAL_LEAVE_LIMIT = 21
+export const ANNUAL_LEAVE_LIMIT = 30
 
 export interface LeaveRequest {
   id: number
