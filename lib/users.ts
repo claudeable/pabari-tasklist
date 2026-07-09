@@ -1,6 +1,13 @@
 import { query, queryOne, execute } from './database'
 import { UserRole } from './auth'
 
+let userColsReady = false
+async function ensureUserCols() {
+  if (userColsReady) return
+  await execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS hod_email TEXT NOT NULL DEFAULT ''")
+  userColsReady = true
+}
+
 export interface StoredUser {
   id:            string
   name:          string
@@ -36,6 +43,7 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
 }
 
 export async function getUsers(): Promise<StoredUser[]> {
+  await ensureUserCols()
   const rows = await query<Record<string, unknown>>(
     'SELECT * FROM users ORDER BY name'
   )
@@ -91,6 +99,7 @@ export async function createUser(data: {
   name: string; email: string; role: UserRole
   department: string; reports_to: string; hod_email?: string; password_hash: string; companies?: string[]
 }): Promise<StoredUser> {
+  await ensureUserCols()
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO users (name, email, role, department, reports_to, hod_email, companies, password_hash)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
@@ -106,6 +115,7 @@ export async function updateUser(id: string, data: {
   name?: string; email?: string; role?: UserRole
   department?: string; reports_to?: string; hod_email?: string; companies?: string[]
 }): Promise<StoredUser | null> {
+  await ensureUserCols()
   const { companies, ...rest } = data
   const allowed = ['name', 'email', 'role', 'department', 'reports_to', 'hod_email']
   const fields  = Object.keys(rest).filter(k => allowed.includes(k))
