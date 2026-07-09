@@ -82,7 +82,7 @@ export async function getTaskById(id: string): Promise<Task | undefined> {
 }
 
 export async function createTask(
-  data: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'task_updates'>
+  data: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'task_updates' | 'legal_comment'>
 ): Promise<Task> {
   await ensureParentId()
   const now = new Date().toISOString()
