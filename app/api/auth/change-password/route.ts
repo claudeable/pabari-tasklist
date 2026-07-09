@@ -3,6 +3,14 @@ import bcrypt from 'bcryptjs'
 import { verifyToken } from '@/lib/auth'
 import { getUserByEmail, updateUserPassword } from '@/lib/users'
 
+function validatePassword(password: string): string | null {
+  if (password.length < 8)       return 'Password must be at least 8 characters.'
+  if (!/[A-Z]/.test(password))   return 'Password must contain at least one uppercase letter.'
+  if (!/[0-9]/.test(password))   return 'Password must contain at least one number.'
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least one special character.'
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('pabari-session')?.value
   if (!token) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
@@ -15,8 +23,12 @@ export async function POST(req: NextRequest) {
   if (!currentPassword || !newPassword) {
     return NextResponse.json({ error: 'Both fields are required.' }, { status: 400 })
   }
-  if (newPassword.length < 8) {
-    return NextResponse.json({ error: 'New password must be at least 8 characters.' }, { status: 400 })
+
+  const strengthError = validatePassword(newPassword)
+  if (strengthError) return NextResponse.json({ error: strengthError }, { status: 400 })
+
+  if (currentPassword === newPassword) {
+    return NextResponse.json({ error: 'New password must be different from the current one.' }, { status: 400 })
   }
 
   const user = await getUserByEmail(session.email)
