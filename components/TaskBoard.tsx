@@ -347,11 +347,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       // Operations HOD and Group CEO have full cross-company visibility
       const FULL_ACCESS_DEPTS = ['Operations / AOB', 'Group CEO']
       if (FULL_ACCESS_DEPTS.includes(currentUser.department)) return accessible
-      // Legal & Corporate always sees all tasks flagged for legal review
-      if (currentUser.department === 'Legal & Corporate') {
+      // Legal counsel sees all tasks flagged for legal review
+      const isLegalCounsel = currentUser.email === 'dkulecho@kwale-group.com' ||
+        currentUser.department.toLowerCase().includes('legal')
+      if (isLegalCounsel) {
         const myNames = teamMembers.length > 0
           ? [currentUser.name, ...teamMembers]
-          : [currentUser.name, ...allUsers.filter(u => u.department === 'Legal & Corporate').map(u => u.name)]
+          : [currentUser.name, ...allUsers.filter(u => u.department.toLowerCase().includes('legal')).map(u => u.name)]
         return accessible.filter(t =>
           t.legal_review === true ||
           myNames.some(n => nameMatch(t.responsible, n))
