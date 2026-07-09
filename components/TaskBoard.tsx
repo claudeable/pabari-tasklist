@@ -182,6 +182,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [hkDraft,       setHkDraft]       = useState('')
   const [hodEditId,     setHodEditId]     = useState<string|null>(null)
   const [hodDraft,      setHodDraft]      = useState('')
+  const [legalEditId,   setLegalEditId]   = useState<string|null>(null)
+  const [legalDraft,    setLegalDraft]    = useState('')
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'>('active')
@@ -491,6 +493,19 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (activeTask?.id===taskId) setActiveTask(updated)
     }
     setHodEditId(null); setHodDraft('')
+  }
+
+  async function saveLegalComment(taskId: string, text: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ legal_comment: text }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setTasks(prev => prev.map(t => t.id===taskId ? updated : t))
+      if (activeTask?.id===taskId) setActiveTask(updated)
+    }
+    setLegalEditId(null); setLegalDraft('')
   }
 
   async function approveTask(task: Task) {
@@ -1881,6 +1896,37 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       )}
                     </div>
                   </label>
+                </div>
+              )}
+
+              {/* Legal Review Comment — shown when flagged, editable only by Legal */}
+              {activeTask.legal_review && (
+                <div style={{marginTop:12}}>
+                  <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#7c3aed',letterSpacing:'0.5px',marginBottom:5,paddingBottom:4,borderBottom:'1px solid #e9d5ff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    ⚖️ Legal Review Comment
+                    {(currentUser.email === 'dkulecho@kwale-group.com' || currentUser.department?.toLowerCase().includes('legal')) && legalEditId !== activeTask.id && (
+                      <button onClick={()=>{setLegalEditId(activeTask.id);setLegalDraft(activeTask.legal_comment||'')}}
+                        style={{fontSize:9.5,color:'#7c3aed',cursor:'pointer',border:'none',background:'none',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px'}}>
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                  {(currentUser.email === 'dkulecho@kwale-group.com' || currentUser.department?.toLowerCase().includes('legal')) && legalEditId === activeTask.id
+                    ? <div>
+                        <textarea value={legalDraft} onChange={e=>setLegalDraft(e.target.value)} rows={3}
+                          placeholder="Enter legal review notes…"
+                          style={{width:'100%',border:'1px solid #d8b4fe',borderRadius:4,padding:'7px 8px',fontSize:12,resize:'none',fontFamily:'inherit',marginBottom:5}}/>
+                        <div style={{display:'flex',gap:5,justifyContent:'flex-end'}}>
+                          <button onClick={()=>{setLegalEditId(null);setLegalDraft('')}}
+                            style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'4px 10px',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                          <button onClick={()=>saveLegalComment(activeTask.id,legalDraft)}
+                            style={{background:'#7c3aed',color:'white',border:'none',borderRadius:4,padding:'4px 12px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Save</button>
+                        </div>
+                      </div>
+                    : <div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:5,padding:'8px 11px',fontSize:12,color:activeTask.legal_comment?'#374151':'#9ca3af',minHeight:34}}>
+                        {activeTask.legal_comment || 'No legal comment yet.'}
+                      </div>
+                  }
                 </div>
               )}
 
