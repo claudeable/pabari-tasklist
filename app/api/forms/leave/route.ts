@@ -6,6 +6,7 @@ import {
   createLeaveRequest, ANNUAL_LEAVE_LIMIT,
 } from '@/lib/leave'
 import { logActivity } from '@/lib/activityLog'
+import { getUserByEmail } from '@/lib/users'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +69,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Resolve approval chain: supervisor = user's reports_to, HOD = supervisor's reports_to
+    const supervisorEmail = user.reports_to || ''
+    let hodEmail = ''
+    if (supervisorEmail) {
+      const supervisor = await getUserByEmail(supervisorEmail).catch(() => null)
+      hodEmail = supervisor?.reports_to || ''
+      // If HOD is the same as supervisor (or empty), leave hod_email blank so that step is skipped
+      if (hodEmail === supervisorEmail) hodEmail = ''
+    }
+
     const leave = await createLeaveRequest({
       employee_id:        safeInt(user.id),
       employee_name:      user.name || '',
@@ -84,6 +95,8 @@ export async function POST(req: NextRequest) {
       reason:             reason || '',
       cover_person:       cover_person || '',
       year,
+      supervisor_email:   supervisorEmail,
+      hod_email:          hodEmail,
     })
     logActivity(user.email, user.name, 'leave_submitted',
       `${user.name} submitted ${leave_type} leave request: ${date_from} – ${date_to} (${days_requested} day${Number(days_requested) !== 1 ? 's' : ''})`).catch(() => {})

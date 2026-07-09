@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/types'
-import { LeaveRequest, LeaveStatus, LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, ANNUAL_LEAVE_LIMIT } from '@/lib/leaveTypes'
+import { LeaveRequest, LeaveStatus, LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, APPROVAL_CHAIN, ANNUAL_LEAVE_LIMIT } from '@/lib/leaveTypes'
 
 interface Props {
   currentUser: SessionUser
@@ -11,13 +11,29 @@ interface Props {
   remaining:   number
 }
 
-type Tab = 'mine' | 'pending_hr' | 'pending_hk' | 'all'
+type Tab = 'mine' | 'pending_supervisor' | 'pending_hod' | 'pending_hr' | 'pending_director' | 'all'
+type ModalAction = 'supervisor_approve' | 'hod_approve' | 'hr_approve' | 'director_approve' | 'reject'
 
 const STATUS_STYLE: Record<LeaveStatus, { bg: string; color: string }> = {
-  pending_hr:  { bg: '#fef3c7', color: '#92400e' },
-  pending_hk:  { bg: '#ede9fe', color: '#5b21b6' },
-  approved:    { bg: '#d1fae5', color: '#065f46' },
-  rejected:    { bg: '#fee2e2', color: '#991b1b' },
+  pending_supervisor: { bg: '#fef3c7', color: '#92400e' },
+  pending_hod:        { bg: '#fde8d8', color: '#9a3412' },
+  pending_hr:         { bg: '#ede9fe', color: '#5b21b6' },
+  pending_director:   { bg: '#dbeafe', color: '#1e40af' },
+  pending_hk:         { bg: '#dbeafe', color: '#1e40af' },
+  approved:           { bg: '#d1fae5', color: '#065f46' },
+  rejected:           { bg: '#fee2e2', color: '#991b1b' },
+}
+
+const CHAIN_STEPS: { status: LeaveStatus; label: string }[] = [
+  { status: 'pending_supervisor', label: 'Supervisor' },
+  { status: 'pending_hod',        label: 'HOD' },
+  { status: 'pending_hr',         label: 'HR' },
+  { status: 'pending_director',   label: 'Director' },
+]
+
+function getChainIndex(status: LeaveStatus): number {
+  if (status === 'pending_hk') return 3
+  return CHAIN_STEPS.findIndex(s => s.status === status)
 }
 
 export default function LeaveList({ currentUser, requests: initialRequests, usedDays, remaining }: Props) {
@@ -26,13 +42,14 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
   const [requests,       setRequests]       = useState<LeaveRequest[]>(initialRequests)
   const [activeTab,      setActiveTab]      = useState<Tab>('mine')
   const [expandedId,     setExpandedId]     = useState<number | null>(null)
-  const [modal,          setModal]          = useState<{ id: number; action: 'hr_approve' | 'hk_approve' | 'reject' } | null>(null)
+  const [modal,          setModal]          = useState<{ id: number; action: ModalAction } | null>(null)
   const [modalNotes,     setModalNotes]     = useState('')
   const [saving,         setSaving]         = useState(false)
 
-  const isHR    = currentUser.department === 'HR' || currentUser.role === 'admin' || currentUser.role === 'director'
-  const isHK    = currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
-  const canSeeAll = currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.department === 'HR'
+  const isAdmin      = currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
+  const isHR         = currentUser.department === 'HR' || isAdmin
+  const isDirector   = isAdmin
+  const canSeeAll    = currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.department === 'HR'
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -41,26 +58,46 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const myRequests = canSeeAll
-    ? requests.filter(r =>
-        r.employee_id === Number(currentUser.id) ||
-        (r.employee_name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
-      )
+  const myRequests         = canSeeAll
+    ? requests.filter(r => r.employee_id === Number(currentUser.id) || r.employee_name?.toLowerCase() === currentUser.name?.toLowerCase())
     : requests
-  const pendingHR      = requests.filter(r => r.status === 'pending_hr')
-  const pendingHK      = requests.filter(r => r.status === 'pending_hk')
+  const pendingSupervisor  = requests.filter(r => r.status === 'pending_supervisor' && (r.supervisor_email === currentUser.email || isAdmin))
+  const pendingHOD         = requests.filter(r => r.status === 'pending_hod' && (r.hod_email === currentUser.email || isAdmin))
+  const pendingHR          = requests.filter(r => r.status === 'pending_hr' && isHR)
+  const pendingDirector    = requests.filter(r => (r.status === 'pending_director' || r.status === 'pending_hk') && isDirector)
 
   const tabItems: { key: Tab; label: string; count: number; visible: boolean }[] = [
-    { key: 'mine',       label: 'My Requests',       count: myRequests.length,  visible: true },
-    { key: 'pending_hr', label: 'Pending HR Review',  count: pendingHR.length,   visible: isHR },
-    { key: 'pending_hk', label: 'Pending HK Approval',count: pendingHK.length,   visible: isHK },
-    { key: 'all',        label: 'All Requests',       count: requests.length,    visible: canSeeAll },
+    { key: 'mine',               label: 'My Requests',         count: myRequests.length,        visible: true },
+    { key: 'pending_supervisor', label: 'Pending My Approval', count: pendingSupervisor.length,  visible: pendingSupervisor.length > 0 || isAdmin },
+    { key: 'pending_hod',        label: 'Pending HOD',         count: pendingHOD.length,         visible: pendingHOD.length > 0 || isAdmin },
+    { key: 'pending_hr',         label: 'Pending HR',          count: pendingHR.length,          visible: isHR },
+    { key: 'pending_director',   label: 'Pending Director',    count: pendingDirector.length,    visible: isDirector },
+    { key: 'all',                label: 'All Requests',        count: requests.length,           visible: canSeeAll },
   ]
 
-  const displayed = activeTab === 'mine'       ? myRequests
-                  : activeTab === 'pending_hr' ? pendingHR
-                  : activeTab === 'pending_hk' ? pendingHK
+  const displayed = activeTab === 'mine'               ? myRequests
+                  : activeTab === 'pending_supervisor'  ? pendingSupervisor
+                  : activeTab === 'pending_hod'         ? pendingHOD
+                  : activeTab === 'pending_hr'          ? pendingHR
+                  : activeTab === 'pending_director'    ? pendingDirector
                   : requests
+
+  function getActionForRequest(req: LeaveRequest): ModalAction | null {
+    if (req.status === 'pending_supervisor' && (currentUser.email === req.supervisor_email || isAdmin)) return 'supervisor_approve'
+    if (req.status === 'pending_hod'        && (currentUser.email === req.hod_email || isAdmin))        return 'hod_approve'
+    if (req.status === 'pending_hr'         && isHR)                                                    return 'hr_approve'
+    if ((req.status === 'pending_director' || req.status === 'pending_hk') && isDirector)               return 'director_approve'
+    return null
+  }
+
+  function canReject(req: LeaveRequest): boolean {
+    if (isAdmin) return true
+    if (req.status === 'pending_supervisor' && currentUser.email === req.supervisor_email) return true
+    if (req.status === 'pending_hod'        && currentUser.email === req.hod_email)        return true
+    if (req.status === 'pending_hr'         && isHR)                                       return true
+    if ((req.status === 'pending_director' || req.status === 'pending_hk') && isDirector) return true
+    return false
+  }
 
   async function handleAction() {
     if (!modal) return
@@ -71,16 +108,17 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: modal.action, notes: modalNotes }),
       })
-      if (!res.ok) { alert('Failed. Please try again.'); return }
-      const newStatus: LeaveStatus =
-        modal.action === 'hr_approve'  ? 'pending_hk' :
-        modal.action === 'hk_approve'  ? 'approved'   : 'rejected'
-      setRequests(prev => prev.map(r => r.id === modal.id
-        ? { ...r, status: newStatus, hr_notes: modal.action === 'hr_approve' ? modalNotes : r.hr_notes,
-            hk_notes: modal.action === 'hk_approve' ? modalNotes : r.hk_notes,
-            rejection_reason: modal.action === 'reject' ? modalNotes : r.rejection_reason }
-        : r
-      ))
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed. Please try again.')
+        return
+      }
+      // Refresh list
+      const refreshed = await fetch('/api/forms/leave', { credentials: 'include' })
+      if (refreshed.ok) {
+        const data = await refreshed.json()
+        if (data.requests) setRequests(data.requests)
+      }
       setModal(null)
       setModalNotes('')
       setExpandedId(null)
@@ -90,8 +128,7 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
 
   function fmtDate(d: string) {
     if (!d) return ''
-    const dt = new Date(d)
-    return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+    return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
   }
 
   function signOut() {
@@ -150,12 +187,12 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
         </div>
       )}
 
-      <div style={{flex:1,maxWidth:1000,margin:'0 auto',width:'100%',padding: isMobile ? '16px 12px' : '24px 20px'}}>
+      <div style={{flex:1,maxWidth:1100,margin:'0 auto',width:'100%',padding: isMobile ? '16px 12px' : '24px 20px'}}>
         {/* Page header */}
         <div style={{display:'flex',alignItems: isMobile ? 'flex-start' : 'center',justifyContent:'space-between',marginBottom:20,flexDirection: isMobile ? 'column' : 'row',gap:12}}>
           <div>
             <div style={{fontSize:20,fontWeight:700,color:'#1a3a2a'}}>Leave Requests</div>
-            <div style={{fontSize:13,color:'#6b7280',marginTop:2}}>Manage leave applications and approvals</div>
+            <div style={{fontSize:13,color:'#6b7280',marginTop:2}}>Approval chain: Supervisor → HOD → HR → Director</div>
           </div>
           <a href="/forms/leave/new"
             style={{background:'#1a3a2a',color:'white',padding:'9px 18px',borderRadius:6,textDecoration:'none',fontSize:13,fontWeight:600,display:'inline-flex',alignItems:'center',gap:6,alignSelf: isMobile ? 'flex-start' : 'auto'}}>
@@ -181,7 +218,7 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
           {tabItems.filter(t => t.visible).map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               style={{
-                padding:'8px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:13,fontWeight:activeTab===tab.key?600:400,
+                padding:'8px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:activeTab===tab.key?600:400,
                 background: activeTab===tab.key ? '#1a3a2a' : 'transparent',
                 color: activeTab===tab.key ? 'white' : '#6b7280',
                 display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',
@@ -205,58 +242,94 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {displayed.map(req => {
-              const isExpanded = expandedId === req.id
-              const st = STATUS_STYLE[req.status]
-              const isMyReq = req.employee_id === Number(currentUser.id)
-              const canHRAction  = isHR && req.status === 'pending_hr'
-              const canHKAction  = isHK && req.status === 'pending_hk'
+              const isExpanded  = expandedId === req.id
+              const st          = STATUS_STYLE[req.status] || STATUS_STYLE['pending_hr']
+              const actionType  = getActionForRequest(req)
+              const canDo       = actionType !== null
+              const rejectable  = canReject(req)
+              const chainIdx    = getChainIndex(req.status)
 
               return (
                 <div key={req.id} style={{background:'white',borderRadius:8,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden',border:'1px solid #f0f0f0'}}>
-                  {/* Row */}
                   <div onClick={()=>setExpandedId(isExpanded ? null : req.id)}
                     style={{padding:'14px 18px',cursor:'pointer',display:'flex',alignItems: isMobile ? 'flex-start' : 'center',gap:12,flexWrap: isMobile ? 'wrap' : 'nowrap'}}>
 
-                    {/* Status badge */}
                     <span style={{background:st.bg,color:st.color,fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:10,whiteSpace:'nowrap',flexShrink:0,textTransform:'uppercase',letterSpacing:'0.3px'}}>
                       {LEAVE_STATUS_LABELS[req.status]}
                     </span>
 
-                    {/* Name + company (for HR/admin view) */}
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:14,fontWeight:600,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                        {canSeeAll && !isMyReq ? `${req.employee_name} — ` : ''}{LEAVE_TYPE_LABELS[req.leave_type]}
+                        {canSeeAll && req.employee_name?.toLowerCase() !== currentUser.name?.toLowerCase() ? `${req.employee_name} — ` : ''}{LEAVE_TYPE_LABELS[req.leave_type]}
                       </div>
                       <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>
                         {req.company} · {fmtDate(req.date_from)} to {fmtDate(req.date_to)} · {req.days_requested} day{req.days_requested!==1?'s':''}
                       </div>
                     </div>
 
-                    {/* Submitted date */}
-                    <div style={{fontSize:11,color:'#9ca3af',whiteSpace:'nowrap',flexShrink:0}}>
-                      {fmtDate(req.submitted_at)}
-                    </div>
+                    {/* Action needed badge */}
+                    {canDo && (
+                      <span style={{background:'#fef3c7',color:'#92400e',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:8,flexShrink:0}}>
+                        Action needed
+                      </span>
+                    )}
 
+                    <div style={{fontSize:11,color:'#9ca3af',whiteSpace:'nowrap',flexShrink:0}}>{fmtDate(req.submitted_at)}</div>
                     <span style={{color:'#9ca3af',fontSize:12,flexShrink:0}}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
 
-                  {/* Expanded detail */}
                   {isExpanded && (
                     <div style={{borderTop:'1px solid #f0f0f0',padding:'18px 20px',background:'#fafafa'}}>
+
+                      {/* Approval chain progress */}
+                      {req.status !== 'approved' && req.status !== 'rejected' && (
+                        <div style={{marginBottom:20,padding:'12px 16px',background:'white',borderRadius:6,border:'1px solid #e5e7eb'}}>
+                          <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:10}}>Approval Progress</div>
+                          <div style={{display:'flex',gap:0,alignItems:'center'}}>
+                            {CHAIN_STEPS.map((step, i) => {
+                              const done    = chainIdx > i || req.status === 'approved'
+                              const current = chainIdx === i && req.status !== 'approved' && req.status !== 'rejected'
+                              return (
+                                <div key={step.status} style={{display:'flex',alignItems:'center',flex:1}}>
+                                  <div style={{textAlign:'center',flex:1}}>
+                                    <div style={{
+                                      width:28,height:28,borderRadius:'50%',margin:'0 auto 4px',
+                                      display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,
+                                      background: done ? '#1a3a2a' : current ? '#b5833a' : '#e5e7eb',
+                                      color: (done || current) ? 'white' : '#9ca3af',
+                                    }}>
+                                      {done ? '✓' : i+1}
+                                    </div>
+                                    <div style={{fontSize:9,color: current ? '#b5833a' : done ? '#1a3a2a' : '#9ca3af',fontWeight: current ? 700 : 400}}>
+                                      {step.label}
+                                    </div>
+                                  </div>
+                                  {i < CHAIN_STEPS.length - 1 && (
+                                    <div style={{height:2,flex:0.5,background: done ? '#1a3a2a' : '#e5e7eb',margin:'0 2px 16px'}}/>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Details grid */}
                       <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)',gap:12,marginBottom:16}}>
-                        <Detail label="Employee" value={req.employee_name} />
-                        <Detail label="Department" value={req.department} />
-                        <Detail label="Job Title" value={req.job_title || '—'} />
-                        <Detail label="Employee No." value={req.employee_no || '—'} />
-                        <Detail label="Company" value={req.company} />
-                        <Detail label="Leave Type" value={LEAVE_TYPE_LABELS[req.leave_type]} />
-                        <Detail label="From" value={fmtDate(req.date_from)} />
-                        <Detail label="To" value={fmtDate(req.date_to)} />
-                        <Detail label="Days Requested" value={String(req.days_requested)} />
-                        <Detail label="Cover Person" value={req.cover_person || '—'} />
-                        <Detail label="Telephone" value={req.telephone || '—'} />
+                        <Detail label="Employee"          value={req.employee_name} />
+                        <Detail label="Department"        value={req.department} />
+                        <Detail label="Job Title"         value={req.job_title || '—'} />
+                        <Detail label="Employee No."      value={req.employee_no || '—'} />
+                        <Detail label="Company"           value={req.company} />
+                        <Detail label="Leave Type"        value={LEAVE_TYPE_LABELS[req.leave_type]} />
+                        <Detail label="From"              value={fmtDate(req.date_from)} />
+                        <Detail label="To"                value={fmtDate(req.date_to)} />
+                        <Detail label="Days Requested"    value={String(req.days_requested)} />
+                        <Detail label="Cover Person"      value={req.cover_person || '—'} />
+                        <Detail label="Telephone"         value={req.telephone || '—'} />
                         <Detail label="Date of Employment" value={req.date_of_employment || '—'} />
                       </div>
+
                       {req.reason && (
                         <div style={{marginBottom:12}}>
                           <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Reason</div>
@@ -264,39 +337,45 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
                         </div>
                       )}
 
-                      {/* HR notes */}
-                      {req.hr_notes && (
+                      {/* Approval trail */}
+                      {(req.supervisor_approved_by || req.hod_approved_by || req.hr_reviewed_by || req.hk_approved_by) && (
                         <div style={{marginBottom:12}}>
-                          <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>HR Notes</div>
-                          <div style={{fontSize:13,color:'#374151',background:'white',padding:'8px 12px',borderRadius:5,border:'1px solid #e5e7eb'}}>{req.hr_notes}</div>
+                          <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>Approval Trail</div>
+                          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                            {req.supervisor_approved_by && <TrailItem label="Supervisor" by={req.supervisor_approved_by} notes={req.supervisor_notes} at={req.supervisor_approved_at} />}
+                            {req.hod_approved_by        && <TrailItem label="HOD"        by={req.hod_approved_by}        notes={req.hod_notes}        at={req.hod_approved_at} />}
+                            {req.hr_reviewed_by         && <TrailItem label="HR"         by={`Reviewer #${req.hr_reviewed_by}`} notes={req.hr_notes} at={req.hr_reviewed_at} />}
+                            {req.hk_approved_by         && <TrailItem label="Director"   by={`Approver #${req.hk_approved_by}`} notes={req.hk_notes} at={req.hk_approved_at} />}
+                          </div>
                         </div>
                       )}
-                      {req.hk_notes && (
-                        <div style={{marginBottom:12}}>
-                          <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>HK Notes</div>
-                          <div style={{fontSize:13,color:'#374151',background:'white',padding:'8px 12px',borderRadius:5,border:'1px solid #e5e7eb'}}>{req.hk_notes}</div>
-                        </div>
-                      )}
+
                       {req.rejection_reason && (
                         <div style={{marginBottom:12}}>
-                          <div style={{fontSize:11,color:'#dc2626',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Rejection Reason</div>
+                          <div style={{fontSize:11,color:'#dc2626',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>
+                            Declined{req.rejected_by ? ` by ${req.rejected_by}` : ''}{req.rejected_step ? ` at ${req.rejected_step} step` : ''}
+                          </div>
                           <div style={{fontSize:13,color:'#dc2626',background:'#fef2f2',padding:'8px 12px',borderRadius:5,border:'1px solid #fca5a5'}}>{req.rejection_reason}</div>
                         </div>
                       )}
 
                       {/* Action buttons */}
-                      {(canHRAction || canHKAction) && (
-                        <div style={{display:'flex',gap:8,marginTop:4}}>
-                          <button
-                            onClick={() => { setModal({ id: req.id, action: canHKAction ? 'hk_approve' : 'hr_approve' }); setModalNotes('') }}
-                            style={{background:'#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => { setModal({ id: req.id, action: 'reject' }); setModalNotes('') }}
-                            style={{background:'#dc2626',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                            Reject
-                          </button>
+                      {(canDo || rejectable) && (
+                        <div style={{display:'flex',gap:8,marginTop:8}}>
+                          {canDo && actionType && (
+                            <button
+                              onClick={() => { setModal({ id: req.id, action: actionType }); setModalNotes('') }}
+                              style={{background:'#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                              Approve
+                            </button>
+                          )}
+                          {rejectable && (
+                            <button
+                              onClick={() => { setModal({ id: req.id, action: 'reject' }); setModalNotes('') }}
+                              style={{background:'#dc2626',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                              Decline
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -314,15 +393,15 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
           onClick={e=>{ if(e.target===e.currentTarget){ setModal(null); setModalNotes('') }}}>
           <div style={{background:'white',borderRadius:10,padding:'28px 32px',width:'100%',maxWidth:420,boxShadow:'0 8px 32px rgba(0,0,0,0.2)'}}>
             <div style={{fontSize:16,fontWeight:700,color: modal.action === 'reject' ? '#dc2626' : '#1a3a2a',marginBottom:8}}>
-              {modal.action === 'reject' ? 'Reject Leave Request' : 'Approve Leave Request'}
+              {modal.action === 'reject' ? 'Decline Leave Request' : 'Approve Leave Request'}
             </div>
             <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>
               {modal.action === 'reject'
-                ? 'Provide a reason for rejection (required).'
-                : 'Add optional notes for this approval.'}
+                ? 'Provide a reason for declining (required). The employee will be notified and the request will not proceed further.'
+                : 'Add optional notes. The request will move to the next approver in the chain.'}
             </div>
             <textarea
-              placeholder={modal.action === 'reject' ? 'Reason for rejection…' : 'Notes (optional)…'}
+              placeholder={modal.action === 'reject' ? 'Reason for declining…' : 'Notes (optional)…'}
               value={modalNotes} onChange={e=>setModalNotes(e.target.value)}
               style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13,minHeight:80,resize:'vertical',boxSizing:'border-box',marginBottom:16}}
             />
@@ -333,7 +412,7 @@ export default function LeaveList({ currentUser, requests: initialRequests, used
               </button>
               <button onClick={handleAction} disabled={saving || (modal.action === 'reject' && !modalNotes.trim())}
                 style={{background: modal.action === 'reject' ? '#dc2626' : '#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor: saving ? 'not-allowed' : 'pointer',opacity: (modal.action === 'reject' && !modalNotes.trim()) ? 0.5 : 1}}>
-                {saving ? 'Processing…' : modal.action === 'reject' ? 'Confirm Reject' : 'Confirm Approve'}
+                {saving ? 'Processing…' : modal.action === 'reject' ? 'Confirm Decline' : 'Confirm Approve'}
               </button>
             </div>
           </div>
@@ -348,6 +427,17 @@ function Detail({ label, value }: { label: string; value: string }) {
     <div>
       <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:2}}>{label}</div>
       <div style={{fontSize:13,color:'#111827',fontWeight:500}}>{value}</div>
+    </div>
+  )
+}
+
+function TrailItem({ label, by, notes, at }: { label: string; by: string; notes: string; at: string | null }) {
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px',background:'white',borderRadius:5,border:'1px solid #e5e7eb',fontSize:12}}>
+      <span style={{background:'#d1fae5',color:'#065f46',fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:6,textTransform:'uppercase'}}>{label} ✓</span>
+      <span style={{color:'#374151',fontWeight:500}}>{by}</span>
+      {notes && <span style={{color:'#6b7280'}}>— {notes}</span>}
+      {at && <span style={{color:'#9ca3af',marginLeft:'auto',whiteSpace:'nowrap'}}>{new Date(at).toLocaleDateString('en-GB', {day:'2-digit',month:'short'})}</span>}
     </div>
   )
 }
