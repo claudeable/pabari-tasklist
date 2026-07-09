@@ -355,6 +355,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       const deptNames = allUsers
         .filter(u => u.department === currentUser.department)
         .map(u => u.name)
+      // Legal & Corporate also sees all tasks flagged for legal review
+      if (currentUser.department === 'Legal & Corporate') {
+        return accessible.filter(t =>
+          t.legal_review === true ||
+          deptNames.some(n => nameMatch(t.responsible, n)) ||
+          nameMatch(t.responsible, currentUser.name)
+        )
+      }
       return accessible.filter(t =>
         deptNames.some(n => nameMatch(t.responsible, n)) ||
         nameMatch(t.responsible, currentUser.name)
