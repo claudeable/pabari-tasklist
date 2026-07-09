@@ -18,6 +18,7 @@ export default async function AdminUsersPage() {
   const publicUsers = users.map(u => ({
     id: u.id, name: u.name, email: u.email,
     role: u.role, department: u.department, reports_to: u.reports_to,
+    hod_email: u.hod_email || '',
     companies: u.companies,
     created_at: u.created_at,
   }))
