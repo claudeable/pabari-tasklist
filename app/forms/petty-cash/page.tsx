@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { getAllPettyCashRequests, getMyPettyCashRequests } from '@/lib/pettyCash'
+import type { PettyCashRequest } from '@/lib/pettyCash'
 import PettyCashList from '@/components/PettyCashList'
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,7 @@ export default async function PettyCashPage() {
 
   const uid = parseInt(String(user.id ?? ''), 10) || 0
 
-  let requests = []
+  let requests: PettyCashRequest[] = []
   try {
     requests = canSeeAll
       ? await getAllPettyCashRequests()

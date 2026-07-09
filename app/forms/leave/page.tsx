@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { getAllLeaveRequests, getMyLeaveRequests, getLeaveBalance, ANNUAL_LEAVE_LIMIT } from '@/lib/leave'
+import type { LeaveRequest } from '@/lib/leave'
 import LeaveList from '@/components/LeaveList'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ export default async function LeaveFormPage() {
   const canSeeAll = user.role === 'admin' || user.role === 'director' || user.department === 'HR'
   const empId = parseInt(String(user.id ?? ''), 10) || undefined
 
-  let requests = []
+  let requests: LeaveRequest[] = []
   let usedDays = 0
   try {
     const results = await Promise.all([
