@@ -113,8 +113,8 @@ function buildPCRCSV(rows: PettyCashRequest[]): string[][] {
 // ── Per-record PDF popups ────────────────────────────────────────────────────
 function printLeaveRecord(r: LeaveRequest) {
   const safe = (s: unknown) => String(s ?? '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-  const statusBg:    Record<LeaveStatus,string> = { pending_hr:'#fef3c7', pending_hk:'#ede9fe', approved:'#d1fae5', rejected:'#fee2e2' }
-  const statusColor: Record<LeaveStatus,string> = { pending_hr:'#92400e', pending_hk:'#5b21b6', approved:'#065f46', rejected:'#991b1b' }
+  const statusBg:    Record<LeaveStatus,string> = { pending_supervisor:'#e0f2fe', pending_hod:'#fef9c3', pending_hr:'#fef3c7', pending_hk:'#ede9fe', pending_director:'#ede9fe', approved:'#d1fae5', rejected:'#fee2e2' }
+  const statusColor: Record<LeaveStatus,string> = { pending_supervisor:'#0369a1', pending_hod:'#854d0e', pending_hr:'#92400e', pending_hk:'#5b21b6', pending_director:'#5b21b6', approved:'#065f46', rejected:'#991b1b' }
   const w = window.open('', '_blank', 'width=900,height=720')
   if (!w) { alert('Please allow popups for PDF export.'); return }
   w.document.write(`<!DOCTYPE html><html><head><title>Leave Application — ${safe(r.employee_name)}</title><style>
@@ -335,7 +335,7 @@ export default function FormsReports({ currentUser, leaveReqs, pcrReqs, canSeeLe
   const leaveCompanies = useMemo(() => Array.from(new Set(leaveReqs.map(r=>r.company))).sort(), [leaveReqs])
   const pcrCompanies   = useMemo(() => Array.from(new Set(pcrReqs.map(r=>r.company))).sort(), [pcrReqs])
 
-  const leaveStatuses: LeaveStatus[] = ['pending_hr','pending_hk','approved','rejected']
+  const leaveStatuses: LeaveStatus[] = ['pending_supervisor','pending_hod','pending_hr','pending_director','pending_hk','approved','rejected']
   const pcrStatuses:   PettyCashStatus[] = ['pending_hos','pending_hod','pending_finance','approved','rejected']
   const leaveTypes     = Object.keys(LEAVE_TYPE_LABELS) as LeaveType[]
 
@@ -540,10 +540,13 @@ function Stat({ label, value, color='#1a3a2a' }: { label:string; value:string; c
 // ── Leave table ──────────────────────────────────────────────────────────────
 function LeaveTable({ rows, onDelete, onPrint }: { rows: LeaveRequest[]; onDelete?: (id:number)=>void; onPrint?: (r:LeaveRequest)=>void }) {
   const STATUS_STYLE: Record<LeaveStatus,{bg:string;color:string}> = {
-    pending_hr: {bg:'#fef3c7',color:'#92400e'},
-    pending_hk: {bg:'#ede9fe',color:'#5b21b6'},
-    approved:   {bg:'#d1fae5',color:'#065f46'},
-    rejected:   {bg:'#fee2e2',color:'#991b1b'},
+    pending_supervisor: {bg:'#e0f2fe',color:'#0369a1'},
+    pending_hod:        {bg:'#fef9c3',color:'#854d0e'},
+    pending_hr:         {bg:'#fef3c7',color:'#92400e'},
+    pending_director:   {bg:'#ede9fe',color:'#5b21b6'},
+    pending_hk:         {bg:'#ede9fe',color:'#5b21b6'},
+    approved:           {bg:'#d1fae5',color:'#065f46'},
+    rejected:           {bg:'#fee2e2',color:'#991b1b'},
   }
   const th: React.CSSProperties = {
     padding:'10px 14px', fontSize:11, fontWeight:700, color:'#6b7280',
