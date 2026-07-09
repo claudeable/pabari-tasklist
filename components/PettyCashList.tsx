@@ -51,10 +51,12 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const myRequests = requests.filter(r =>
-    r.employee_id === uid ||
-    (r.employee_name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
-  )
+  const myRequests = canSeeAll
+    ? requests.filter(r =>
+        r.employee_id === uid ||
+        (r.employee_name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
+      )
+    : requests
 
   // Requests needing the current user's action
   // Match HOD by ID or by name (fallback if hod_id was stored as null)
