@@ -118,6 +118,20 @@ const systems = [
     detail: 'Upload · Folders · Download',
     adminOnly: true, // Harshil + admin only for now
   },
+  {
+    key: 'security',
+    icon: '🛡',
+    iconBg: '#fee2e2',
+    iconColor: '#dc2626',
+    label: 'Security Centre',
+    description: 'Monitor threats, review security events, and manage blocked IPs.',
+    badge: 'Live',
+    badgeBg: '#fee2e2',
+    badgeColor: '#dc2626',
+    href: '/admin/security',
+    detail: 'Threat Detection · IP Blocking · Event Log',
+    superAdminOnly: true,
+  },
 ]
 
 export default function PortalHub({ currentUser }: Props) {
@@ -280,7 +294,9 @@ export default function PortalHub({ currentUser }: Props) {
           gap: 20,
         }}>
           {systems.filter(sys => {
-            if ((sys as { adminOnly?: boolean }).adminOnly) {
+            const s = sys as { adminOnly?: boolean; superAdminOnly?: boolean }
+            if (s.superAdminOnly) return currentUser.role === 'admin'
+            if (s.adminOnly) {
               return currentUser.role === 'admin' ||
                 (currentUser.role === 'director' && currentUser.department === 'Director')
             }

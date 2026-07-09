@@ -6,8 +6,7 @@ import { getBlockedIPs, getSecurityEvents, getSecurityStats } from '@/lib/securi
 export const dynamic = 'force-dynamic'
 
 function isSecurityAdmin(user: { role: string; name: string; department: string }) {
-  return user.role === 'admin' ||
-    (user.role === 'director' && user.department === 'Director')
+  return user.role === 'admin'
 }
 
 export async function GET() {

@@ -99,6 +99,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
         <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
         <a href="/reports"   style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Reports</a>
         <a href="/admin/users" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>User Management</a>
+        <a href="/admin/security" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Security Centre</a>
         <div style={{flex:1}}/>
         <span style={{color:'rgba(255,255,255,0.7)',fontSize:12}}>{currentUser.name}</span>
       </div>

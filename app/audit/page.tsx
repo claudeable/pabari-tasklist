@@ -14,7 +14,7 @@ export default async function AuditPage() {
 
   const canAccess =
     currentUser.role === 'admin' ||
-    (currentUser.role === 'director' && currentUser.department === 'Director')
+    (currentUser.role === 'director' && (currentUser.department === 'Director' || currentUser.department === 'Executive'))
 
   if (!canAccess) redirect('/tasks')
 

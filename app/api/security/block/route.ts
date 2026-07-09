@@ -6,8 +6,7 @@ import { blockIP, unblockIP, logSecurityEvent } from '@/lib/security'
 export const dynamic = 'force-dynamic'
 
 function isSecurityAdmin(user: { role: string; department: string }) {
-  return user.role === 'admin' ||
-    (user.role === 'director' && user.department === 'Director')
+  return user.role === 'admin'
 }
 
 export async function POST(req: NextRequest) {
