@@ -100,7 +100,7 @@ export async function getMyLeaveRequests(employee_name: string, employee_id?: nu
   const rows = await query<Record<string, unknown>>(
     `SELECT * FROM leave_requests
      WHERE LOWER(employee_name) = LOWER($1)
-        OR ($2 IS NOT NULL AND employee_id = $2)
+        OR ($2::integer IS NOT NULL AND employee_id = $2::integer)
      ORDER BY submitted_at DESC`,
     [employee_name, safeId]
   )

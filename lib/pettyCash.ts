@@ -108,8 +108,8 @@ export async function getMyPettyCashRequests(employee_id: number, employee_name?
   await ensureTable()
   const rows = await query<Record<string, unknown>>(
     `SELECT * FROM petty_cash_requests
-     WHERE employee_id = $1
-        OR ($2 IS NOT NULL AND LOWER(employee_name) = LOWER($2))
+     WHERE employee_id = $1::integer
+        OR ($2::text IS NOT NULL AND LOWER(employee_name) = LOWER($2::text))
      ORDER BY submitted_at DESC`,
     [employee_id, employee_name ?? null]
   )
