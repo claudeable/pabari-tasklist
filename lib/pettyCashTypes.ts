@@ -43,4 +43,5 @@ export interface PettyCashRequest {
   rejection_reason: string
   submitted_at:     string
   year:             number
+  project_id:       number | null
 }

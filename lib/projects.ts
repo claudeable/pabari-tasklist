@@ -34,6 +34,15 @@ async function ensureProjectTables() {
   await execute(`
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
   `)
+  await execute(`
+    CREATE TABLE IF NOT EXISTS project_notes (
+      id         SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      user_name  TEXT NOT NULL DEFAULT '',
+      message    TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
   tablesReady = true
 }
 
@@ -68,10 +77,58 @@ function rowToMilestone(row: Record<string, unknown>): Milestone {
   }
 }
 
+export interface ProjectNote {
+  id:         number
+  project_id: number
+  user_name:  string
+  message:    string
+  created_at: string
+}
+
+export async function getProjectNotes(projectId: number): Promise<ProjectNote[]> {
+  await ensureProjectTables()
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM project_notes WHERE project_id = $1 ORDER BY created_at ASC', [projectId]
+  )
+  return rows.map(r => ({
+    id:         Number(r.id),
+    project_id: Number(r.project_id),
+    user_name:  String(r.user_name || ''),
+    message:    String(r.message || ''),
+    created_at: String(r.created_at || ''),
+  }))
+}
+
+export async function createProjectNote(data: { project_id: number; user_name: string; message: string }): Promise<ProjectNote> {
+  await ensureProjectTables()
+  const row = await queryOne<Record<string, unknown>>(
+    'INSERT INTO project_notes (project_id, user_name, message) VALUES ($1,$2,$3) RETURNING *',
+    [data.project_id, data.user_name, data.message]
+  )
+  if (!row) throw new Error('Failed to create note')
+  return { id: Number(row.id), project_id: Number(row.project_id), user_name: String(row.user_name), message: String(row.message), created_at: String(row.created_at) }
+}
+
+export async function deleteProjectNote(id: number): Promise<boolean> {
+  const rows = await query('DELETE FROM project_notes WHERE id = $1 RETURNING id', [id])
+  return rows.length > 0
+}
+
+export async function getProjectSpend(projectId: number): Promise<number> {
+  await ensureProjectTables()
+  const row = await queryOne<Record<string, unknown>>(
+    `SELECT COALESCE(SUM(total_amount),0) AS total
+     FROM petty_cash_requests
+     WHERE project_id = $1 AND status = 'approved'`,
+    [projectId]
+  ).catch(() => null)
+  return Number(row?.total || 0)
+}
+
 export async function getProjects(): Promise<Project[]> {
   await ensureProjectTables()
 
-  const [projectRows, milestoneRows, taskCounts] = await Promise.all([
+  const [projectRows, milestoneRows, taskCounts, spendRows] = await Promise.all([
     query<Record<string, unknown>>('SELECT * FROM projects ORDER BY created_at DESC'),
     query<Record<string, unknown>>('SELECT * FROM milestones ORDER BY due_date ASC NULLS LAST, created_at ASC'),
     query<Record<string, unknown>>(`
@@ -80,6 +137,10 @@ export async function getProjects(): Promise<Project[]> {
              COUNT(*) FILTER (WHERE status = 'resolved') AS done
       FROM tasks WHERE project_id IS NOT NULL GROUP BY project_id
     `),
+    query<Record<string, unknown>>(
+      `SELECT project_id, COALESCE(SUM(total_amount),0) AS total
+       FROM petty_cash_requests WHERE project_id IS NOT NULL AND status='approved' GROUP BY project_id`
+    ).catch(() => [] as Record<string, unknown>[]),
   ])
 
   const msMap: Record<number, Milestone[]> = {}
@@ -94,27 +155,34 @@ export async function getProjects(): Promise<Project[]> {
     countMap[Number(r.project_id)] = { total: Number(r.total), done: Number(r.done) }
   })
 
+  const spendMap: Record<number, number> = {}
+  spendRows.forEach(r => { spendMap[Number(r.project_id)] = Number(r.total) })
+
   return projectRows.map(r => {
     const pid = Number(r.id)
     const c = countMap[pid] || { total: 0, done: 0 }
-    return rowToProject(r, msMap[pid] || [], c.total, c.done)
+    return rowToProject({ ...r, spent: spendMap[pid] ?? Number(r.spent ?? 0) }, msMap[pid] || [], c.total, c.done)
   })
 }
 
 export async function getProjectById(id: number): Promise<Project | null> {
   await ensureProjectTables()
 
-  const [row, milestoneRows, countRow] = await Promise.all([
+  const [row, milestoneRows, countRow, spendRow] = await Promise.all([
     queryOne<Record<string, unknown>>('SELECT * FROM projects WHERE id = $1', [id]),
     query<Record<string, unknown>>('SELECT * FROM milestones WHERE project_id = $1 ORDER BY due_date ASC NULLS LAST', [id]),
     queryOne<Record<string, unknown>>(
       `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status = 'resolved') AS done FROM tasks WHERE project_id = $1`,
       [id]
     ),
+    queryOne<Record<string, unknown>>(
+      `SELECT COALESCE(SUM(total_amount),0) AS total FROM petty_cash_requests WHERE project_id=$1 AND status='approved'`,
+      [id]
+    ).catch(() => null),
   ])
   if (!row) return null
   return rowToProject(
-    row,
+    { ...row, spent: Number(spendRow?.total || 0) },
     milestoneRows.map(rowToMilestone),
     Number(countRow?.total || 0),
     Number(countRow?.done || 0),

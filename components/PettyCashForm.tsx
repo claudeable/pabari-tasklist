@@ -54,6 +54,15 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
   const [success,   setSuccess]   = useState<{reqNo:string}|null>(null)
+  const [projects,  setProjects]  = useState<{id:number;name:string;company:string}[]>([])
+  const [projectId, setProjectId] = useState('')
+
+  useEffect(() => {
+    fetch('/api/projects', { credentials:'include' })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setProjects(d.map((p:any)=>({id:p.id,name:p.name,company:p.company}))) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -109,6 +118,7 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
           amount_in_words: wordsAmount,
           delegate_name:   delegate,
           delegate_id_no:  delegateId,
+          project_id:      projectId ? Number(projectId) : null,
         }),
       })
       let data: Record<string, unknown> = {}
@@ -373,6 +383,18 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
               ⚠ After payment is made, the legal receipt must be returned to Finance within 48 hours. Failure will result in recovery from payroll.
             </div>
           </div>
+
+          {/* Link to project (optional) */}
+          {projects.length > 0 && (
+            <div style={{marginBottom:16}}>
+              <label style={{...labelStyle, display:'block', marginBottom:6}}>Link to Project (optional)</label>
+              <select value={projectId} onChange={e=>setProjectId(e.target.value)}
+                style={{...inputStyle, width:'100%'}}>
+                <option value="">— No project —</option>
+                {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.company})</option>)}
+              </select>
+            </div>
+          )}
 
           {error && (
             <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:6,padding:'12px 16px',marginBottom:14,fontSize:13,color:'#dc2626'}}>

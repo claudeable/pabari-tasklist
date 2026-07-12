@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Project, Milestone, ProjectStatus, SessionUser,
   PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE,
 } from '@/types'
+import type { ProjectNote } from '@/lib/projects'
 
 const AVATAR_COLORS: Record<string, string> = {
   harshil:'#b5833a', sabina:'#6c5ce7', ahmad:'#e17055', ashok:'#0984e3',
@@ -41,11 +42,18 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [showForm, setShowForm]       = useState(false)
   const [form,     setForm]           = useState({ ...BLANK_FORM, owner: currentUser.name })
   const [saving,   setSaving]         = useState(false)
+  const [detailTab, setDetailTab]     = useState<'overview'|'thread'|'gantt'>('overview')
 
   // Milestone state
   const [msTitle,  setMsTitle]  = useState('')
   const [msDate,   setMsDate]   = useState('')
   const [msAdding, setMsAdding] = useState(false)
+
+  // Thread (project notes) state
+  const [notes,     setNotes]     = useState<ProjectNote[]>([])
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSaving,setNoteSaving]= useState(false)
+  const threadBottomRef = useRef<HTMLDivElement>(null)
 
   const canEdit = currentUser.role !== 'staff'
   const canDelete = currentUser.role === 'admin' || currentUser.role === 'director'
@@ -58,13 +66,47 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
 
   async function openProject(p: Project) {
     setActive(p)
-    const res = await fetch(`/api/projects/${p.id}`, { credentials: 'include' })
+    setDetailTab('overview')
+    setNotes([])
+    const [res, notesRes] = await Promise.all([
+      fetch(`/api/projects/${p.id}`, { credentials: 'include' }),
+      fetch(`/api/projects/${p.id}/notes`, { credentials: 'include' }),
+    ])
     if (res.ok) {
       const data = await res.json()
       setActive(data.project)
       setTasks(data.tasks || [])
       setProjects(prev => prev.map(x => x.id === data.project.id ? data.project : x))
     }
+    if (notesRes.ok) {
+      const notesData = await notesRes.json()
+      setNotes(Array.isArray(notesData) ? notesData : [])
+    }
+  }
+
+  async function postNote() {
+    if (!noteDraft.trim() || !active) return
+    setNoteSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/notes`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ message: noteDraft.trim() }),
+    })
+    if (res.ok) {
+      const note: ProjectNote = await res.json()
+      setNotes(prev => [...prev, note])
+      setNoteDraft('')
+      setTimeout(() => threadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
+    }
+    setNoteSaving(false)
+  }
+
+  async function deleteNote(noteId: number) {
+    if (!active) return
+    await fetch(`/api/projects/${active.id}/notes`, {
+      method:'DELETE', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ note_id: noteId }),
+    })
+    setNotes(prev => prev.filter(n => n.id !== noteId))
   }
 
   async function createProject() {
@@ -267,7 +309,17 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               </div>
             </div>
 
-            <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:24 }}>
+            {/* Detail tab bar */}
+            <div style={{ borderBottom:'1px solid #e5e7eb', display:'flex', padding:'0 20px', background:'white' }}>
+              {(['overview','thread','gantt'] as const).map(tab => (
+                <button key={tab} onClick={()=>setDetailTab(tab)}
+                  style={{ border:'none', borderBottom: detailTab===tab ? '2px solid #1a3a2a' : '2px solid transparent', background:'transparent', padding:'10px 16px', cursor:'pointer', fontSize:12.5, fontWeight: detailTab===tab ? 700 : 400, color: detailTab===tab ? '#1a3a2a' : '#6b7280', textTransform:'capitalize' }}>
+                  {tab === 'thread' ? '💬 Thread' : tab === 'gantt' ? '📅 Timeline' : '📋 Overview'}
+                </button>
+              ))}
+            </div>
+
+            {detailTab === 'overview' && <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:24 }}>
 
               {/* Progress + budget row */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
@@ -366,7 +418,132 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                 )}
               </div>
 
-            </div>
+            </div>}
+
+            {/* THREAD TAB */}
+            {detailTab === 'thread' && (
+              <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 200px)' }}>
+                <div style={{ flex:1, overflowY:'auto', padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+                  {notes.length === 0 && (
+                    <div style={{ textAlign:'center', color:'#9ca3af', paddingTop:40, fontSize:13 }}>No messages yet. Start the conversation.</div>
+                  )}
+                  {notes.map(n => {
+                    const isMe = n.user_name === currentUser.name
+                    return (
+                      <div key={n.id} style={{ display:'flex', flexDirection: isMe?'row-reverse':'row', gap:8, alignItems:'flex-end' }}>
+                        <div style={{ width:28, height:28, borderRadius:'50%', background:avatarColor(n.user_name), color:'white', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {avatarInitials(n.user_name)}
+                        </div>
+                        <div style={{ maxWidth:'70%' }}>
+                          {!isMe && <div style={{ fontSize:11, fontWeight:700, color:'#374151', marginBottom:2, marginLeft:2 }}>{n.user_name}</div>}
+                          <div style={{ padding:'8px 12px', borderRadius: isMe?'12px 12px 2px 12px':'12px 12px 12px 2px', background: isMe?'#1a3a2a':'#f3f4f6', color: isMe?'white':'#111827', fontSize:13, lineHeight:1.5 }}>
+                            {n.message}
+                          </div>
+                          <div style={{ fontSize:9, color:'#9ca3af', marginTop:2, textAlign: isMe?'right':'left' }}>
+                            {new Date(n.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · {new Date(n.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}
+                          </div>
+                        </div>
+                        {isMe && canEdit && (
+                          <button onClick={()=>deleteNote(n.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:12, padding:'0 2px', alignSelf:'flex-start', marginTop:4 }} title="Delete">✕</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <div ref={threadBottomRef}/>
+                </div>
+                <div style={{ borderTop:'1px solid #e5e7eb', padding:'12px 20px', display:'flex', gap:8 }}>
+                  <input value={noteDraft} onChange={e=>setNoteDraft(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();postNote()} }}
+                    placeholder="Write a message…"
+                    style={{ flex:1, border:'1px solid #d1d5db', borderRadius:8, padding:'8px 12px', fontSize:13, outline:'none' }}/>
+                  <button onClick={postNote} disabled={!noteDraft.trim()||noteSaving}
+                    style={{ background: noteDraft.trim()?'#1a3a2a':'#e5e7eb', color: noteDraft.trim()?'white':'#9ca3af', border:'none', borderRadius:8, padding:'8px 16px', fontSize:13, fontWeight:600, cursor: noteDraft.trim()?'pointer':'default' }}>
+                    {noteSaving?'…':'Send'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* GANTT / TIMELINE TAB */}
+            {detailTab === 'gantt' && (() => {
+              const allDates: Date[] = []
+              if (active.start_date) allDates.push(new Date(active.start_date+'T00:00:00'))
+              if (active.end_date)   allDates.push(new Date(active.end_date+'T00:00:00'))
+              active.milestones.forEach(m => { if (m.due_date) allDates.push(new Date(m.due_date+'T00:00:00')) })
+              const today = new Date(); today.setHours(0,0,0,0)
+              allDates.push(today)
+              if (allDates.length < 2) return (
+                <div style={{ padding:40, textAlign:'center', color:'#9ca3af', fontSize:13 }}>Set a start and end date to see the timeline.</div>
+              )
+              const minD = new Date(Math.min(...allDates.map(d=>d.getTime())))
+              const maxD = new Date(Math.max(...allDates.map(d=>d.getTime())))
+              // Pad by 5% on each side
+              const range = maxD.getTime() - minD.getTime() || 86400000
+              const padMs = range * 0.05
+              const start = new Date(minD.getTime() - padMs)
+              const end   = new Date(maxD.getTime() + padMs)
+              const totalMs = end.getTime() - start.getTime()
+              function pct(d: Date) { return ((d.getTime() - start.getTime()) / totalMs) * 100 }
+              const todayPct = pct(today)
+
+              return (
+                <div style={{ padding:'24px 28px' }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:16 }}>Timeline</div>
+                  <div style={{ position:'relative', marginBottom:32 }}>
+                    {/* Today line */}
+                    <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:2, background:'#dc2626', zIndex:2 }}>
+                      <div style={{ position:'absolute', top:-18, left:-12, fontSize:9, fontWeight:700, color:'#dc2626', whiteSpace:'nowrap' }}>TODAY</div>
+                    </div>
+
+                    {/* Project bar */}
+                    {active.start_date && active.end_date && (() => {
+                      const s = pct(new Date(active.start_date+'T00:00:00'))
+                      const e = pct(new Date(active.end_date+'T00:00:00'))
+                      return (
+                        <div style={{ marginBottom:20, marginTop:24 }}>
+                          <div style={{ fontSize:12, fontWeight:600, color:'#374151', marginBottom:6 }}>{active.name}</div>
+                          <div style={{ position:'relative', height:20, background:'#f3f4f6', borderRadius:4 }}>
+                            <div style={{ position:'absolute', left:`${s}%`, width:`${e-s}%`, height:'100%', background:'#1a3a2a', borderRadius:4, minWidth:4 }}/>
+                          </div>
+                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#9ca3af', marginTop:3 }}>
+                            <span>{fmtDate(active.start_date)}</span><span>{fmtDate(active.end_date)}</span>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Milestones */}
+                    {active.milestones.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:10 }}>Milestones</div>
+                        {active.milestones.map(ms => {
+                          if (!ms.due_date) return null
+                          const p = pct(new Date(ms.due_date+'T00:00:00'))
+                          const done = ms.status === 'completed'
+                          return (
+                            <div key={ms.id} style={{ position:'relative', height:28, marginBottom:8 }}>
+                              <div style={{ position:'relative', height:'100%', background:'#f9fafb', borderRadius:4, border:'1px solid #e5e7eb' }}>
+                                <div style={{ position:'absolute', left:`${p}%`, top:'50%', transform:'translate(-50%,-50%)', width:12, height:12, borderRadius:'50%', background: done?'#15803d':'#b5833a', border:'2px solid white', boxShadow:'0 0 0 1px '+(done?'#15803d':'#b5833a'), zIndex:1 }}/>
+                                <div style={{ position:'absolute', left:`${p}%`, top:-18, transform:'translateX(-50%)', fontSize:9, fontWeight:600, color: done?'#15803d':'#374151', whiteSpace:'nowrap', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' }}>{ms.title}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Legend */}
+                  <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:11, color:'#6b7280' }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:8, background:'#1a3a2a', borderRadius:2, display:'inline-block' }}/> Project duration</span>
+                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, borderRadius:'50%', background:'#b5833a', display:'inline-block' }}/> Pending milestone</span>
+                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, borderRadius:'50%', background:'#15803d', display:'inline-block' }}/> Completed milestone</span>
+                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:2, height:14, background:'#dc2626', display:'inline-block' }}/> Today</span>
+                  </div>
+                </div>
+              )
+            })()}
+
           </div>
         )}
       </div>

@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { form_type, payment_method, request_date, company, employee_id_no, items, total_amount, amount_in_words, delegate_name, delegate_id_no } = body
+  const { form_type, payment_method, request_date, company, employee_id_no, items, total_amount, amount_in_words, delegate_name, delegate_id_no, project_id } = body
 
   if (!company || !request_date || !items?.length || !total_amount) {
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       hod_id,
       hod_name,
       year,
+      project_id: project_id ? Number(project_id) : null,
     })
     logActivity(user.email, user.name, 'petty_cash_submitted',
       `${user.name} submitted petty cash request — KES ${pcr.total_amount ?? ''} [${pcr.company}]`).catch(() => {})

@@ -49,6 +49,7 @@ async function _initTable(): Promise<void> {
     )
   `)
   await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash'`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS project_id INTEGER`)
 }
 
 function parseItems(val: unknown): PettyCashItem[] {
@@ -93,6 +94,7 @@ function rowToPettyCash(row: Record<string, unknown>): PettyCashRequest {
     rejection_reason: String(row.rejection_reason || ''),
     submitted_at:     String(row.submitted_at || ''),
     year:             Number(row.year),
+    project_id:       row.project_id ? Number(row.project_id) : null,
   }
 }
 
@@ -133,6 +135,7 @@ export async function createPettyCashRequest(data: {
   hod_id:          number | null
   hod_name:        string
   year:            number
+  project_id?:     number | null
 }): Promise<PettyCashRequest> {
   await ensureTable()
   // Guard: never let NaN reach the DB
@@ -147,14 +150,14 @@ export async function createPettyCashRequest(data: {
     `INSERT INTO petty_cash_requests (
       form_type, payment_method, request_date, company, employee_id, employee_name, employee_id_no,
       department, items, total_amount, amount_in_words, delegate_name, delegate_id_no,
-      hod_id, hod_name, year
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      hod_id, hod_name, year, project_id
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
     RETURNING *`,
     [
       data.form_type, data.payment_method, data.request_date, data.company, employee_id, data.employee_name,
       data.employee_id_no, data.department, JSON.stringify(data.items),
       total, data.amount_in_words, data.delegate_name, data.delegate_id_no,
-      hod_id, data.hod_name, year,
+      hod_id, data.hod_name, year, data.project_id ?? null,
     ]
   )
   if (!row) throw new Error('Failed to create petty cash request')
