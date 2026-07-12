@@ -199,6 +199,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [showTeamAdd,    setShowTeamAdd]    = useState(false)
   const [teamAddName,    setTeamAddName]    = useState('')
   const [teamSaving,     setTeamSaving]     = useState(false)
+  const [showDelegate,   setShowDelegate]   = useState(false)
+  const [delegateTo,     setDelegateTo]     = useState('')
 
   interface AuditEntry { id:string; changed_by:string; field:string|null; old_value:string|null; new_value:string|null; changed_at:string }
   const [taskAudit, setTaskAudit] = useState<AuditEntry[]>([])
@@ -1663,10 +1665,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 </div>
               ))}
 
-              {/* Responsible — editable for director/admin/manager */}
+              {/* Responsible — editable only for director/admin */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
                 <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Responsible</div>
-                {perms.canChangeStatus
+                {(currentUser.role === 'admin' || currentUser.role === 'director')
                   ? <select value={activeTask.responsible} onChange={async e=>{
                       const val = e.target.value
                       await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({responsible:val})})
@@ -1679,6 +1681,39 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   : <span style={{fontSize:12,color:'#111827'}}>{activeTask.responsible}</span>
                 }
               </div>
+
+              {/* Delegate — managers (HODs) can delegate to a team member */}
+              {currentUser.role === 'manager' && (
+                <div style={{marginBottom:8}}>
+                  {!showDelegate
+                    ? <button onClick={()=>{setShowDelegate(true);setDelegateTo('')}}
+                        style={{fontSize:11,color:'#1d4ed8',background:'none',border:'1px solid #bfdbfe',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontWeight:600}}>
+                        ↪ Delegate
+                      </button>
+                    : <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                        <select value={delegateTo} onChange={e=>setDelegateTo(e.target.value)}
+                          style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
+                          <option value="">— Select person —</option>
+                          {(teamMembers.length > 0 ? teamMembers : PEOPLE).filter(p=>p!==currentUser.name).map(p=><option key={p} value={p}>{p}</option>)}
+                        </select>
+                        <button disabled={!delegateTo} onClick={async()=>{
+                          if (!delegateTo) return
+                          const note = `Delegated to ${delegateTo} by ${currentUser.name}`
+                          const res = await fetch(`/api/tasks/${activeTask.id}/updates`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:todayStr(),text:note})})
+                          const {update} = await res.json()
+                          setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,task_updates:[update,...(t.task_updates||[])]}:t))
+                          setActiveTask(p=>p?{...p,task_updates:[update,...(p.task_updates||[])]}:p)
+                          setShowDelegate(false); setDelegateTo('')
+                        }}
+                          style={{background:delegateTo?'#1d4ed8':'#e5e7eb',color:delegateTo?'white':'#9ca3af',border:'none',borderRadius:4,padding:'4px 10px',fontSize:11,fontWeight:600,cursor:delegateTo?'pointer':'default'}}>
+                          Confirm
+                        </button>
+                        <button onClick={()=>{setShowDelegate(false);setDelegateTo('')}}
+                          style={{background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:13,padding:'2px 4px'}}>✕</button>
+                      </div>
+                  }
+                </div>
+              )}
 
               {/* Due Date — editable */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
