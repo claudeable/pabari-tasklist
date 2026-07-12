@@ -1698,6 +1698,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         </select>
                         <button disabled={!delegateTo} onClick={async()=>{
                           if (!delegateTo) return
+                          // Change responsible to delegated person
+                          await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({responsible:delegateTo})})
+                          setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,responsible:delegateTo}:t))
+                          setActiveTask(p=>p?{...p,responsible:delegateTo}:p)
+                          // Log delegation note in updates
                           const note = `Delegated to ${delegateTo} by ${currentUser.name}`
                           const res = await fetch(`/api/tasks/${activeTask.id}/updates`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:todayStr(),text:note})})
                           const {update} = await res.json()
