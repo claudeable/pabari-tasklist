@@ -105,6 +105,19 @@ const systems = [
     detail: 'Leave Requests · Petty Cash',
   },
   {
+    key: 'projects',
+    icon: '📐',
+    iconBg: '#e0f2fe',
+    iconColor: '#0369a1',
+    label: 'Projects',
+    description: 'Plan and track cross-company projects with milestones, tasks, timelines, and spend.',
+    badge: 'Live',
+    badgeBg: '#dcfce7',
+    badgeColor: '#15803d',
+    href: '/projects',
+    detail: 'Milestones · Gantt · Budget · Thread',
+  },
+  {
     key: 'docs',
     icon: '📁',
     iconBg: '#f3e8ff',
@@ -499,7 +512,7 @@ export default function PortalHub({ currentUser }: Props) {
           background: '#f0fdf4', border: '1px solid #bbf7d0',
           borderRadius: 8, fontSize: 13, color: '#15803d',
         }}>
-          <strong>Pabari Group Portal</strong> — Task Management and Forms are live.
+          <strong>Pabari Group Portal</strong> — Task Management, Forms, and Projects are live.
           Document Management is coming soon.
         </div>
       </div>

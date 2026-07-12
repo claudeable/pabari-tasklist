@@ -89,8 +89,8 @@ export async function createTask(
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
        responsible, payment, status, priority, approval_type, status_wk, hk_comment,
-       due_date, recurrence, parent_id, legal_review, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       due_date, recurrence, parent_id, legal_review, project_id, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      RETURNING *`,
     [data.sno, data.date, data.company, data.category, data.section, data.particulars,
      data.updates, data.responsible, data.payment, data.status, data.priority ?? 'medium',
@@ -98,6 +98,7 @@ export async function createTask(
      data.due_date || null, data.recurrence || 'none',
      data.parent_id ? Number(data.parent_id) : null,
      data.legal_review ?? false,
+     data.project_id ? Number(data.project_id) : null,
      now, now]
   )
   if (!row) throw new Error('Failed to create task')
@@ -114,7 +115,7 @@ export async function updateTask(id: string, updates: Partial<Task>, changedBy =
   const allowed = ['status', 'priority', 'hk_comment', 'hod_comment', 'updates', 'responsible',
                    'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk',
                    'approval_type', 'approval_status', 'approved_by', 'approved_at',
-                   'due_date', 'recurrence', 'legal_review', 'legal_comment']
+                   'due_date', 'recurrence', 'legal_review', 'legal_comment', 'project_id']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
 

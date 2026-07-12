@@ -54,8 +54,8 @@ function rowToProject(row: Record<string, unknown>, milestones: Milestone[] = []
     company:     String(row.company || ''),
     owner:       String(row.owner || ''),
     status:      (row.status as ProjectStatus) || 'active',
-    start_date:  row.start_date ? String(row.start_date).slice(0, 10) : '',
-    end_date:    row.end_date   ? String(row.end_date).slice(0, 10)   : '',
+    start_date:  row.start_date ? (row.start_date instanceof Date ? row.start_date.toISOString() : String(row.start_date)).slice(0, 10) : '',
+    end_date:    row.end_date   ? (row.end_date   instanceof Date ? row.end_date.toISOString()   : String(row.end_date)).slice(0, 10)   : '',
     budget:      Number(row.budget || 0),
     spent:       Number(row.spent || 0),
     created_by:  String(row.created_by || ''),
@@ -71,7 +71,7 @@ function rowToMilestone(row: Record<string, unknown>): Milestone {
     id:         Number(row.id),
     project_id: Number(row.project_id),
     title:      String(row.title || ''),
-    due_date:   row.due_date ? String(row.due_date).slice(0, 10) : '',
+    due_date:   row.due_date ? (row.due_date instanceof Date ? row.due_date.toISOString() : String(row.due_date)).slice(0, 10) : '',
     status:     (row.status as 'pending' | 'completed') || 'pending',
     created_at: String(row.created_at || ''),
   }
@@ -212,7 +212,7 @@ export async function updateProject(id: number, data: Partial<{
 }>): Promise<Project | null> {
   await ensureProjectTables()
   const allowed = ['name','description','company','owner','status','start_date','end_date','budget','spent']
-  const fields  = Object.keys(data).filter(k => allowed.includes(k))
+  const fields  = Object.keys(data).filter(k => allowed.includes(k) && (data as Record<string,unknown>)[k] !== undefined)
   if (!fields.length) return null
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
   const values = fields.map(f => {

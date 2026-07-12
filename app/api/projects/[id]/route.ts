@@ -34,17 +34,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json(ms)
   }
 
-  const project = await updateProject(id, {
-    name:        body.name,
-    description: body.description,
-    company:     body.company,
-    owner:       body.owner,
-    status:      body.status as ProjectStatus,
-    start_date:  body.start_date,
-    end_date:    body.end_date,
-    budget:      body.budget !== undefined ? Number(body.budget) : undefined,
-    spent:       body.spent  !== undefined ? Number(body.spent)  : undefined,
-  })
+  const patch: Parameters<typeof updateProject>[1] = {}
+  if (body.name        !== undefined) patch.name        = body.name
+  if (body.description !== undefined) patch.description = body.description
+  if (body.company     !== undefined) patch.company     = body.company
+  if (body.owner       !== undefined) patch.owner       = body.owner
+  if (body.status      !== undefined) patch.status      = body.status as ProjectStatus
+  if (body.start_date  !== undefined) patch.start_date  = body.start_date
+  if (body.end_date    !== undefined) patch.end_date    = body.end_date
+  if (body.budget      !== undefined) patch.budget      = Number(body.budget)
+  if (body.spent       !== undefined) patch.spent       = Number(body.spent)
+  const project = await updateProject(id, patch)
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(project)
 }

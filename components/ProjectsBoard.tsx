@@ -49,6 +49,17 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [msDate,   setMsDate]   = useState('')
   const [msAdding, setMsAdding] = useState(false)
 
+  // Edit project
+  const [showEdit,   setShowEdit]   = useState(false)
+  const [editForm,   setEditForm]   = useState({ ...BLANK_FORM, owner: currentUser.name })
+  const [editSaving, setEditSaving] = useState(false)
+
+  // Link tasks
+  const [allTasks,     setAllTasks]     = useState<Record<string,unknown>[]>([])
+  const [showLinkTask, setShowLinkTask] = useState(false)
+  const [linkSearch,   setLinkSearch]   = useState('')
+  const [linkLoading,  setLinkLoading]  = useState(false)
+
   // Thread (project notes) state
   const [notes,     setNotes]     = useState<ProjectNote[]>([])
   const [noteDraft, setNoteDraft] = useState('')
@@ -57,6 +68,9 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
 
   const canEdit = currentUser.role !== 'staff'
   const canDelete = currentUser.role === 'admin' || currentUser.role === 'director'
+  const canChangeStatus = active
+    ? (currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.name === active.owner)
+    : false
 
   const filtered = useMemo(() => projects.filter(p => {
     if (filterStatus  && p.status  !== filterStatus)  return false
@@ -181,6 +195,90 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setActive({ ...active, milestones: active.milestones.filter(m => m.id !== msId) })
   }
 
+  async function openEdit() {
+    if (!active) return
+    setEditForm({
+      name:        active.name,
+      description: active.description,
+      company:     active.company,
+      owner:       active.owner,
+      status:      active.status,
+      start_date:  active.start_date,
+      end_date:    active.end_date,
+      budget:      String(active.budget || ''),
+    })
+    setShowEdit(true)
+  }
+
+  async function saveEdit() {
+    if (!active || !editForm.name.trim()) return
+    setEditSaving(true)
+    const res = await fetch(`/api/projects/${active.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({
+        name:        editForm.name.trim(),
+        description: editForm.description,
+        company:     editForm.company,
+        owner:       editForm.owner,
+        status:      editForm.status,
+        start_date:  editForm.start_date || null,
+        end_date:    editForm.end_date   || null,
+        budget:      Number(editForm.budget) || 0,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      const merged: Project = { ...updated, milestones: active.milestones, task_count: active.task_count, done_count: active.done_count }
+      setActive(merged)
+      setProjects(prev => prev.map(p => p.id === merged.id ? merged : p))
+      setShowEdit(false)
+    }
+    setEditSaving(false)
+  }
+
+  async function openLinkTask() {
+    setShowLinkTask(true)
+    setLinkSearch('')
+    if (allTasks.length === 0) {
+      setLinkLoading(true)
+      const res = await fetch('/api/tasks', { credentials: 'include' })
+      if (res.ok) setAllTasks(await res.json())
+      setLinkLoading(false)
+    }
+  }
+
+  async function linkTask(taskId: string | number) {
+    if (!active) return
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ project_id: active.id }),
+    })
+    if (res.ok) {
+      setAllTasks(prev => prev.map(t => String(t.id) === String(taskId) ? { ...t, project_id: active.id } : t))
+      const detailRes = await fetch(`/api/projects/${active.id}`, { credentials: 'include' })
+      if (detailRes.ok) {
+        const data = await detailRes.json()
+        setTasks(data.tasks || [])
+        const tc = data.project.task_count; const dc = data.project.done_count
+        setActive(a => a ? { ...a, task_count: tc, done_count: dc } : a)
+        setProjects(prev => prev.map(p => p.id === active.id ? { ...p, task_count: tc, done_count: dc } : p))
+      }
+      setShowLinkTask(false)
+    }
+  }
+
+  async function unlinkTask(taskId: string | number) {
+    if (!active) return
+    await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ project_id: null }),
+    })
+    setAllTasks(prev => prev.map(t => String(t.id) === String(taskId) ? { ...t, project_id: null } : t))
+    setTasks(prev => prev.filter(t => String(t.id) !== String(taskId)))
+    setActive(a => a ? { ...a, task_count: Math.max(0, a.task_count - 1) } : a)
+    setProjects(prev => prev.map(p => p.id === active.id ? { ...p, task_count: Math.max(0, p.task_count - 1) } : p))
+  }
+
   const inp: React.CSSProperties = { width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'8px 10px', fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit' }
   const lbl: React.CSSProperties = { display:'block', fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:5 }
 
@@ -290,13 +388,19 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                {canEdit && (
+                {canChangeStatus && (
                   <select value={active.status} onChange={e=>updateStatus(active, e.target.value as ProjectStatus)}
                     style={{ background:'rgba(255,255,255,0.1)', color:'white', border:'1px solid rgba(255,255,255,0.3)', borderRadius:5, padding:'4px 8px', fontSize:12, cursor:'pointer' }}>
                     {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(s=>(
                       <option key={s} value={s} style={{ color:'#111', background:'white' }}>{PROJECT_STATUS_LABELS[s]}</option>
                     ))}
                   </select>
+                )}
+                {canEdit && (
+                  <button onClick={openEdit}
+                    style={{ background:'rgba(255,255,255,0.1)', color:'white', border:'1px solid rgba(255,255,255,0.3)', borderRadius:5, padding:'4px 10px', fontSize:11, cursor:'pointer' }}>
+                    ✏ Edit
+                  </button>
                 )}
                 {canDelete && (
                   <button onClick={()=>deleteProject(active.id)}
@@ -400,20 +504,84 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               {/* Linked tasks */}
               <div>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px' }}>Linked Tasks</div>
-                  <a href={`/tasks`} style={{ fontSize:11, color:'#1a3a2a', fontWeight:600, textDecoration:'none' }}>Go to Task Board →</a>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                    Linked Tasks {tasks.length > 0 && `(${tasks.length})`}
+                  </div>
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    {canEdit && (
+                      <button onClick={openLinkTask}
+                        style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:5, padding:'4px 10px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                        + Link Task
+                      </button>
+                    )}
+                    <a href="/tasks" style={{ fontSize:11, color:'#1a3a2a', fontWeight:600, textDecoration:'none' }}>Task Board →</a>
+                  </div>
                 </div>
-                {tasks.length === 0 ? (
-                  <div style={{ fontSize:12, color:'#9ca3af' }}>No tasks linked to this project yet. When creating a task, select this project.</div>
-                ) : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                    {tasks.map((t:any) => (
-                      <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:5 }}>
-                        <div style={{ width:8, height:8, borderRadius:'50%', background: t.status==='resolved'?'#15803d':t.status==='action-required'?'#dc2626':'#d97706', flexShrink:0 }}/>
-                        <span style={{ flex:1, fontSize:12, color:'#111827' }}>{t.particulars}</span>
-                        <span style={{ fontSize:10, color:'#9ca3af' }}>{t.responsible}</span>
-                      </div>
-                    ))}
+
+                {tasks.length > 0 && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:showLinkTask ? 12 : 0 }}>
+                    {tasks.map((t:any) => {
+                      const dot = t.status==='resolved'?'#15803d':t.status==='action-required'?'#dc2626':'#d97706'
+                      return (
+                        <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:5 }}>
+                          <div style={{ width:8, height:8, borderRadius:'50%', background:dot, flexShrink:0 }}/>
+                          <span style={{ flex:1, fontSize:12, color:'#111827' }}>{t.particulars}</span>
+                          <span style={{ fontSize:10, color:'#9ca3af', marginRight:4 }}>{t.company} · {t.responsible}</span>
+                          {canEdit && (
+                            <button onClick={()=>unlinkTask(t.id)} title="Unlink from project"
+                              style={{ background:'none', border:'1px solid #e5e7eb', color:'#9ca3af', borderRadius:4, padding:'1px 6px', fontSize:10, cursor:'pointer', flexShrink:0 }}>
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {tasks.length === 0 && !showLinkTask && (
+                  <div style={{ fontSize:12, color:'#9ca3af', padding:'8px 0' }}>
+                    No tasks linked yet.{canEdit && <> Click <strong>+ Link Task</strong> to connect existing tasks, or select this project when creating a new task.</>}
+                  </div>
+                )}
+
+                {/* Link task search panel */}
+                {showLinkTask && (
+                  <div style={{ border:'1px solid #d1d5db', borderRadius:8, overflow:'hidden', marginTop:8 }}>
+                    <div style={{ background:'#f9fafb', padding:'10px 12px', borderBottom:'1px solid #e5e7eb', display:'flex', gap:8, alignItems:'center' }}>
+                      <input autoFocus value={linkSearch} onChange={e=>setLinkSearch(e.target.value)}
+                        placeholder="Search by task name, person, or company…"
+                        style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 10px', fontSize:12, outline:'none' }}/>
+                      <button onClick={()=>setShowLinkTask(false)}
+                        style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px' }}>✕</button>
+                    </div>
+                    <div style={{ maxHeight:220, overflowY:'auto', background:'white' }}>
+                      {linkLoading ? (
+                        <div style={{ padding:16, textAlign:'center', fontSize:12, color:'#9ca3af' }}>Loading tasks…</div>
+                      ) : (() => {
+                        const linkedIds = new Set(tasks.map((t:any) => String(t.id)))
+                        const q = linkSearch.toLowerCase()
+                        const available = (allTasks as any[]).filter(t =>
+                          !linkedIds.has(String(t.id)) &&
+                          (!q || t.particulars?.toLowerCase().includes(q) || t.responsible?.toLowerCase().includes(q) || t.company?.toLowerCase().includes(q))
+                        )
+                        if (available.length === 0) return (
+                          <div style={{ padding:16, textAlign:'center', fontSize:12, color:'#9ca3af' }}>
+                            {linkSearch ? 'No tasks match your search.' : 'All tasks are already linked to this project.'}
+                          </div>
+                        )
+                        return available.slice(0, 40).map((t:any) => (
+                          <div key={t.id} onClick={()=>linkTask(t.id)}
+                            style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', cursor:'pointer', borderBottom:'1px solid #f9fafb', background:'white' }}
+                            onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#f0fdf4'}
+                            onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='white'}>
+                            <div style={{ width:7, height:7, borderRadius:'50%', background: t.status==='resolved'?'#15803d':t.status==='action-required'?'#dc2626':'#d97706', flexShrink:0 }}/>
+                            <span style={{ flex:1, fontSize:12, color:'#111827' }}>{t.particulars}</span>
+                            <span style={{ fontSize:10, color:'#9ca3af', whiteSpace:'nowrap' }}>{t.company} · {t.responsible}</span>
+                          </div>
+                        ))
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>
@@ -466,79 +634,114 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
 
             {/* GANTT / TIMELINE TAB */}
             {detailTab === 'gantt' && (() => {
-              const allDates: Date[] = []
-              if (active.start_date) allDates.push(new Date(active.start_date+'T00:00:00'))
-              if (active.end_date)   allDates.push(new Date(active.end_date+'T00:00:00'))
-              active.milestones.forEach(m => { if (m.due_date) allDates.push(new Date(m.due_date+'T00:00:00')) })
               const today = new Date(); today.setHours(0,0,0,0)
-              allDates.push(today)
-              if (allDates.length < 2) return (
-                <div style={{ padding:40, textAlign:'center', color:'#9ca3af', fontSize:13 }}>Set a start and end date to see the timeline.</div>
+
+              if (!active.start_date || !active.end_date) return (
+                <div style={{ padding:60, textAlign:'center', color:'#9ca3af', fontSize:13 }}>
+                  <div style={{ fontSize:32, marginBottom:12 }}>📅</div>
+                  Set a start and end date on this project to see the timeline.
+                </div>
               )
-              const minD = new Date(Math.min(...allDates.map(d=>d.getTime())))
-              const maxD = new Date(Math.max(...allDates.map(d=>d.getTime())))
-              // Pad by 5% on each side
-              const range = maxD.getTime() - minD.getTime() || 86400000
-              const padMs = range * 0.05
-              const start = new Date(minD.getTime() - padMs)
-              const end   = new Date(maxD.getTime() + padMs)
-              const totalMs = end.getTime() - start.getTime()
-              function pct(d: Date) { return ((d.getTime() - start.getTime()) / totalMs) * 100 }
-              const todayPct = pct(today)
+
+              const startD = new Date(active.start_date + 'T00:00:00')
+              const endD   = new Date(active.end_date   + 'T00:00:00')
+
+              // Range: 1 month before start → 1 month after end
+              const rangeStart = new Date(startD)
+              rangeStart.setDate(1)
+              rangeStart.setMonth(rangeStart.getMonth() - 1)
+              const rangeEnd = new Date(endD)
+              rangeEnd.setDate(1)
+              rangeEnd.setMonth(rangeEnd.getMonth() + 2)
+              const totalMs = rangeEnd.getTime() - rangeStart.getTime()
+
+              function pct(d: Date) {
+                return Math.max(0, Math.min(100, ((d.getTime() - rangeStart.getTime()) / totalMs) * 100))
+              }
+
+              // Month ticks
+              const months: { label: string; pct: number }[] = []
+              const cur = new Date(rangeStart)
+              while (cur <= rangeEnd) {
+                months.push({ label: cur.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), pct: pct(new Date(cur)) })
+                cur.setMonth(cur.getMonth() + 1)
+              }
+
+              const todayPct  = pct(today)
+              const barStart  = pct(startD)
+              const barWidth  = Math.max(pct(endD) - barStart, 0.5)
 
               return (
-                <div style={{ padding:'24px 28px' }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:16 }}>Timeline</div>
-                  <div style={{ position:'relative', marginBottom:32 }}>
-                    {/* Today line */}
-                    <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:2, background:'#dc2626', zIndex:2 }}>
-                      <div style={{ position:'absolute', top:-18, left:-12, fontSize:9, fontWeight:700, color:'#dc2626', whiteSpace:'nowrap' }}>TODAY</div>
+                <div style={{ padding:'24px 28px', overflowX:'auto' }}>
+                  <div style={{ minWidth:560 }}>
+
+                    {/* Month ruler */}
+                    <div style={{ position:'relative', height:30, marginBottom:0 }}>
+                      {months.map((m, i) => (
+                        <div key={i} style={{ position:'absolute', left:`${m.pct}%`, top:0, bottom:0, borderLeft:'1px solid #e5e7eb', paddingLeft:5 }}>
+                          <span style={{ fontSize:10, fontWeight:600, color:'#9ca3af', whiteSpace:'nowrap' }}>{m.label}</span>
+                        </div>
+                      ))}
                     </div>
 
-                    {/* Project bar */}
-                    {active.start_date && active.end_date && (() => {
-                      const s = pct(new Date(active.start_date+'T00:00:00'))
-                      const e = pct(new Date(active.end_date+'T00:00:00'))
-                      return (
-                        <div style={{ marginBottom:20, marginTop:24 }}>
-                          <div style={{ fontSize:12, fontWeight:600, color:'#374151', marginBottom:6 }}>{active.name}</div>
-                          <div style={{ position:'relative', height:20, background:'#f3f4f6', borderRadius:4 }}>
-                            <div style={{ position:'absolute', left:`${s}%`, width:`${e-s}%`, height:'100%', background:'#1a3a2a', borderRadius:4, minWidth:4 }}/>
-                          </div>
-                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#9ca3af', marginTop:3 }}>
-                            <span>{fmtDate(active.start_date)}</span><span>{fmtDate(active.end_date)}</span>
-                          </div>
+                    {/* Timeline body */}
+                    <div style={{ position:'relative', borderTop:'2px solid #e5e7eb', paddingTop:0 }}>
+
+                      {/* Vertical grid lines */}
+                      {months.map((m, i) => (
+                        <div key={i} style={{ position:'absolute', left:`${m.pct}%`, top:0, bottom:0, width:1, background:'#f3f4f6', zIndex:0 }}/>
+                      ))}
+
+                      {/* Today line */}
+                      {todayPct >= 0 && todayPct <= 100 && (
+                        <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:2, background:'#ef4444', zIndex:5 }}>
+                          <div style={{ position:'absolute', top:8, left:4, fontSize:9, fontWeight:700, color:'#ef4444', whiteSpace:'nowrap', background:'white', border:'1px solid #fecaca', borderRadius:3, padding:'1px 4px' }}>TODAY</div>
                         </div>
-                      )
-                    })()}
+                      )}
 
-                    {/* Milestones */}
-                    {active.milestones.length > 0 && (
-                      <div>
-                        <div style={{ fontSize:10, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:10 }}>Milestones</div>
-                        {active.milestones.map(ms => {
-                          if (!ms.due_date) return null
-                          const p = pct(new Date(ms.due_date+'T00:00:00'))
-                          const done = ms.status === 'completed'
-                          return (
-                            <div key={ms.id} style={{ position:'relative', height:28, marginBottom:8 }}>
-                              <div style={{ position:'relative', height:'100%', background:'#f9fafb', borderRadius:4, border:'1px solid #e5e7eb' }}>
-                                <div style={{ position:'absolute', left:`${p}%`, top:'50%', transform:'translate(-50%,-50%)', width:12, height:12, borderRadius:'50%', background: done?'#15803d':'#b5833a', border:'2px solid white', boxShadow:'0 0 0 1px '+(done?'#15803d':'#b5833a'), zIndex:1 }}/>
-                                <div style={{ position:'absolute', left:`${p}%`, top:-18, transform:'translateX(-50%)', fontSize:9, fontWeight:600, color: done?'#15803d':'#374151', whiteSpace:'nowrap', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' }}>{ms.title}</div>
-                              </div>
-                            </div>
-                          )
-                        })}
+                      {/* Project bar row */}
+                      <div style={{ position:'relative', height:52, display:'flex', alignItems:'center', borderBottom:'1px solid #f3f4f6' }}>
+                        <div style={{ position:'absolute', left:0, right:0, height:1, background:'#f3f4f6' }}/>
+                        <div style={{ position:'absolute', left:`${barStart}%`, width:`${barWidth}%`, height:28, background:'linear-gradient(90deg,#1a3a2a,#2d6a4f)', borderRadius:6, boxShadow:'0 2px 8px rgba(26,58,42,0.25)', display:'flex', alignItems:'center', overflow:'hidden', zIndex:2, minWidth:4 }}>
+                          <span style={{ fontSize:11, fontWeight:700, color:'white', paddingLeft:10, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{active.name}</span>
+                        </div>
+                        {/* Start / end labels */}
+                        <div style={{ position:'absolute', left:`${barStart}%`, bottom:2, transform:'translateX(-50%)', fontSize:9, color:'#6b7280', whiteSpace:'nowrap' }}>{fmtDate(active.start_date)}</div>
+                        <div style={{ position:'absolute', left:`${barStart + barWidth}%`, bottom:2, transform:'translateX(-50%)', fontSize:9, color:'#6b7280', whiteSpace:'nowrap' }}>{fmtDate(active.end_date)}</div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Legend */}
-                  <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:11, color:'#6b7280' }}>
-                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:8, background:'#1a3a2a', borderRadius:2, display:'inline-block' }}/> Project duration</span>
-                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, borderRadius:'50%', background:'#b5833a', display:'inline-block' }}/> Pending milestone</span>
-                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, borderRadius:'50%', background:'#15803d', display:'inline-block' }}/> Completed milestone</span>
-                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:2, height:14, background:'#dc2626', display:'inline-block' }}/> Today</span>
+                      {/* Milestone rows */}
+                      {active.milestones.filter(ms => ms.due_date).map(ms => {
+                        const mp   = pct(new Date(ms.due_date + 'T00:00:00'))
+                        const done = ms.status === 'completed'
+                        return (
+                          <div key={ms.id} style={{ position:'relative', height:44, display:'flex', alignItems:'center', borderBottom:'1px solid #f9fafb' }}>
+                            <div style={{ position:'absolute', left:0, right:0, height:1, background:'#f9fafb' }}/>
+                            {/* Diamond */}
+                            <div style={{ position:'absolute', left:`${mp}%`, top:'50%', transform:'translate(-50%,-50%) rotate(45deg)', width:14, height:14, background:done?'#15803d':'#b5833a', border:'2px solid white', boxShadow:`0 0 0 1.5px ${done?'#15803d':'#b5833a'}`, zIndex:3 }}/>
+                            {/* Label above */}
+                            <div style={{ position:'absolute', left:`${mp}%`, top:4, transform:'translateX(-50%)', fontSize:10, fontWeight:600, color:done?'#15803d':'#374151', whiteSpace:'nowrap', maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', background:'white', border:`1px solid ${done?'#bbf7d0':'#e5e7eb'}`, borderRadius:3, padding:'1px 5px' }}>
+                              {ms.title}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {/* Empty milestone state */}
+                      {active.milestones.filter(ms => ms.due_date).length === 0 && (
+                        <div style={{ height:40, display:'flex', alignItems:'center', paddingLeft:12 }}>
+                          <span style={{ fontSize:11, color:'#d1d5db' }}>No milestones with dates — add one in Overview.</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Legend */}
+                    <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:11, color:'#6b7280', marginTop:20, paddingTop:16, borderTop:'1px solid #f3f4f6' }}>
+                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:18, height:10, background:'linear-gradient(90deg,#1a3a2a,#2d6a4f)', borderRadius:3, display:'inline-block' }}/> Project duration</span>
+                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, background:'#b5833a', display:'inline-block', transform:'rotate(45deg)' }}/> Pending milestone</span>
+                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, background:'#15803d', display:'inline-block', transform:'rotate(45deg)' }}/> Completed milestone</span>
+                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:2, height:14, background:'#ef4444', display:'inline-block' }}/> Today</span>
+                    </div>
                   </div>
                 </div>
               )
@@ -623,6 +826,71 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
           </div>
         </div>
       )}
+      {/* EDIT PROJECT MODAL */}
+      {showEdit && active && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+          onClick={()=>setShowEdit(false)}>
+          <div style={{ background:'white', borderRadius:12, padding:28, maxWidth:520, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', maxHeight:'90vh', overflowY:'auto' }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div style={{ fontSize:16, fontWeight:700 }}>Edit Project</div>
+              <button onClick={()=>setShowEdit(false)} style={{ background:'none', border:'none', fontSize:20, color:'#9ca3af', cursor:'pointer', lineHeight:1 }}>✕</button>
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={lbl}>Project Name *</label>
+                <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} autoFocus style={inp}/>
+              </div>
+              <div>
+                <label style={lbl}>Description</label>
+                <textarea value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))}
+                  rows={2} style={{ ...inp, resize:'vertical' }}/>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={lbl}>Company</label>
+                  <select value={editForm.company} onChange={e=>setEditForm(f=>({...f,company:e.target.value}))} style={inp}>
+                    {[...COMPANIES].map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Owner</label>
+                  <select value={editForm.owner} onChange={e=>setEditForm(f=>({...f,owner:e.target.value}))} style={inp}>
+                    {[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={lbl}>Start Date</label>
+                  <input type="date" value={editForm.start_date} onChange={e=>setEditForm(f=>({...f,start_date:e.target.value}))} style={inp}/>
+                </div>
+                <div>
+                  <label style={lbl}>End Date</label>
+                  <input type="date" value={editForm.end_date} onChange={e=>setEditForm(f=>({...f,end_date:e.target.value}))} style={inp}/>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Budget (KES)</label>
+                <input type="number" value={editForm.budget} onChange={e=>setEditForm(f=>({...f,budget:e.target.value}))} placeholder="0" style={inp}/>
+              </div>
+            </div>
+
+            <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
+              <button onClick={()=>setShowEdit(false)}
+                style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'9px 18px', borderRadius:6, fontSize:13, cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={saveEdit} disabled={editSaving||!editForm.name.trim()}
+                style={{ background: editSaving||!editForm.name.trim() ? '#9ca3af' : '#1a3a2a', color:'white', border:'none', padding:'9px 22px', borderRadius:6, fontSize:13, fontWeight:600, cursor:editSaving||!editForm.name.trim()?'not-allowed':'pointer' }}>
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
