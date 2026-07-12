@@ -1653,16 +1653,32 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               )}
 
               {[
-                {l:'Date',        v:activeTask.date},
-                {l:'Responsible', v:activeTask.responsible},
-                {l:'Payment',     v:activeTask.payment},
-                {l:'Category',    v:activeTask.category},
+                {l:'Date',     v:activeTask.date},
+                {l:'Payment',  v:activeTask.payment},
+                {l:'Category', v:activeTask.category},
               ].map(r=>(
                 <div key={r.l} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
                   <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:1}}>{r.l}</div>
                   <div style={{fontSize:12,color:'#111827'}}>{r.v}</div>
                 </div>
               ))}
+
+              {/* Responsible — editable for director/admin/manager */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Responsible</div>
+                {perms.canChangeStatus
+                  ? <select value={activeTask.responsible} onChange={async e=>{
+                      const val = e.target.value
+                      await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({responsible:val})})
+                      setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,responsible:val}:t))
+                      setActiveTask(p=>p?{...p,responsible:val}:p)
+                    }}
+                    style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
+                    {PEOPLE.map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                  : <span style={{fontSize:12,color:'#111827'}}>{activeTask.responsible}</span>
+                }
+              </div>
 
               {/* Due Date — editable */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>

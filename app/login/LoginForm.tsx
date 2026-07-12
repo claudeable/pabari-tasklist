@@ -57,7 +57,7 @@ export default function LoginForm() {
   }
 
   return (
-    <div style={{
+    <div style={{ 
       minHeight: '100vh', background: '#1a3a2a',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 16,

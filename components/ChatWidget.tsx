@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import { SessionUser } from '@/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -84,6 +85,9 @@ function SendBtn({ onClick, active }: { onClick: () => void; active: boolean }) 
 interface Props { currentUser: SessionUser }
 
 export default function ChatWidget({ currentUser }: Props) {
+  const pathname = usePathname()
+  const hideOnPage = pathname === '/tasks'
+
   // ── Core state ──────────────────────────────────────────────────────────────
   const [open,      setOpen]      = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('all')
@@ -438,6 +442,7 @@ export default function ChatWidget({ currentUser }: Props) {
   const inDMConvo = activeTab === 'direct' && dmWith !== null
 
   // ── Render ────────────────────────────────────────────────────────────────────
+  if (hideOnPage) return null
   return (
     <>
       {/* ── Toggle button ─────────────────────────────────────────────────── */}

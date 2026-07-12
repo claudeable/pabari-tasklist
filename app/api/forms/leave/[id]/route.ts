@@ -8,6 +8,7 @@ import {
 import { getUserByEmail, getUserByName } from '@/lib/users'
 import { postDMMessage } from '@/lib/chat'
 import { logActivity } from '@/lib/activityLog'
+import { sendLeaveNotification } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,11 +47,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       notifyByEmail(user, request.hod_email,
         `📋 Leave request pending your approval as HOD.\n\n${request.employee_name} — ${request.leave_type} leave\n${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor has approved. Please review.`
       ).catch(() => {})
+      sendLeaveNotification({ to: request.hod_email, toName: 'HOD',
+        subject: `Leave Request Pending Your Approval — ${request.employee_name}`,
+        body: `You have a leave request pending your approval as HOD.\n\nEmployee: ${request.employee_name}\nType: ${request.leave_type}\nDates: ${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor (${user.name}) has approved. Please log in to review.`,
+      }).catch(() => {})
     } else {
       notifyHR(user,
         `📋 Leave request (no HOD assigned) pending HR review.\n\n${request.employee_name} — ${request.leave_type} leave\n${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor has approved.`
       ).catch(() => {})
+      emailHR(`Leave Request Pending HR Review — ${request.employee_name}`,
+        `A leave request is pending HR review.\n\nEmployee: ${request.employee_name}\nType: ${request.leave_type}\nDates: ${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor (${user.name}) has approved.`
+      ).catch(() => {})
     }
+    emailEmployee(request.employee_name,
+      `Leave Request Update — Supervisor Approved`,
+      `Your leave request has been approved by your supervisor (${user.name}).${notes ? `\n\nNote: ${notes}` : ''}\n\nIt is now pending HOD approval.`
+    ).catch(() => {})
     notifyEmployee(user, request.employee_name,
       `✅ Your leave request has been approved by your supervisor${notes ? `\n\nNote: ${notes}` : ''}. It is now pending HOD approval.`
     ).catch(() => {})
@@ -84,6 +96,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     notifyHR(user,
       `📋 Leave request pending HR review.\n\n${request.employee_name} — ${request.leave_type} leave\n${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor and HOD have approved.`
     ).catch(() => {})
+    emailHR(`Leave Request Pending HR Review — ${request.employee_name}`,
+      `A leave request is pending HR review.\n\nEmployee: ${request.employee_name}\nType: ${request.leave_type}\nDates: ${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor and HOD (${user.name}) have approved.`
+    ).catch(() => {})
+    emailEmployee(request.employee_name,
+      `Leave Request Update — HOD Approved`,
+      `Your leave request has been approved by your HOD (${user.name}).${notes ? `\n\nNote: ${notes}` : ''}\n\nIt is now pending HR approval.`
+    ).catch(() => {})
     notifyEmployee(user, request.employee_name,
       `✅ Your leave request has been approved by your HOD${notes ? `\n\nNote: ${notes}` : ''}. It is now pending HR approval.`
     ).catch(() => {})
@@ -102,6 +121,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     notifyDirector(user,
       `📋 Leave request pending your final approval.\n\n${request.employee_name} — ${request.leave_type} leave\n${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor, HOD, and HR have approved.`
+    ).catch(() => {})
+    emailDirector(`Leave Request Pending Final Approval — ${request.employee_name}`,
+      `A leave request requires your final approval.\n\nEmployee: ${request.employee_name}\nType: ${request.leave_type}\nDates: ${request.date_from} to ${request.date_to} (${request.days_requested} days)\n\nSupervisor, HOD, and HR have all approved. Please log in to finalise.`
+    ).catch(() => {})
+    emailEmployee(request.employee_name,
+      `Leave Request Update — HR Approved`,
+      `Your leave request has been approved by HR.${notes ? `\n\nNote: ${notes}` : ''}\n\nIt is now pending final Director approval.`
     ).catch(() => {})
     notifyEmployee(user, request.employee_name,
       `✅ Your leave request has been approved by HR${notes ? `\n\nNote: ${notes}` : ''}. It is now pending final Director approval.`
@@ -123,6 +149,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     notifyEmployee(user, request.employee_name,
       `🎉 Your leave request has been fully approved!\n\n📅 ${request.date_from} – ${request.date_to} (${request.days_requested} day${request.days_requested !== 1 ? 's' : ''})\nType: ${request.leave_type}${notes ? `\n\nNote: ${notes}` : ''}`
     ).catch(() => {})
+    emailEmployee(request.employee_name,
+      `Leave Request Fully Approved ✓`,
+      `Great news! Your leave request has been fully approved.\n\nDates: ${request.date_from} to ${request.date_to} (${request.days_requested} days)\nType: ${request.leave_type}${notes ? `\n\nNote: ${notes}` : ''}`
+    ).catch(() => {})
 
     return NextResponse.json({ ok: true })
   }
@@ -143,6 +173,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     notifyEmployee(user, request.employee_name,
       `❌ Your leave request (${request.date_from} – ${request.date_to}) has been declined at the ${step} stage by ${user.name}.${notes ? `\n\nReason: ${notes}` : ''}`
+    ).catch(() => {})
+    emailEmployee(request.employee_name,
+      `Leave Request Declined`,
+      `Your leave request has been declined at the ${step} stage by ${user.name}.${notes ? `\n\nReason: ${notes}` : ''}\n\nDates: ${request.date_from} to ${request.date_to}\nType: ${request.leave_type}`
     ).catch(() => {})
 
     return NextResponse.json({ ok: true })
@@ -182,6 +216,32 @@ async function notifyDirector(sender: { id: string | number; name: string }, mes
   )
   await Promise.all(directors.map(u =>
     postDMMessage(String(sender.id), sender.name, String(u.id), u.name, message)
+  ))
+}
+
+async function emailEmployee(employeeName: string, subject: string, body: string) {
+  const employee = await getUserByName(employeeName)
+  if (!employee?.email) return
+  await sendLeaveNotification({ to: employee.email, toName: employee.name, subject, body })
+}
+
+async function emailHR(subject: string, body: string) {
+  const { getUsers } = await import('@/lib/users')
+  const users = await getUsers()
+  const hrUsers = users.filter(u => u.department === 'HR' && u.email)
+  await Promise.all(hrUsers.map(u =>
+    sendLeaveNotification({ to: u.email, toName: u.name, subject, body })
+  ))
+}
+
+async function emailDirector(subject: string, body: string) {
+  const { getUsers } = await import('@/lib/users')
+  const users = await getUsers()
+  const directors = users.filter(u =>
+    (u.role === 'admin' || (u.role === 'director' && u.department === 'Director')) && u.email
+  )
+  await Promise.all(directors.map(u =>
+    sendLeaveNotification({ to: u.email, toName: u.name, subject, body })
   ))
 }
 
