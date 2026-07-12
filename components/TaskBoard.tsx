@@ -201,6 +201,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [teamSaving,     setTeamSaving]     = useState(false)
   const [showDelegate,   setShowDelegate]   = useState(false)
   const [delegateTo,     setDelegateTo]     = useState('')
+  const [projects,       setProjects]       = useState<{id:number;name:string;company:string}[]>([])
 
   interface AuditEntry { id:string; changed_by:string; field:string|null; old_value:string|null; new_value:string|null; changed_at:string }
   const [taskAudit, setTaskAudit] = useState<AuditEntry[]>([])
@@ -303,6 +304,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     initial_update:'', hk_comment:'', status_wk:'',
     due_date:'', recurrence:'none' as Recurrence,
     legal_review: false,
+    project_id: '' as string,
   })
 
   // ── Roles & permissions ──────────────────────────────────────────
@@ -561,6 +563,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       body: JSON.stringify({
         ...form, sno:tasks.filter(t=>t.company===form.company).length+1, update_date:todayStr(),
         legal_review: form.legal_review,
+        project_id: form.project_id ? Number(form.project_id) : null,
       }),
     })
     const { task } = await res.json()
@@ -573,7 +576,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => [...prev, withUpdates])
     setShowAddForm(false)
     setForm(f => ({...f,date:fmtDate(),section:'General',category:'Other',particulars:'',
-      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:'',due_date:'',recurrence:'none' as Recurrence,legal_review:false}))
+      payment:'Non-Payment',status:'pending-discussion',priority:'medium',approval_type:'' as ApprovalType,initial_update:'',hk_comment:'',status_wk:'',due_date:'',recurrence:'none' as Recurrence,legal_review:false,project_id:''}))
     setSaving(false)
   }
 
@@ -686,6 +689,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>← Portal</a>
           <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
           <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
+          <a href="/projects" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Projects</a>
           {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
             <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
           )}
@@ -719,7 +723,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             </button>
           )}
           {perms.canAddTask && (
-            <button onClick={()=>setShowAddForm(v=>!v)}
+            <button onClick={()=>setShowAddForm(v=>{ if(!v&&projects.length===0){fetch('/api/projects',{credentials:'include'}).then(r=>r.json()).then(d=>{if(Array.isArray(d))setProjects(d.map((p:any)=>({id:p.id,name:p.name,company:p.company})))}).catch(()=>{})}; return !v})}
               style={{background:'#b5833a',color:'white',border:'none',padding:'6px 13px',borderRadius:5,fontSize:12,fontWeight:600,cursor:'pointer'}}>
               + New Task
             </button>
@@ -743,7 +747,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             </button>
           )}
           {perms.canAddTask && (
-            <button onClick={()=>setShowAddForm(v=>!v)}
+            <button onClick={()=>setShowAddForm(v=>{ if(!v&&projects.length===0){fetch('/api/projects',{credentials:'include'}).then(r=>r.json()).then(d=>{if(Array.isArray(d))setProjects(d.map((p:any)=>({id:p.id,name:p.name,company:p.company})))}).catch(()=>{})}; return !v})}
               style={{background:'#b5833a',color:'white',border:'none',padding:'5px 10px',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer'}}>
               + New
             </button>
@@ -1383,6 +1387,28 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     </div>
                   </div>
                 )}
+                {/* Link to project */}
+                {projects.length > 0 && (
+                  <div style={{gridColumn:'1/-1'}}>
+                    <label style={{display:'block',fontSize:11,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:5}}>Link to Project (optional)</label>
+                    <select value={form.project_id} onChange={e=>setForm(v=>({...v,project_id:e.target.value}))}
+                      style={{width:'100%',border:'1px solid #d1d5db',borderRadius:5,padding:'8px 10px',fontSize:13}}>
+                      <option value="">— No project —</option>
+                      {projects.filter(p=>p.company===form.company||p.company==='').map(p=>(
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                      {projects.filter(p=>p.company!==form.company&&p.company!=='').length>0 && (
+                        <>
+                          <option disabled>── Other companies ──</option>
+                          {projects.filter(p=>p.company!==form.company).map(p=>(
+                            <option key={p.id} value={p.id}>{p.name} ({p.company})</option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
+
                 {/* Legal review — visible to managers and directors */}
                 {(currentUser.role === 'manager' || currentUser.role === 'director' || currentUser.role === 'admin') && (
                   <div style={{gridColumn:'1/-1'}}>

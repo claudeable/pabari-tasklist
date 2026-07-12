@@ -139,6 +139,49 @@ export const RECURRENCE_OPTIONS: { value: Recurrence; label: string; days: numbe
   { value: 'quarterly',   label: 'Quarterly',      days: 90 },
 ]
 
+export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed'
+
+export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
+  planning:  'Planning',
+  active:    'Active',
+  'on-hold': 'On Hold',
+  completed: 'Completed',
+}
+
+export const PROJECT_STATUS_STYLE: Record<ProjectStatus, { bg: string; color: string }> = {
+  planning:  { bg: '#eff6ff', color: '#1d4ed8' },
+  active:    { bg: '#f0fdf4', color: '#15803d' },
+  'on-hold': { bg: '#fffbeb', color: '#d97706' },
+  completed: { bg: '#f3f4f6', color: '#6b7280' },
+}
+
+export interface Milestone {
+  id:         number
+  project_id: number
+  title:      string
+  due_date:   string
+  status:     'pending' | 'completed'
+  created_at: string
+}
+
+export interface Project {
+  id:          number
+  name:        string
+  description: string
+  company:     string
+  owner:       string
+  status:      ProjectStatus
+  start_date:  string
+  end_date:    string
+  budget:      number
+  spent:       number
+  created_by:  string
+  created_at:  string
+  milestones:  Milestone[]
+  task_count:  number
+  done_count:  number
+}
+
 export interface Task {
   id:              string
   sno:             number
@@ -161,6 +204,7 @@ export interface Task {
   hod_comment:     string
   due_date:        string   // YYYY-MM-DD, '' if not set
   recurrence:      Recurrence
+  project_id?:     number   // optional link to a project
   parent_id?:      string   // links follow-ups and recurrence cycles to their origin task
   legal_review:    boolean  // HOD flagged this task as needing legal review
   legal_comment:   string   // Legal counsel's response/notes

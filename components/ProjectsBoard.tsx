@@ -1,0 +1,451 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import {
+  Project, Milestone, ProjectStatus, SessionUser,
+  PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE,
+} from '@/types'
+
+const AVATAR_COLORS: Record<string, string> = {
+  harshil:'#b5833a', sabina:'#6c5ce7', ahmad:'#e17055', ashok:'#0984e3',
+  paul:'#2d6a4f', krishnan:'#00b894', yalelet:'#fd79a8', suresh:'#5f27cd',
+  benson:'#00cec9', andu:'#d63031', yared:'#e84393', simon:'#74b9ff',
+}
+function avatarColor(name: string) { return AVATAR_COLORS[name.toLowerCase().split(/[\s&./]+/)[0]] || '#2d6a4f' }
+function avatarInitials(name: string) { return name.split(/[\s&./]+/).map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2) }
+function fmtDate(d: string) {
+  if (!d) return '—'
+  const dt = new Date(d + 'T00:00:00')
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+}
+function daysLeft(d: string): number {
+  if (!d) return Infinity
+  const today = new Date(); today.setHours(0,0,0,0)
+  return Math.ceil((new Date(d+'T00:00:00').getTime() - today.getTime()) / 86400000)
+}
+function progressPct(done: number, total: number) { return total === 0 ? 0 : Math.round((done / total) * 100) }
+
+interface Props { initialProjects: Project[]; currentUser: SessionUser }
+
+const BLANK_FORM = {
+  name:'', description:'', company:'BYTEWISE', owner:'',
+  status:'active' as ProjectStatus, start_date:'', end_date:'', budget:'',
+}
+
+export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
+  const [projects, setProjects]       = useState<Project[]>(initialProjects)
+  const [active,   setActive]         = useState<Project | null>(null)
+  const [tasks,    setTasks]          = useState<Record<string,unknown>[]>([])
+  const [filterStatus, setFilterStatus] = useState<ProjectStatus | ''>('')
+  const [filterCompany, setFilterCompany] = useState('')
+  const [showForm, setShowForm]       = useState(false)
+  const [form,     setForm]           = useState({ ...BLANK_FORM, owner: currentUser.name })
+  const [saving,   setSaving]         = useState(false)
+
+  // Milestone state
+  const [msTitle,  setMsTitle]  = useState('')
+  const [msDate,   setMsDate]   = useState('')
+  const [msAdding, setMsAdding] = useState(false)
+
+  const canEdit = currentUser.role !== 'staff'
+  const canDelete = currentUser.role === 'admin' || currentUser.role === 'director'
+
+  const filtered = useMemo(() => projects.filter(p => {
+    if (filterStatus  && p.status  !== filterStatus)  return false
+    if (filterCompany && p.company !== filterCompany) return false
+    return true
+  }), [projects, filterStatus, filterCompany])
+
+  async function openProject(p: Project) {
+    setActive(p)
+    const res = await fetch(`/api/projects/${p.id}`, { credentials: 'include' })
+    if (res.ok) {
+      const data = await res.json()
+      setActive(data.project)
+      setTasks(data.tasks || [])
+      setProjects(prev => prev.map(x => x.id === data.project.id ? data.project : x))
+    }
+  }
+
+  async function createProject() {
+    if (!form.name.trim()) return
+    setSaving(true)
+    const res = await fetch('/api/projects', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...form, budget: Number(form.budget) || 0 }),
+    })
+    if (res.ok) {
+      const p = await res.json()
+      setProjects(prev => [p, ...prev])
+      setShowForm(false)
+      setForm({ ...BLANK_FORM, owner: currentUser.name })
+    }
+    setSaving(false)
+  }
+
+  async function updateStatus(p: Project, status: ProjectStatus) {
+    const res = await fetch(`/api/projects/${p.id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setProjects(prev => prev.map(x => x.id === updated.id ? { ...x, status: updated.status } : x))
+      if (active?.id === p.id) setActive(a => a ? { ...a, status: updated.status } : a)
+    }
+  }
+
+  async function deleteProject(id: number) {
+    if (!confirm('Delete this project? This cannot be undone.')) return
+    await fetch(`/api/projects/${id}`, { method:'DELETE', credentials:'include' })
+    setProjects(prev => prev.filter(p => p.id !== id))
+    if (active?.id === id) setActive(null)
+  }
+
+  async function addMilestone() {
+    if (!msTitle.trim() || !active) return
+    setMsAdding(true)
+    const res = await fetch(`/api/projects/${active.id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ add_milestone: true, title: msTitle.trim(), due_date: msDate }),
+    })
+    if (res.ok) {
+      const ms: Milestone = await res.json()
+      const updated = { ...active, milestones: [...active.milestones, ms] }
+      setActive(updated)
+      setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))
+      setMsTitle(''); setMsDate('')
+    }
+    setMsAdding(false)
+  }
+
+  async function toggleMilestone(ms: Milestone) {
+    if (!active) return
+    const newStatus = ms.status === 'completed' ? 'pending' : 'completed'
+    const res = await fetch(`/api/milestones/${ms.id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ status: newStatus }),
+    })
+    if (res.ok) {
+      const updated: Milestone = await res.json()
+      const newMs = active.milestones.map(m => m.id === updated.id ? updated : m)
+      setActive({ ...active, milestones: newMs })
+    }
+  }
+
+  async function deleteMilestone(msId: number) {
+    if (!active) return
+    await fetch(`/api/milestones/${msId}`, { method:'DELETE', credentials:'include' })
+    setActive({ ...active, milestones: active.milestones.filter(m => m.id !== msId) })
+  }
+
+  const inp: React.CSSProperties = { width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'8px 10px', fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit' }
+  const lbl: React.CSSProperties = { display:'block', fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:5 }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', fontFamily:'Arial, sans-serif' }}>
+
+      {/* NAV */}
+      <div style={{ background:'#1a3a2a', padding:'0 14px', display:'flex', alignItems:'center', gap:12, height:50, flexShrink:0 }}>
+        <span style={{ background:'#b5833a', color:'white', fontWeight:800, fontSize:11, padding:'4px 9px', borderRadius:4, letterSpacing:'1px' }}>PABARI</span>
+        <span style={{ fontSize:13, fontWeight:700, color:'white' }}>PABARI GROUP</span>
+        <div style={{ width:1, height:20, background:'rgba(255,255,255,0.15)', margin:'0 4px' }}/>
+        <a href="/" style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>← Portal</a>
+        <a href="/tasks" style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>Task Board</a>
+        <a href="/projects" style={{ color:'white', textDecoration:'none', fontSize:12, fontWeight:600, borderBottom:'2px solid #b5833a', paddingBottom:2 }}>Projects</a>
+        <div style={{ flex:1 }}/>
+        <div style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.08)', borderRadius:20, padding:'3px 10px 3px 5px' }}>
+          <div style={{ width:24, height:24, borderRadius:'50%', background:avatarColor(currentUser.name), color:'white', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {avatarInitials(currentUser.name)}
+          </div>
+          <span style={{ fontSize:12, color:'white', fontWeight:500 }}>{currentUser.name}</span>
+        </div>
+        {canEdit && (
+          <button onClick={()=>setShowForm(true)}
+            style={{ background:'#b5833a', color:'white', border:'none', padding:'6px 14px', borderRadius:5, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            + New Project
+          </button>
+        )}
+      </div>
+
+      {/* CONTENT */}
+      <div style={{ flex:1, overflow:'hidden', display:'flex' }}>
+
+        {/* PROJECT LIST */}
+        <div style={{ width: active ? 380 : '100%', flexShrink:0, overflowY:'auto', borderRight:'1px solid #e5e7eb', background:'#f9fafb', transition:'width 0.2s' }}>
+          {/* Filters */}
+          <div style={{ padding:'12px 16px', background:'white', borderBottom:'1px solid #e5e7eb', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+            <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value as ProjectStatus|'')}
+              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'5px 9px', fontSize:12, background:'white' }}>
+              <option value="">All Statuses</option>
+              {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(s=>(
+                <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>
+              ))}
+            </select>
+            <select value={filterCompany} onChange={e=>setFilterCompany(e.target.value)}
+              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'5px 9px', fontSize:12, background:'white' }}>
+              <option value="">All Companies</option>
+              {[...COMPANIES].map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+            <span style={{ marginLeft:'auto', fontSize:12, color:'#9ca3af' }}>{filtered.length} project{filtered.length!==1?'s':''}</span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ textAlign:'center', color:'#9ca3af', paddingTop:60, fontSize:13 }}>
+              No projects yet.{canEdit && <> <button onClick={()=>setShowForm(true)} style={{ background:'none', border:'none', color:'#b5833a', cursor:'pointer', fontWeight:600, fontSize:13 }}>Create one</button></>}
+            </div>
+          ) : filtered.map(p => {
+            const pct = progressPct(p.done_count, p.task_count)
+            const style = PROJECT_STATUS_STYLE[p.status]
+            const dl = daysLeft(p.end_date)
+            const isActive = active?.id === p.id
+            return (
+              <div key={p.id} onClick={()=>openProject(p)}
+                style={{ background: isActive ? '#f0fdf4' : 'white', borderBottom:'1px solid #e5e7eb', borderLeft: isActive ? '4px solid #1a3a2a' : '4px solid transparent', padding:'14px 16px', cursor:'pointer', transition:'background 0.1s' }}>
+                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:6 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'#111827', flex:1 }}>{p.name}</div>
+                  <span style={{ background:style.bg, color:style.color, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, whiteSpace:'nowrap', flexShrink:0 }}>
+                    {PROJECT_STATUS_LABELS[p.status]}
+                  </span>
+                </div>
+                <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>
+                  {p.company} · {p.owner}
+                  {p.end_date && <span style={{ marginLeft:6, color: dl < 0 ? '#dc2626' : dl <= 7 ? '#d97706' : '#9ca3af' }}>
+                    · {dl < 0 ? `${Math.abs(dl)}d overdue` : dl === 0 ? 'Due today' : `${dl}d left`}
+                  </span>}
+                </div>
+                {p.task_count > 0 && (
+                  <div>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#9ca3af', marginBottom:3 }}>
+                      <span>{p.done_count}/{p.task_count} tasks</span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div style={{ height:4, background:'#e5e7eb', borderRadius:2, overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${pct}%`, background: pct===100 ? '#15803d' : '#1a3a2a', borderRadius:2, transition:'width 0.3s' }}/>
+                    </div>
+                  </div>
+                )}
+                {p.milestones.length > 0 && (
+                  <div style={{ marginTop:6, fontSize:10, color:'#9ca3af' }}>
+                    {p.milestones.filter(m=>m.status==='completed').length}/{p.milestones.length} milestones
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* PROJECT DETAIL */}
+        {active && (
+          <div style={{ flex:1, overflowY:'auto', background:'white' }}>
+            {/* Detail header */}
+            <div style={{ background:'#1a3a2a', padding:'16px 20px', color:'white', display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>{active.name}</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.65)' }}>
+                  {active.company} · Owner: {active.owner}
+                  {active.start_date && ` · ${fmtDate(active.start_date)} → ${active.end_date ? fmtDate(active.end_date) : 'No end date'}`}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                {canEdit && (
+                  <select value={active.status} onChange={e=>updateStatus(active, e.target.value as ProjectStatus)}
+                    style={{ background:'rgba(255,255,255,0.1)', color:'white', border:'1px solid rgba(255,255,255,0.3)', borderRadius:5, padding:'4px 8px', fontSize:12, cursor:'pointer' }}>
+                    {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(s=>(
+                      <option key={s} value={s} style={{ color:'#111', background:'white' }}>{PROJECT_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                )}
+                {canDelete && (
+                  <button onClick={()=>deleteProject(active.id)}
+                    style={{ background:'rgba(220,38,38,0.2)', color:'#fca5a5', border:'1px solid rgba(220,38,38,0.3)', borderRadius:5, padding:'4px 10px', fontSize:11, cursor:'pointer' }}>
+                    Delete
+                  </button>
+                )}
+                <button onClick={()=>setActive(null)}
+                  style={{ background:'rgba(255,255,255,0.1)', color:'white', border:'none', borderRadius:5, padding:'4px 10px', fontSize:18, cursor:'pointer', lineHeight:1 }}>✕</button>
+              </div>
+            </div>
+
+            <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:24 }}>
+
+              {/* Progress + budget row */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                {[
+                  { label:'Task Progress', value: `${active.done_count}/${active.task_count} resolved`, sub: `${progressPct(active.done_count, active.task_count)}% complete`, pct: progressPct(active.done_count, active.task_count) },
+                  { label:'Milestones',    value: `${active.milestones.filter(m=>m.status==='completed').length}/${active.milestones.length} completed`, sub: active.milestones.length===0 ? 'None added yet' : `${Math.round((active.milestones.filter(m=>m.status==='completed').length/active.milestones.length)*100)}% done`, pct: active.milestones.length===0 ? 0 : Math.round((active.milestones.filter(m=>m.status==='completed').length/active.milestones.length)*100) },
+                  { label:'Budget',        value: active.budget > 0 ? `KES ${active.budget.toLocaleString()}` : 'Not set', sub: active.spent > 0 ? `KES ${active.spent.toLocaleString()} spent` : 'No spend logged', pct: active.budget > 0 ? Math.min(100, Math.round((active.spent/active.budget)*100)) : 0 },
+                ].map(kpi=>(
+                  <div key={kpi.label} style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, padding:'12px 14px' }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:4 }}>{kpi.label}</div>
+                    <div style={{ fontSize:15, fontWeight:700, color:'#111827', marginBottom:2 }}>{kpi.value}</div>
+                    <div style={{ fontSize:11, color:'#6b7280', marginBottom:6 }}>{kpi.sub}</div>
+                    <div style={{ height:4, background:'#e5e7eb', borderRadius:2 }}>
+                      <div style={{ height:'100%', width:`${kpi.pct}%`, background: kpi.pct===100?'#15803d':'#1a3a2a', borderRadius:2 }}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Description */}
+              {active.description && (
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:6 }}>Description</div>
+                  <div style={{ fontSize:13, color:'#374151', lineHeight:1.6 }}>{active.description}</div>
+                </div>
+              )}
+
+              {/* Milestones */}
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:10 }}>Milestones</div>
+                {active.milestones.length === 0 && !canEdit && (
+                  <div style={{ fontSize:12, color:'#9ca3af' }}>No milestones added.</div>
+                )}
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {active.milestones.map(ms => {
+                    const dl = daysLeft(ms.due_date)
+                    const done = ms.status === 'completed'
+                    return (
+                      <div key={ms.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background: done ? '#f0fdf4' : '#f9fafb', border:`1px solid ${done?'#bbf7d0':'#e5e7eb'}`, borderRadius:6 }}>
+                        <button onClick={()=>canEdit&&toggleMilestone(ms)}
+                          style={{ width:18, height:18, borderRadius:'50%', border:`2px solid ${done?'#15803d':'#d1d5db'}`, background:done?'#15803d':'white', cursor:canEdit?'pointer':'default', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          {done && <span style={{ color:'white', fontSize:11, lineHeight:1 }}>✓</span>}
+                        </button>
+                        <div style={{ flex:1 }}>
+                          <span style={{ fontSize:13, color: done?'#6b7280':'#111827', textDecoration: done?'line-through':'none', fontWeight:500 }}>{ms.title}</span>
+                          {ms.due_date && (
+                            <span style={{ marginLeft:8, fontSize:11, color: done?'#9ca3af': dl<0?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight: dl<0&&!done?600:400 }}>
+                              {fmtDate(ms.due_date)}{!done && dl<0 ? ` (${Math.abs(dl)}d overdue)` : !done&&dl===0?' (today)':''}
+                            </span>
+                          )}
+                        </div>
+                        {canDelete && (
+                          <button onClick={()=>deleteMilestone(ms.id)}
+                            style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:14, padding:'0 2px', lineHeight:1 }}
+                            title="Delete milestone">✕</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {canEdit && (
+                  <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                    <input value={msTitle} onChange={e=>setMsTitle(e.target.value)}
+                      placeholder="Add milestone…"
+                      onKeyDown={e=>{ if(e.key==='Enter') addMilestone() }}
+                      style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 10px', fontSize:12, outline:'none' }}/>
+                    <input type="date" value={msDate} onChange={e=>setMsDate(e.target.value)}
+                      style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'6px 8px', fontSize:12, outline:'none' }}/>
+                    <button onClick={addMilestone} disabled={!msTitle.trim()||msAdding}
+                      style={{ background:msTitle.trim()?'#1a3a2a':'#e5e7eb', color:msTitle.trim()?'white':'#9ca3af', border:'none', borderRadius:5, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:msTitle.trim()?'pointer':'default' }}>
+                      {msAdding?'…':'Add'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Linked tasks */}
+              <div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.4px' }}>Linked Tasks</div>
+                  <a href={`/tasks`} style={{ fontSize:11, color:'#1a3a2a', fontWeight:600, textDecoration:'none' }}>Go to Task Board →</a>
+                </div>
+                {tasks.length === 0 ? (
+                  <div style={{ fontSize:12, color:'#9ca3af' }}>No tasks linked to this project yet. When creating a task, select this project.</div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {tasks.map((t:any) => (
+                      <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:5 }}>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background: t.status==='resolved'?'#15803d':t.status==='action-required'?'#dc2626':'#d97706', flexShrink:0 }}/>
+                        <span style={{ flex:1, fontSize:12, color:'#111827' }}>{t.particulars}</span>
+                        <span style={{ fontSize:10, color:'#9ca3af' }}>{t.responsible}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* NEW PROJECT MODAL */}
+      {showForm && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+          onClick={()=>setShowForm(false)}>
+          <div style={{ background:'white', borderRadius:12, padding:28, maxWidth:520, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', maxHeight:'90vh', overflowY:'auto' }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div style={{ fontSize:16, fontWeight:700 }}>New Project</div>
+              <button onClick={()=>setShowForm(false)} style={{ background:'none', border:'none', fontSize:20, color:'#9ca3af', cursor:'pointer', lineHeight:1 }}>✕</button>
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={lbl}>Project Name *</label>
+                <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. PIL Factory Expansion" autoFocus style={inp}/>
+              </div>
+              <div>
+                <label style={lbl}>Description</label>
+                <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
+                  rows={2} placeholder="Brief overview of the project…"
+                  style={{ ...inp, resize:'vertical' }}/>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={lbl}>Company *</label>
+                  <select value={form.company} onChange={e=>setForm(f=>({...f,company:e.target.value}))} style={inp}>
+                    {[...COMPANIES].map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Owner</label>
+                  <select value={form.owner} onChange={e=>setForm(f=>({...f,owner:e.target.value}))} style={inp}>
+                    {[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={lbl}>Start Date</label>
+                  <input type="date" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))} style={inp}/>
+                </div>
+                <div>
+                  <label style={lbl}>End Date</label>
+                  <input type="date" value={form.end_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))} style={inp}/>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={lbl}>Budget (KES)</label>
+                  <input type="number" value={form.budget} onChange={e=>setForm(f=>({...f,budget:e.target.value}))} placeholder="0" style={inp}/>
+                </div>
+                <div>
+                  <label style={lbl}>Initial Status</label>
+                  <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value as ProjectStatus}))} style={inp}>
+                    {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(s=>(
+                      <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
+              <button onClick={()=>setShowForm(false)}
+                style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'9px 18px', borderRadius:6, fontSize:13, cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={createProject} disabled={saving||!form.name.trim()}
+                style={{ background: saving||!form.name.trim() ? '#9ca3af' : '#1a3a2a', color:'white', border:'none', padding:'9px 22px', borderRadius:6, fontSize:13, fontWeight:600, cursor:saving||!form.name.trim()?'not-allowed':'pointer' }}>
+                {saving ? 'Creating…' : 'Create Project'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
