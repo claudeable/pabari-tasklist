@@ -643,104 +643,169 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                 </div>
               )
 
-              const startD = new Date(active.start_date + 'T00:00:00')
-              const endD   = new Date(active.end_date   + 'T00:00:00')
+              const startD    = new Date(active.start_date + 'T00:00:00')
+              const endD      = new Date(active.end_date   + 'T00:00:00')
+              const totalDays = (endD.getTime() - startD.getTime()) / 86400000
 
-              // Range: 1 month before start → 1 month after end
-              const rangeStart = new Date(startD)
-              rangeStart.setDate(1)
-              rangeStart.setMonth(rangeStart.getMonth() - 1)
-              const rangeEnd = new Date(endD)
-              rangeEnd.setDate(1)
-              rangeEnd.setMonth(rangeEnd.getMonth() + 2)
-              const totalMs = rangeEnd.getTime() - rangeStart.getTime()
+              // Padding: 3% of range, minimum 7 days
+              const padMs     = Math.max(7 * 86400000, (endD.getTime() - startD.getTime()) * 0.03)
+              const rangeStart = new Date(startD.getTime() - padMs)
+              const rangeEnd   = new Date(endD.getTime()   + padMs)
+              const totalMs    = rangeEnd.getTime() - rangeStart.getTime()
 
               function pct(d: Date) {
                 return Math.max(0, Math.min(100, ((d.getTime() - rangeStart.getTime()) / totalMs) * 100))
               }
 
-              // Month ticks
-              const months: { label: string; pct: number }[] = []
-              const cur = new Date(rangeStart)
-              while (cur <= rangeEnd) {
-                months.push({ label: cur.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), pct: pct(new Date(cur)) })
-                cur.setMonth(cur.getMonth() + 1)
+              // Adaptive tick generation — yearly for >2yr, quarterly for >6mo, monthly otherwise
+              function buildTicks(): { label: string; p: number }[] {
+                const out: { label: string; p: number }[] = []
+                const cur = new Date(rangeStart)
+                if (totalDays > 730) {
+                  // Yearly ticks
+                  cur.setMonth(0); cur.setDate(1)
+                  while (cur <= rangeEnd) {
+                    out.push({ label: String(cur.getFullYear()), p: pct(new Date(cur)) })
+                    cur.setFullYear(cur.getFullYear() + 1)
+                  }
+                } else if (totalDays > 180) {
+                  // Quarterly ticks
+                  cur.setDate(1); cur.setMonth(Math.floor(cur.getMonth() / 3) * 3)
+                  while (cur <= rangeEnd) {
+                    out.push({ label: `Q${Math.floor(cur.getMonth() / 3) + 1} ${cur.getFullYear()}`, p: pct(new Date(cur)) })
+                    cur.setMonth(cur.getMonth() + 3)
+                  }
+                } else if (totalDays > 14) {
+                  // Monthly ticks
+                  cur.setDate(1)
+                  while (cur <= rangeEnd) {
+                    out.push({ label: cur.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), p: pct(new Date(cur)) })
+                    cur.setMonth(cur.getMonth() + 1)
+                  }
+                } else {
+                  // Weekly ticks
+                  cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7))
+                  while (cur <= rangeEnd) {
+                    out.push({ label: cur.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), p: pct(new Date(cur)) })
+                    cur.setDate(cur.getDate() + 7)
+                  }
+                }
+                return out.filter(t => t.p >= 0 && t.p <= 101)
               }
 
-              const todayPct  = pct(today)
-              const barStart  = pct(startD)
-              const barWidth  = Math.max(pct(endD) - barStart, 0.5)
+              const ticks    = buildTicks()
+              const todayPct = pct(today)
+              const barStart = pct(startD)
+              const barEnd   = pct(endD)
+              const barWidth = Math.max(barEnd - barStart, 0.4)
+              const milestonesWithDates = active.milestones.filter(ms => ms.due_date)
+
+              // Allocate enough pixels per tick so labels never cramp
+              const pxPerTick = totalDays > 730 ? 110 : totalDays > 180 ? 90 : 75
+              const chartWidth = Math.max(640, ticks.length * pxPerTick)
 
               return (
                 <div style={{ padding:'24px 28px', overflowX:'auto' }}>
-                  <div style={{ minWidth:560 }}>
+                  <div style={{ width: chartWidth }}>
 
-                    {/* Month ruler */}
-                    <div style={{ position:'relative', height:30, marginBottom:0 }}>
-                      {months.map((m, i) => (
-                        <div key={i} style={{ position:'absolute', left:`${m.pct}%`, top:0, bottom:0, borderLeft:'1px solid #e5e7eb', paddingLeft:5 }}>
-                          <span style={{ fontSize:10, fontWeight:600, color:'#9ca3af', whiteSpace:'nowrap' }}>{m.label}</span>
+                    {/* Ruler */}
+                    <div style={{ position:'relative', height:32, borderBottom:'2px solid #e5e7eb' }}>
+                      {ticks.map((t, i) => (
+                        <div key={i} style={{ position:'absolute', left:`${t.p}%`, top:0, bottom:0 }}>
+                          <div style={{ width:1, height:6, background:'#d1d5db', marginTop:18 }}/>
+                          <span style={{ position:'absolute', top:4, left:4, fontSize:11, fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{t.label}</span>
                         </div>
                       ))}
+                      {/* Today marker in ruler */}
+                      {todayPct > 0 && todayPct < 100 && (
+                        <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:2, background:'#ef4444', zIndex:2 }}/>
+                      )}
                     </div>
 
-                    {/* Timeline body */}
-                    <div style={{ position:'relative', borderTop:'2px solid #e5e7eb', paddingTop:0 }}>
-
-                      {/* Vertical grid lines */}
-                      {months.map((m, i) => (
-                        <div key={i} style={{ position:'absolute', left:`${m.pct}%`, top:0, bottom:0, width:1, background:'#f3f4f6', zIndex:0 }}/>
+                    {/* Grid + rows */}
+                    <div style={{ position:'relative' }}>
+                      {/* Grid lines */}
+                      {ticks.map((t, i) => (
+                        <div key={i} style={{ position:'absolute', left:`${t.p}%`, top:0, bottom:0, width:1, background:'#f3f4f6', zIndex:0 }}/>
                       ))}
 
-                      {/* Today line */}
-                      {todayPct >= 0 && todayPct <= 100 && (
+                      {/* Today vertical line */}
+                      {todayPct > 0 && todayPct < 100 && (
                         <div style={{ position:'absolute', left:`${todayPct}%`, top:0, bottom:0, width:2, background:'#ef4444', zIndex:5 }}>
-                          <div style={{ position:'absolute', top:8, left:4, fontSize:9, fontWeight:700, color:'#ef4444', whiteSpace:'nowrap', background:'white', border:'1px solid #fecaca', borderRadius:3, padding:'1px 4px' }}>TODAY</div>
+                          <div style={{ position:'absolute', top:14, left:5, background:'#ef4444', color:'white', fontSize:9, fontWeight:800, padding:'2px 5px', borderRadius:3, whiteSpace:'nowrap' }}>TODAY</div>
                         </div>
                       )}
 
                       {/* Project bar row */}
-                      <div style={{ position:'relative', height:52, display:'flex', alignItems:'center', borderBottom:'1px solid #f3f4f6' }}>
-                        <div style={{ position:'absolute', left:0, right:0, height:1, background:'#f3f4f6' }}/>
-                        <div style={{ position:'absolute', left:`${barStart}%`, width:`${barWidth}%`, height:28, background:'linear-gradient(90deg,#1a3a2a,#2d6a4f)', borderRadius:6, boxShadow:'0 2px 8px rgba(26,58,42,0.25)', display:'flex', alignItems:'center', overflow:'hidden', zIndex:2, minWidth:4 }}>
-                          <span style={{ fontSize:11, fontWeight:700, color:'white', paddingLeft:10, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{active.name}</span>
+                      <div style={{ position:'relative', height:60, display:'flex', alignItems:'center', borderBottom:'1px solid #f0f0f0' }}>
+                        {/* Bar */}
+                        <div style={{ position:'absolute', left:`${barStart}%`, width:`${barWidth}%`, height:32, background:'linear-gradient(90deg,#1a3a2a 0%,#2d6a4f 100%)', borderRadius:7, boxShadow:'0 2px 10px rgba(26,58,42,0.22)', display:'flex', alignItems:'center', overflow:'hidden', zIndex:2, minWidth:6 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:'white', paddingLeft:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{active.name}</span>
                         </div>
-                        {/* Start / end labels */}
-                        <div style={{ position:'absolute', left:`${barStart}%`, bottom:2, transform:'translateX(-50%)', fontSize:9, color:'#6b7280', whiteSpace:'nowrap' }}>{fmtDate(active.start_date)}</div>
-                        <div style={{ position:'absolute', left:`${barStart + barWidth}%`, bottom:2, transform:'translateX(-50%)', fontSize:9, color:'#6b7280', whiteSpace:'nowrap' }}>{fmtDate(active.end_date)}</div>
+                        {/* Start label */}
+                        <div style={{ position:'absolute', left:`${barStart}%`, bottom:4, transform:'translateX(-50%)', fontSize:9, color:'#9ca3af', whiteSpace:'nowrap', fontWeight:500 }}>{fmtDate(active.start_date)}</div>
+                        {/* End label */}
+                        <div style={{ position:'absolute', left:`${barEnd}%`, bottom:4, transform:'translateX(-50%)', fontSize:9, color:'#9ca3af', whiteSpace:'nowrap', fontWeight:500 }}>{fmtDate(active.end_date)}</div>
                       </div>
 
                       {/* Milestone rows */}
-                      {active.milestones.filter(ms => ms.due_date).map(ms => {
+                      {milestonesWithDates.map(ms => {
                         const mp   = pct(new Date(ms.due_date + 'T00:00:00'))
                         const done = ms.status === 'completed'
+                        const flipRight = mp < 10
                         return (
-                          <div key={ms.id} style={{ position:'relative', height:44, display:'flex', alignItems:'center', borderBottom:'1px solid #f9fafb' }}>
-                            <div style={{ position:'absolute', left:0, right:0, height:1, background:'#f9fafb' }}/>
+                          <div key={ms.id} style={{ position:'relative', height:44, borderBottom:'1px solid #f9fafb' }}>
+                            {/* Track line */}
+                            <div style={{ position:'absolute', left:0, right:0, top:'50%', height:1, background:'#f0f0f0' }}/>
                             {/* Diamond */}
-                            <div style={{ position:'absolute', left:`${mp}%`, top:'50%', transform:'translate(-50%,-50%) rotate(45deg)', width:14, height:14, background:done?'#15803d':'#b5833a', border:'2px solid white', boxShadow:`0 0 0 1.5px ${done?'#15803d':'#b5833a'}`, zIndex:3 }}/>
-                            {/* Label above */}
-                            <div style={{ position:'absolute', left:`${mp}%`, top:4, transform:'translateX(-50%)', fontSize:10, fontWeight:600, color:done?'#15803d':'#374151', whiteSpace:'nowrap', maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', background:'white', border:`1px solid ${done?'#bbf7d0':'#e5e7eb'}`, borderRadius:3, padding:'1px 5px' }}>
-                              {ms.title}
+                            <div style={{ position:'absolute', left:`${mp}%`, top:'50%', transform:'translate(-50%,-50%) rotate(45deg)', width:16, height:16, background:done?'#15803d':'#b5833a', border:'2.5px solid white', boxShadow:`0 0 0 1.5px ${done?'#15803d':'#b5833a'}`, zIndex:3 }}/>
+                            {/* Label */}
+                            <div style={{
+                              position:'absolute',
+                              top:5,
+                              ...(flipRight
+                                ? { left:`${mp + 1.5}%` }
+                                : { left:`${mp}%`, transform:'translateX(-50%)' }),
+                              fontSize:10, fontWeight:600,
+                              color: done ? '#15803d' : '#374151',
+                              whiteSpace:'nowrap', maxWidth:160,
+                              overflow:'hidden', textOverflow:'ellipsis',
+                              background:'white',
+                              border:`1px solid ${done?'#bbf7d0':'#e5e7eb'}`,
+                              borderRadius:4, padding:'2px 6px', zIndex:4,
+                              boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
+                            }}>
+                              {done && '✓ '}{ms.title}
                             </div>
                           </div>
                         )
                       })}
 
-                      {/* Empty milestone state */}
-                      {active.milestones.filter(ms => ms.due_date).length === 0 && (
-                        <div style={{ height:40, display:'flex', alignItems:'center', paddingLeft:12 }}>
+                      {milestonesWithDates.length === 0 && (
+                        <div style={{ height:40, display:'flex', alignItems:'center', paddingLeft:8 }}>
                           <span style={{ fontSize:11, color:'#d1d5db' }}>No milestones with dates — add one in Overview.</span>
                         </div>
                       )}
                     </div>
 
                     {/* Legend */}
-                    <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:11, color:'#6b7280', marginTop:20, paddingTop:16, borderTop:'1px solid #f3f4f6' }}>
-                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:18, height:10, background:'linear-gradient(90deg,#1a3a2a,#2d6a4f)', borderRadius:3, display:'inline-block' }}/> Project duration</span>
-                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, background:'#b5833a', display:'inline-block', transform:'rotate(45deg)' }}/> Pending milestone</span>
-                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:10, height:10, background:'#15803d', display:'inline-block', transform:'rotate(45deg)' }}/> Completed milestone</span>
-                      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:2, height:14, background:'#ef4444', display:'inline-block' }}/> Today</span>
+                    <div style={{ display:'flex', gap:18, flexWrap:'wrap', fontSize:11, color:'#6b7280', marginTop:18, paddingTop:14, borderTop:'1px solid #f3f4f6' }}>
+                      <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ width:20, height:10, background:'linear-gradient(90deg,#1a3a2a,#2d6a4f)', borderRadius:3, display:'inline-block' }}/>
+                        Project duration
+                      </span>
+                      <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ width:11, height:11, background:'#b5833a', display:'inline-block', transform:'rotate(45deg)' }}/>
+                        Pending milestone
+                      </span>
+                      <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ width:11, height:11, background:'#15803d', display:'inline-block', transform:'rotate(45deg)' }}/>
+                        Completed milestone
+                      </span>
+                      <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ width:2, height:14, background:'#ef4444', display:'inline-block' }}/>
+                        Today
+                      </span>
                     </div>
                   </div>
                 </div>
