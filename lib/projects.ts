@@ -187,7 +187,7 @@ export async function getProjectSpend(projectId: number): Promise<number> {
 export async function getProjects(): Promise<Project[]> {
   await ensureProjectTables()
 
-  const [projectRows, milestoneRows, taskCounts, pcrSpendRows, manualSpendRows] = await Promise.all([
+  const [projectRows, milestoneRows, taskCounts, pcrSpendRows, manualSpendRows, lpoSpendRows] = await Promise.all([
     query<Record<string, unknown>>('SELECT * FROM projects ORDER BY created_at DESC'),
     query<Record<string, unknown>>('SELECT * FROM milestones ORDER BY due_date ASC NULLS LAST, created_at ASC'),
     query<Record<string, unknown>>(`
@@ -202,6 +202,11 @@ export async function getProjects(): Promise<Project[]> {
     ).catch(() => [] as Record<string, unknown>[]),
     query<Record<string, unknown>>(
       `SELECT project_id, COALESCE(SUM(amount),0) AS total FROM project_expenses GROUP BY project_id`
+    ).catch(() => [] as Record<string, unknown>[]),
+    // LPOs accepted or paid count as committed spend
+    query<Record<string, unknown>>(
+      `SELECT project_id, COALESCE(SUM(total),0) AS total
+       FROM invoices WHERE project_id IS NOT NULL AND type='lpo' AND status IN ('accepted','paid') GROUP BY project_id`
     ).catch(() => [] as Record<string, unknown>[]),
   ])
 
@@ -221,11 +226,13 @@ export async function getProjects(): Promise<Project[]> {
   pcrSpendRows.forEach(r => { pcrSpendMap[Number(r.project_id)] = Number(r.total) })
   const manualSpendMap: Record<number, number> = {}
   manualSpendRows.forEach(r => { manualSpendMap[Number(r.project_id)] = Number(r.total) })
+  const lpoSpendMap: Record<number, number> = {}
+  lpoSpendRows.forEach(r => { lpoSpendMap[Number(r.project_id)] = Number(r.total) })
 
   return projectRows.map(r => {
     const pid = Number(r.id)
     const c = countMap[pid] || { total: 0, done: 0 }
-    const spent = (pcrSpendMap[pid] || 0) + (manualSpendMap[pid] || 0)
+    const spent = (pcrSpendMap[pid] || 0) + (manualSpendMap[pid] || 0) + (lpoSpendMap[pid] || 0)
     return rowToProject({ ...r, spent }, msMap[pid] || [], c.total, c.done)
   })
 }
@@ -233,7 +240,7 @@ export async function getProjects(): Promise<Project[]> {
 export async function getProjectById(id: number): Promise<Project | null> {
   await ensureProjectTables()
 
-  const [row, milestoneRows, countRow, pcrSpendRow, manualSpendRow] = await Promise.all([
+  const [row, milestoneRows, countRow, pcrSpendRow, manualSpendRow, lpoSpendRow] = await Promise.all([
     queryOne<Record<string, unknown>>('SELECT * FROM projects WHERE id = $1', [id]),
     query<Record<string, unknown>>('SELECT * FROM milestones WHERE project_id = $1 ORDER BY due_date ASC NULLS LAST', [id]),
     queryOne<Record<string, unknown>>(
@@ -248,9 +255,13 @@ export async function getProjectById(id: number): Promise<Project | null> {
       `SELECT COALESCE(SUM(amount),0) AS total FROM project_expenses WHERE project_id=$1`,
       [id]
     ).catch(() => null),
+    queryOne<Record<string, unknown>>(
+      `SELECT COALESCE(SUM(total),0) AS total FROM invoices WHERE project_id=$1 AND type='lpo' AND status IN ('accepted','paid')`,
+      [id]
+    ).catch(() => null),
   ])
   if (!row) return null
-  const spent = Number(pcrSpendRow?.total || 0) + Number(manualSpendRow?.total || 0)
+  const spent = Number(pcrSpendRow?.total || 0) + Number(manualSpendRow?.total || 0) + Number(lpoSpendRow?.total || 0)
   return rowToProject(
     { ...row, spent },
     milestoneRows.map(rowToMilestone),
@@ -455,6 +466,16 @@ export async function getProjectPCRs(projectId: number): Promise<Record<string, 
   return query<Record<string, unknown>>(
     `SELECT id, req_no, employee_name, company, total_amount, status, request_date, items
      FROM petty_cash_requests WHERE project_id = $1 ORDER BY request_date DESC`,
+    [projectId]
+  ).catch(() => [])
+}
+
+// ─── Project LPOs (Finance invoices of type='lpo' linked to project) ──────────
+
+export async function getProjectLPOs(projectId: number): Promise<Record<string, unknown>[]> {
+  return query<Record<string, unknown>>(
+    `SELECT id, doc_no, status, total, client_name AS supplier, issue_date, created_by, notes
+     FROM invoices WHERE project_id = $1 AND type = 'lpo' ORDER BY created_at DESC`,
     [projectId]
   ).catch(() => [])
 }

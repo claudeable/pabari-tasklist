@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport, ProjectExpense, SessionUser,
   PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE,
+  InvoiceStatus, INVOICE_STATUS_STYLE, INVOICE_STATUS_LABELS,
 } from '@/types'
 import type { ProjectNote } from '@/lib/projects'
 
@@ -212,9 +213,10 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   // Task filter inside project
   const [taskFilter, setTaskFilter] = useState<'all'|'active'|'resolved'>('all')
 
-  // Budget / Expenses / PCRs
+  // Budget / Expenses / PCRs / LPOs
   const [expenses,       setExpenses]       = useState<ProjectExpense[]>([])
   const [pcrs,           setPcrs]           = useState<Record<string,unknown>[]>([])
+  const [lpos,           setLpos]           = useState<Record<string,unknown>[]>([])
   const [budgetLoaded,   setBudgetLoaded]   = useState(false)
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [expenseForm,    setExpenseForm]    = useState({ ...BLANK_EXPENSE })
@@ -271,10 +273,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   useEffect(() => {
     if (detailTab !== 'budget' || !active || budgetLoaded) return
     fetch(`/api/projects/${active.id}/budget`, { credentials:'include' })
-      .then(r => r.ok ? r.json() : { expenses:[], pcrs:[] })
+      .then(r => r.ok ? r.json() : { expenses:[], pcrs:[], lpos:[] })
       .then(data => {
         setExpenses(Array.isArray(data.expenses) ? data.expenses : [])
         setPcrs(Array.isArray(data.pcrs) ? data.pcrs : [])
+        setLpos(Array.isArray(data.lpos) ? data.lpos : [])
         setBudgetLoaded(true)
       })
       .catch(() => {})
@@ -286,7 +289,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setDetailTab('overview')
     setNotes([]); setMembers([]); setTasks([])
     setReports([]); setReportsLoaded(false)
-    setExpenses([]); setPcrs([]); setBudgetLoaded(false)
+    setExpenses([]); setPcrs([]); setLpos([]); setBudgetLoaded(false)
     setShowLinkTask(false); setTaskFilter('all')
 
     const [res, notesRes, membersRes] = await Promise.all([
@@ -1275,22 +1278,35 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     )}
                   </div>
                   {active.budget > 0 ? (() => {
-                    const pct = Math.min(100, Math.round((active.spent / active.budget) * 100))
-                    const over = active.spent > active.budget
-                    const warn = !over && pct >= 80
+                    const pcrTotal     = (pcrs as any[]).filter(r=>r.status==='approved').reduce((s:number,r:any)=>s+Number(r.total_amount),0)
+                    const manualTotal  = expenses.reduce((s,e)=>s+e.amount, 0)
+                    const lpoAccepted  = (lpos as any[]).filter(r=>r.status==='accepted').reduce((s:number,r:any)=>s+Number(r.total),0)
+                    const lpoPaid      = (lpos as any[]).filter(r=>r.status==='paid').reduce((s:number,r:any)=>s+Number(r.total),0)
+                    const lpoTotal     = lpoAccepted + lpoPaid
+                    const totalSpent   = pcrTotal + manualTotal + lpoTotal
+                    const pct          = Math.min(100, Math.round((totalSpent / active.budget) * 100))
+                    const over         = totalSpent > active.budget
+                    const warn         = !over && pct >= 80
                     return (
                       <div>
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:14 }}>
                           {[
-                            { label:'Allocated', val:`KES ${active.budget.toLocaleString()}`, color:'#374151' },
-                            { label:'Spent', val:`KES ${active.spent.toLocaleString()}`, color: over?'#dc2626':warn?'#d97706':'#374151' },
-                            { label: over?'Over by':'Remaining', val:`KES ${Math.abs(active.budget-active.spent).toLocaleString()}`, color: over?'#dc2626':warn?'#d97706':'#15803d' },
+                            { label:'Budget',    val:`KES ${active.budget.toLocaleString()}`,            color:'#374151' },
+                            { label:'PCRs',      val:`KES ${pcrTotal.toLocaleString()}`,                 color:'#1d4ed8' },
+                            { label:'LPOs',      val:`KES ${lpoTotal.toLocaleString()}`,                 color:'#6d28d9' },
+                            { label:'Other',     val:`KES ${manualTotal.toLocaleString()}`,              color:'#374151' },
                           ].map(s=>(
                             <div key={s.label} style={{ textAlign:'center', padding:'10px', background:'white', borderRadius:6, border:'1px solid #e5e7eb' }}>
                               <div style={{ fontSize:10, color:'#9ca3af', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:3 }}>{s.label}</div>
-                              <div style={{ fontSize:15, fontWeight:800, color:s.color }}>{s.val}</div>
+                              <div style={{ fontSize:13, fontWeight:800, color:s.color }}>{s.val}</div>
                             </div>
                           ))}
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#374151', marginBottom:6 }}>
+                          <span style={{ fontWeight:700 }}>Total spent: <span style={{ color: over?'#dc2626':warn?'#d97706':'#1a3a2a' }}>KES {totalSpent.toLocaleString()}</span></span>
+                          <span style={{ color: over?'#dc2626':warn?'#d97706':'#15803d', fontWeight:700 }}>
+                            {over ? `🚨 Over by KES ${(totalSpent-active.budget).toLocaleString()}` : `KES ${(active.budget-totalSpent).toLocaleString()} remaining`}
+                          </span>
                         </div>
                         <div style={{ height:8, background:'#e5e7eb', borderRadius:4, overflow:'hidden' }}>
                           <div style={{ height:'100%', width:`${pct}%`, background: over?'#ef4444':warn?'#f59e0b':'#1a3a2a', borderRadius:4, transition:'width 0.3s' }}/>
@@ -1367,6 +1383,73 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                       + Submit a petty cash request for this project →
                     </a>
                   </div>
+                </div>
+
+                {/* LPOs linked to project */}
+                <div style={{ marginBottom:22 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#111827' }}>
+                      Local Purchase Orders {lpos.length > 0 && `(${lpos.length})`}
+                    </div>
+                    <a href="/finance" style={{ fontSize:12, color:'#6d28d9', fontWeight:600, textDecoration:'none' }}>
+                      + Raise LPO in Finance →
+                    </a>
+                  </div>
+                  <div style={{ fontSize:12, color:'#9ca3af', marginBottom:8 }}>
+                    LPOs with status <strong>Accepted</strong> or <strong>Paid</strong> count towards spend. Draft/Sent LPOs are shown for reference only.
+                  </div>
+                  {budgetLoaded && lpos.length === 0 && (
+                    <div style={{ fontSize:12, color:'#9ca3af', padding:'8px 0' }}>
+                      No LPOs linked to this project yet. When creating an LPO in Finance, select this project to track it here.
+                    </div>
+                  )}
+                  {lpos.length > 0 && (
+                    <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                        <thead>
+                          <tr style={{ background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
+                            {['LPO No','Supplier','Date','Amount','Status',''].map(h=>(
+                              <th key={h} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px', whiteSpace:'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(lpos as any[]).map((r,i)=>{
+                            const countsAsSpend = r.status === 'accepted' || r.status === 'paid'
+                            const statusStyle   = INVOICE_STATUS_STYLE[r.status as InvoiceStatus] || { bg:'#f3f4f6', color:'#6b7280' }
+                            return (
+                              <tr key={r.id} style={{ borderBottom: i<lpos.length-1?'1px solid #f3f4f6':'none', background: countsAsSpend?'#faf5ff':'white' }}>
+                                <td style={{ padding:'8px 10px', fontWeight:600, color:'#6d28d9', whiteSpace:'nowrap' }}>{r.doc_no || `#${r.id}`}</td>
+                                <td style={{ padding:'8px 10px', color:'#374151' }}>{r.supplier || '—'}</td>
+                                <td style={{ padding:'8px 10px', color:'#6b7280', whiteSpace:'nowrap' }}>{r.issue_date ? fmtDateShort(String(r.issue_date).slice(0,10)) : '—'}</td>
+                                <td style={{ padding:'8px 10px', fontWeight:600, color: countsAsSpend?'#1a3a2a':'#9ca3af', whiteSpace:'nowrap' }}>
+                                  KES {Number(r.total).toLocaleString()}
+                                  {!countsAsSpend && <span style={{ fontSize:10, color:'#d1d5db', marginLeft:4 }}>(not counted)</span>}
+                                </td>
+                                <td style={{ padding:'8px 10px', whiteSpace:'nowrap' }}>
+                                  <span style={{ background:statusStyle.bg, color:statusStyle.color, borderRadius:10, padding:'2px 8px', fontSize:10, fontWeight:700 }}>
+                                    {INVOICE_STATUS_LABELS[r.status as InvoiceStatus] || r.status}
+                                  </span>
+                                </td>
+                                <td style={{ padding:'8px 10px' }}>
+                                  <a href="/finance" style={{ fontSize:11, color:'#6d28d9', textDecoration:'none', fontWeight:600 }}>View</a>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background:'#f9fafb', borderTop:'2px solid #e5e7eb' }}>
+                            <td colSpan={3} style={{ padding:'8px 10px', fontSize:12, fontWeight:700, color:'#374151', textAlign:'right' }}>LPO Total (accepted + paid)</td>
+                            <td style={{ padding:'8px 10px', fontWeight:800, color:'#6d28d9', fontSize:13 }}>
+                              KES {(lpos as any[]).filter(r=>r.status==='accepted'||r.status==='paid').reduce((s:number,r:any)=>s+Number(r.total),0).toLocaleString()}
+                            </td>
+                            <td colSpan={2}/>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 {/* Manual Expenses */}
@@ -1469,10 +1552,17 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                   )}
 
                   {/* Grand total */}
-                  {(pcrs.length > 0 || expenses.length > 0) && (
-                    <div style={{ marginTop:14, padding:'12px 16px', background:'#1a3a2a', borderRadius:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <span style={{ fontSize:13, fontWeight:700, color:'white' }}>Total Project Spend</span>
-                      <span style={{ fontSize:16, fontWeight:800, color:'white' }}>KES {active.spent.toLocaleString()}</span>
+                  {(pcrs.length > 0 || expenses.length > 0 || lpos.length > 0) && (
+                    <div style={{ marginTop:14, padding:'14px 18px', background:'#1a3a2a', borderRadius:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                        <span style={{ fontSize:13, fontWeight:700, color:'white' }}>Total Project Spend</span>
+                        <span style={{ fontSize:16, fontWeight:800, color:'white' }}>KES {active.spent.toLocaleString()}</span>
+                      </div>
+                      <div style={{ display:'flex', gap:16, fontSize:11, color:'rgba(255,255,255,0.65)' }}>
+                        <span>PCRs: KES {(pcrs as any[]).filter(r=>r.status==='approved').reduce((s:number,r:any)=>s+Number(r.total_amount),0).toLocaleString()}</span>
+                        <span>LPOs: KES {(lpos as any[]).filter(r=>r.status==='accepted'||r.status==='paid').reduce((s:number,r:any)=>s+Number(r.total),0).toLocaleString()}</span>
+                        <span>Other: KES {expenses.reduce((s,e)=>s+e.amount,0).toLocaleString()}</span>
+                      </div>
                     </div>
                   )}
                 </div>

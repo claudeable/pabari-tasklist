@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { getProjectExpenses, createProjectExpense, deleteProjectExpense, getProjectPCRs } from '@/lib/projects'
+import { getProjectExpenses, createProjectExpense, deleteProjectExpense, getProjectPCRs, getProjectLPOs } from '@/lib/projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,11 +12,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const projectId = parseInt(params.id, 10)
-  const [expenses, pcrs] = await Promise.all([
+  const [expenses, pcrs, lpos] = await Promise.all([
     getProjectExpenses(projectId),
     getProjectPCRs(projectId),
+    getProjectLPOs(projectId),
   ])
-  return NextResponse.json({ expenses, pcrs })
+  return NextResponse.json({ expenses, pcrs, lpos })
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
