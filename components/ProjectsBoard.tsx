@@ -390,18 +390,24 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, milestones: newMs } : p))
   }
 
-  async function toggleMilestone(ms: Milestone) {
-    if (!active || !canEdit) return
-    const newStatus = ms.status === 'completed' ? 'pending' : 'completed'
+  async function setMilestoneStatus(ms: Milestone, newStatus: 'pending' | 'completed') {
+    if (!active) return
+    const pid = active.id
     const res = await fetch(`/api/milestones/${ms.id}`, {
       method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
       body: JSON.stringify({ status: newStatus }),
     })
     if (res.ok) {
       const updated: Milestone = await res.json()
-      const newMs = active.milestones.map(m => m.id === updated.id ? updated : m)
-      setActive(a => a ? { ...a, milestones: newMs } : a)
-      syncMilestones(active.id, newMs)
+      setActive(a => {
+        if (!a) return a
+        const newMs = a.milestones.map(m => m.id === updated.id ? updated : m)
+        syncMilestones(pid, newMs)
+        return { ...a, milestones: newMs }
+      })
+    } else {
+      const err = await res.json().catch(()=>({}))
+      alert('Failed to update milestone: ' + (err.error || res.status))
     }
   }
 
@@ -1049,60 +1055,76 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                 <div>
                   <div style={lbl}>Milestones ({active.milestones.length})</div>
                   {active.milestones.length===0 && !canEdit && <div style={{ fontSize:12, color:'#9ca3af' }}>No milestones added.</div>}
-                  <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                     {active.milestones.map(ms=>{
                       const dl = daysLeft(ms.due_date)
                       const done = ms.status==='completed'
                       const overdue = !done && ms.due_date && dl < 0
                       const isEditing = editingMsId === ms.id
                       return (
-                        <div key={ms.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:done?'#f0fdf4':overdue?'#fff7f7':'#f9fafb', border:`1px solid ${done?'#bbf7d0':overdue?'#fecaca':'#e5e7eb'}`, borderRadius:6 }}>
-                          {/* Toggle button */}
-                          <button onClick={()=>canEdit&&toggleMilestone(ms)}
-                            title={canEdit ? (done ? 'Mark as Pending' : 'Mark as Completed') : ms.status}
-                            style={{ width:18, height:18, borderRadius:'50%', border:`2px solid ${done?'#15803d':overdue?'#ef4444':'#d1d5db'}`, background:done?'#15803d':'white', cursor:canEdit?'pointer':'default', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            {done && <span style={{ color:'white', fontSize:10 }}>✓</span>}
-                          </button>
+                        <div key={ms.id} style={{ border:`1px solid ${done?'#bbf7d0':overdue?'#fecaca':'#e5e7eb'}`, borderRadius:8, background:done?'#f0fdf4':overdue?'#fff7f7':'white', overflow:'hidden' }}>
+                          {/* Main row */}
+                          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px' }}>
+                            {/* Status selector — always visible */}
+                            <select
+                              value={ms.status}
+                              disabled={!canEdit}
+                              onChange={e=>setMilestoneStatus(ms, e.target.value as 'pending'|'completed')}
+                              style={{
+                                border:'none', borderRadius:20, padding:'4px 10px', fontSize:11, fontWeight:700,
+                                cursor: canEdit ? 'pointer' : 'default',
+                                background: done ? '#15803d' : overdue ? '#ef4444' : '#e5e7eb',
+                                color: done ? 'white' : overdue ? 'white' : '#374151',
+                                appearance:'none', WebkitAppearance:'none',
+                                outline:'none', minWidth:90, textAlign:'center',
+                              }}
+                            >
+                              <option value="pending">⏳ Pending</option>
+                              <option value="completed">✅ Done</option>
+                            </select>
 
-                          {/* Inline edit mode */}
-                          {isEditing ? (
-                            <>
-                              <input value={editingMsTitle} onChange={e=>setEditingMsTitle(e.target.value)}
-                                onKeyDown={e=>{ if(e.key==='Enter') saveMilestoneEdit(ms); if(e.key==='Escape') setEditingMsId(null) }}
-                                autoFocus
-                                style={{ flex:1, border:'1px solid #1a3a2a', borderRadius:4, padding:'3px 7px', fontSize:12, outline:'none' }} />
-                              <input type="date" value={editingMsDate} onChange={e=>setEditingMsDate(e.target.value)}
-                                style={{ border:'1px solid #d1d5db', borderRadius:4, padding:'3px 6px', fontSize:12 }} />
-                              <button onClick={()=>saveMilestoneEdit(ms)} disabled={msSaving}
-                                style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:4, padding:'3px 9px', fontSize:11, cursor:'pointer', fontWeight:600 }}>
-                                {msSaving?'…':'Save'}
-                              </button>
-                              <button onClick={()=>setEditingMsId(null)}
-                                style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:4, padding:'3px 7px', fontSize:11, cursor:'pointer', color:'#6b7280' }}>
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <div style={{ flex:1 }}>
-                                <span style={{ fontSize:13, color:done?'#6b7280':'#111827', textDecoration:done?'line-through':'none', fontWeight:500 }}>{ms.title}</span>
-                                {ms.due_date && (
-                                  <span style={{ marginLeft:8, fontSize:11, color:done?'#9ca3af':overdue?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight:overdue?700:400 }}>
-                                    {fmtDate(ms.due_date)}{overdue?` (${Math.abs(dl)}d overdue)`:dl===0&&!done?' (today)':''}
-                                  </span>
+                            {/* Title / edit input */}
+                            {isEditing ? (
+                              <>
+                                <input value={editingMsTitle} onChange={e=>setEditingMsTitle(e.target.value)}
+                                  onKeyDown={e=>{ if(e.key==='Enter') saveMilestoneEdit(ms); if(e.key==='Escape') setEditingMsId(null) }}
+                                  autoFocus
+                                  style={{ flex:1, border:'1px solid #1a3a2a', borderRadius:5, padding:'4px 8px', fontSize:12, outline:'none' }} />
+                                <input type="date" value={editingMsDate} onChange={e=>setEditingMsDate(e.target.value)}
+                                  style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'4px 7px', fontSize:12 }} />
+                                <button onClick={()=>saveMilestoneEdit(ms)} disabled={msSaving}
+                                  style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:5, padding:'4px 12px', fontSize:12, cursor:'pointer', fontWeight:600 }}>
+                                  {msSaving?'…':'Save'}
+                                </button>
+                                <button onClick={()=>setEditingMsId(null)}
+                                  style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 10px', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontSize:13, color:done?'#6b7280':'#111827', textDecoration:done?'line-through':'none', fontWeight:500 }}>{ms.title}</div>
+                                  {ms.due_date && (
+                                    <div style={{ fontSize:11, marginTop:1, color:done?'#9ca3af':overdue?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight:overdue?700:400 }}>
+                                      Due {fmtDate(ms.due_date)}{overdue?` · ${Math.abs(dl)}d overdue`:dl===0&&!done?' · today':''}
+                                    </div>
+                                  )}
+                                </div>
+                                {canEdit && (
+                                  <button onClick={()=>{ setEditingMsId(ms.id); setEditingMsTitle(ms.title); setEditingMsDate(ms.due_date||'') }}
+                                    title="Edit title / date"
+                                    style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, color:'#6b7280', cursor:'pointer', fontSize:11, padding:'3px 8px' }}>
+                                    Edit
+                                  </button>
                                 )}
-                              </div>
-                              {canEdit && (
-                                <button onClick={()=>{ setEditingMsId(ms.id); setEditingMsTitle(ms.title); setEditingMsDate(ms.due_date||'') }}
-                                  title="Edit milestone"
-                                  style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:12, padding:'0 3px', lineHeight:1 }}>✏️</button>
-                              )}
-                              {canDelete && (
-                                <button onClick={()=>deleteMilestone(ms.id)}
-                                  style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:13, padding:'0 2px' }}>✕</button>
-                              )}
-                            </>
-                          )}
+                                {canDelete && (
+                                  <button onClick={()=>deleteMilestone(ms.id)}
+                                    style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:14, padding:'0 2px', lineHeight:1 }}>✕</button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       )
                     })}
@@ -1690,7 +1712,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                           <div key={ms.id} style={{ position:'relative', height:42, borderBottom:'1px solid #f9fafb' }}>
                             <div style={{ position:'absolute', left:0, right:0, top:'50%', height:1, background:'#f0f0f0' }}/>
                             <button
-                              onClick={()=>canEdit&&toggleMilestone(ms)}
+                              onClick={()=>canEdit&&setMilestoneStatus(ms, done?'pending':'completed')}
                               title={canEdit ? (done ? 'Click to mark Pending' : 'Click to mark Completed') : ms.status}
                               style={{ position:'absolute', left:`${mp}%`, top:'50%', transform:'translate(-50%,-50%) rotate(45deg)', width:17, height:17, background:done?'#15803d':'#b5833a', border:'2.5px solid white', boxShadow:`0 0 0 1.5px ${done?'#15803d':'#b5833a'}`, zIndex:3, cursor:canEdit?'pointer':'default', padding:0, outline:'none' }}
                             />
