@@ -214,6 +214,76 @@ export interface ProjectExpense {
   created_at:   string
 }
 
+// ─── Finance ──────────────────────────────────────────────────────────────────
+
+export type InvoiceStatus = 'draft' | 'sent' | 'accepted' | 'paid' | 'overdue' | 'cancelled'
+export type DocType       = 'quotation' | 'invoice' | 'lpo'
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  draft:     'Draft',
+  sent:      'Sent',
+  accepted:  'Accepted',
+  paid:      'Paid',
+  overdue:   'Overdue',
+  cancelled: 'Cancelled',
+}
+
+export const INVOICE_STATUS_STYLE: Record<InvoiceStatus, { bg: string; color: string }> = {
+  draft:     { bg: '#f3f4f6', color: '#6b7280' },
+  sent:      { bg: '#dbeafe', color: '#1d4ed8' },
+  accepted:  { bg: '#ede9fe', color: '#6d28d9' },
+  paid:      { bg: '#dcfce7', color: '#15803d' },
+  overdue:   { bg: '#fee2e2', color: '#dc2626' },
+  cancelled: { bg: '#f9fafb', color: '#9ca3af' },
+}
+
+export interface InvoiceItem {
+  description: string
+  qty:         number
+  unit_price:  number
+  amount:      number
+}
+
+export interface Invoice {
+  id:              number
+  doc_no:          string
+  type:            DocType
+  status:          InvoiceStatus
+  issuing_company: string
+  client_name:     string
+  client_address:  string
+  client_email:    string
+  issue_date:      string
+  due_date:        string
+  validity_date:   string
+  items:           InvoiceItem[]
+  subtotal:        number
+  tax_rate:        number
+  tax_amount:      number
+  total:           number
+  notes:           string
+  terms:           string
+  project_id:      number | null
+  created_by:      string
+  created_at:      string
+  converted_from:  number | null
+}
+
+export interface DeliveryNote {
+  id:            number
+  dn_no:         string
+  invoice_id:    number | null
+  invoice_no:    string
+  project_id:    number | null
+  delivery_date: string
+  delivered_to:  string
+  received_by:   string
+  items:         InvoiceItem[]
+  notes:         string
+  created_by:    string
+  created_at:    string
+}
+
 export interface Task {
   id:              string
   sno:             number

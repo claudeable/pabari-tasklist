@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { verifyToken } from '@/lib/auth'
+import { getDeliveryNoteById, updateDeliveryNote, deleteDeliveryNote } from '@/lib/finance'
+
+const ALLOWED = ['harshil', 'benson']
+function isAllowed(name: string, role: string) {
+  if (role === 'admin') return true
+  return ALLOWED.includes(name.toLowerCase().split(' ')[0])
+}
+
+export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const session     = cookies().get('pabari-session')
+  const currentUser = session?.value ? await verifyToken(session.value) : null
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isAllowed(currentUser.name, currentUser.role))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const dn = await getDeliveryNoteById(Number(params.id))
+  if (!dn) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(dn)
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const session     = cookies().get('pabari-session')
+  const currentUser = session?.value ? await verifyToken(session.value) : null
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isAllowed(currentUser.name, currentUser.role))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  try {
+    const body = await req.json()
+    const dn   = await updateDeliveryNote(Number(params.id), body)
+    if (!dn) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(dn)
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
+}
+
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const session     = cookies().get('pabari-session')
+  const currentUser = session?.value ? await verifyToken(session.value) : null
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isAllowed(currentUser.name, currentUser.role))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const ok = await deleteDeliveryNote(Number(params.id))
+  if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json({ ok: true })
+}

@@ -1174,9 +1174,9 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
                     <div style={{ fontSize:14, fontWeight:700, color:'#111827' }}>Budget Summary</div>
                     {canEdit && (
-                      <button onClick={()=>setDetailTab('overview')}
+                      <button onClick={openEdit}
                         style={{ background:'none', border:'none', color:'#1a3a2a', fontSize:11, fontWeight:600, cursor:'pointer', textDecoration:'underline' }}>
-                        Edit budget in project settings
+                        Edit budget ✏
                       </button>
                     )}
                   </div>
@@ -1630,7 +1630,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                         return (
                           <div key={ms.id} style={{ position:'relative', height:42, borderBottom:'1px solid #f9fafb' }}>
                             <div style={{ position:'absolute', left:0, right:0, top:'50%', height:1, background:'#f0f0f0' }}/>
-                            <div style={{ position:'absolute', left:`${mp}%`, top:'50%', transform:'translate(-50%,-50%) rotate(45deg)', width:15, height:15, background:done?'#15803d':'#b5833a', border:'2.5px solid white', boxShadow:`0 0 0 1.5px ${done?'#15803d':'#b5833a'}`, zIndex:3 }}/>
+                            <button
+                              onClick={()=>canEdit&&toggleMilestone(ms)}
+                              title={canEdit ? (done ? 'Click to mark Pending' : 'Click to mark Completed') : ms.status}
+                              style={{ position:'absolute', left:`${mp}%`, top:'50%', transform:'translate(-50%,-50%) rotate(45deg)', width:17, height:17, background:done?'#15803d':'#b5833a', border:'2.5px solid white', boxShadow:`0 0 0 1.5px ${done?'#15803d':'#b5833a'}`, zIndex:3, cursor:canEdit?'pointer':'default', padding:0, outline:'none' }}
+                            />
                             <div style={{ position:'absolute', top:4, ...(flipRight?{left:`${mp+1.5}%`}:{left:`${mp}%`,transform:'translateX(-50%)'}), fontSize:10, fontWeight:600, color:done?'#15803d':'#374151', whiteSpace:'nowrap', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', background:'white', border:`1px solid ${done?'#bbf7d0':'#e5e7eb'}`, borderRadius:4, padding:'2px 6px', zIndex:4, boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
                               {done&&'✓ '}{ms.title}
                             </div>
