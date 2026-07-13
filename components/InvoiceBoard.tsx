@@ -791,7 +791,21 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
   )
 
   return (
-    <div style={{ display:'flex', height:'calc(100vh - 56px)', overflow:'hidden', background:'white' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
+      {/* ── Top nav ── */}
+      <div style={{ height:56, background:'#1a3a2a', display:'flex', alignItems:'center', gap:12, padding:'0 16px', flexShrink:0, zIndex:50 }}>
+        <span style={{ background:'#b5833a', color:'white', fontWeight:800, fontSize:11, padding:'4px 9px', borderRadius:4, letterSpacing:'1px' }}>PABARI</span>
+        <span style={{ fontSize:13, fontWeight:700, color:'white' }}>PABARI GROUP</span>
+        <div style={{ width:1, height:20, background:'rgba(255,255,255,0.15)', margin:'0 4px' }}/>
+        <a href="/"         style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>← Portal</a>
+        <a href="/tasks"    style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>Task Board</a>
+        <a href="/projects" style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>Projects</a>
+        <a href="/finance"  style={{ color:'white', textDecoration:'none', fontSize:12, fontWeight:600, borderBottom:'2px solid #b5833a', paddingBottom:2 }}>Finance</a>
+        <div style={{ flex:1 }}/>
+        <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{currentUser.name}</span>
+      </div>
+
+    <div style={{ display:'flex', flex:1, overflow:'hidden', background:'white' }}>
       {sidebar}
 
       {/* Main area */}
@@ -815,6 +829,7 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
       </div>
 
       {showPrint && active && <PrintPreview inv={active} onClose={()=>setShowPrint(false)} />}
+    </div>
     </div>
   )
 }
