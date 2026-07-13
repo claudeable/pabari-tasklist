@@ -6,11 +6,18 @@ import ProjectsBoard from '@/components/ProjectsBoard'
 
 export const dynamic = 'force-dynamic'
 
+const ALLOWED_NAMES = ['harshil', 'benson']
+
 export default async function ProjectsPage() {
   const cookieStore = cookies()
   const session     = cookieStore.get('pabari-session')
   const currentUser = session?.value ? await verifyToken(session.value) : null
   if (!currentUser) redirect('/login')
+
+  const isAllowed = currentUser.role === 'admin' ||
+    ALLOWED_NAMES.includes(currentUser.name.toLowerCase().split(' ')[0])
+
+  if (!isAllowed) redirect('/')
 
   const projects = await getProjects()
 

@@ -1,5 +1,5 @@
 import { query, queryOne, execute } from './database'
-import { Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport } from '@/types'
+import { Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport, ProjectExpense } from '@/types'
 
 let tablesReady = false
 
@@ -64,6 +64,18 @@ async function ensureProjectTables() {
       blockers   TEXT NOT NULL DEFAULT '',
       next_steps TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await execute(`
+    CREATE TABLE IF NOT EXISTS project_expenses (
+      id           SERIAL PRIMARY KEY,
+      project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      description  TEXT NOT NULL DEFAULT '',
+      amount       NUMERIC(12,2) NOT NULL DEFAULT 0,
+      expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      category     TEXT NOT NULL DEFAULT 'General',
+      logged_by    TEXT NOT NULL DEFAULT '',
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
   tablesReady = true
@@ -175,7 +187,7 @@ export async function getProjectSpend(projectId: number): Promise<number> {
 export async function getProjects(): Promise<Project[]> {
   await ensureProjectTables()
 
-  const [projectRows, milestoneRows, taskCounts, spendRows] = await Promise.all([
+  const [projectRows, milestoneRows, taskCounts, pcrSpendRows, manualSpendRows] = await Promise.all([
     query<Record<string, unknown>>('SELECT * FROM projects ORDER BY created_at DESC'),
     query<Record<string, unknown>>('SELECT * FROM milestones ORDER BY due_date ASC NULLS LAST, created_at ASC'),
     query<Record<string, unknown>>(`
@@ -187,6 +199,9 @@ export async function getProjects(): Promise<Project[]> {
     query<Record<string, unknown>>(
       `SELECT project_id, COALESCE(SUM(total_amount),0) AS total
        FROM petty_cash_requests WHERE project_id IS NOT NULL AND status='approved' GROUP BY project_id`
+    ).catch(() => [] as Record<string, unknown>[]),
+    query<Record<string, unknown>>(
+      `SELECT project_id, COALESCE(SUM(amount),0) AS total FROM project_expenses GROUP BY project_id`
     ).catch(() => [] as Record<string, unknown>[]),
   ])
 
@@ -202,20 +217,23 @@ export async function getProjects(): Promise<Project[]> {
     countMap[Number(r.project_id)] = { total: Number(r.total), done: Number(r.done) }
   })
 
-  const spendMap: Record<number, number> = {}
-  spendRows.forEach(r => { spendMap[Number(r.project_id)] = Number(r.total) })
+  const pcrSpendMap: Record<number, number> = {}
+  pcrSpendRows.forEach(r => { pcrSpendMap[Number(r.project_id)] = Number(r.total) })
+  const manualSpendMap: Record<number, number> = {}
+  manualSpendRows.forEach(r => { manualSpendMap[Number(r.project_id)] = Number(r.total) })
 
   return projectRows.map(r => {
     const pid = Number(r.id)
     const c = countMap[pid] || { total: 0, done: 0 }
-    return rowToProject({ ...r, spent: spendMap[pid] ?? Number(r.spent ?? 0) }, msMap[pid] || [], c.total, c.done)
+    const spent = (pcrSpendMap[pid] || 0) + (manualSpendMap[pid] || 0)
+    return rowToProject({ ...r, spent }, msMap[pid] || [], c.total, c.done)
   })
 }
 
 export async function getProjectById(id: number): Promise<Project | null> {
   await ensureProjectTables()
 
-  const [row, milestoneRows, countRow, spendRow] = await Promise.all([
+  const [row, milestoneRows, countRow, pcrSpendRow, manualSpendRow] = await Promise.all([
     queryOne<Record<string, unknown>>('SELECT * FROM projects WHERE id = $1', [id]),
     query<Record<string, unknown>>('SELECT * FROM milestones WHERE project_id = $1 ORDER BY due_date ASC NULLS LAST', [id]),
     queryOne<Record<string, unknown>>(
@@ -226,10 +244,15 @@ export async function getProjectById(id: number): Promise<Project | null> {
       `SELECT COALESCE(SUM(total_amount),0) AS total FROM petty_cash_requests WHERE project_id=$1 AND status='approved'`,
       [id]
     ).catch(() => null),
+    queryOne<Record<string, unknown>>(
+      `SELECT COALESCE(SUM(amount),0) AS total FROM project_expenses WHERE project_id=$1`,
+      [id]
+    ).catch(() => null),
   ])
   if (!row) return null
+  const spent = Number(pcrSpendRow?.total || 0) + Number(manualSpendRow?.total || 0)
   return rowToProject(
-    { ...row, spent: Number(spendRow?.total || 0) },
+    { ...row, spent },
     milestoneRows.map(rowToMilestone),
     Number(countRow?.total || 0),
     Number(countRow?.done || 0),
@@ -379,4 +402,59 @@ export async function createStatusReport(data: {
 export async function deleteStatusReport(id: number): Promise<boolean> {
   const rows = await query('DELETE FROM project_status_reports WHERE id=$1 RETURNING id', [id])
   return rows.length > 0
+}
+
+// ─── Project Expenses (manual spend entries) ──────────────────────────────────
+
+function rowToExpense(row: Record<string, unknown>): ProjectExpense {
+  return {
+    id:           Number(row.id),
+    project_id:   Number(row.project_id),
+    description:  String(row.description || ''),
+    amount:       Number(row.amount || 0),
+    expense_date: row.expense_date
+      ? (row.expense_date instanceof Date ? row.expense_date.toISOString() : String(row.expense_date)).slice(0, 10)
+      : '',
+    category:   String(row.category || 'General'),
+    logged_by:  String(row.logged_by || ''),
+    created_at: String(row.created_at || ''),
+  }
+}
+
+export async function getProjectExpenses(projectId: number): Promise<ProjectExpense[]> {
+  await ensureProjectTables()
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM project_expenses WHERE project_id = $1 ORDER BY expense_date DESC, created_at DESC', [projectId]
+  )
+  return rows.map(rowToExpense)
+}
+
+export async function createProjectExpense(data: {
+  project_id: number; description: string; amount: number
+  expense_date: string; category: string; logged_by: string
+}): Promise<ProjectExpense> {
+  await ensureProjectTables()
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO project_expenses (project_id, description, amount, expense_date, category, logged_by)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [data.project_id, data.description, data.amount, data.expense_date || null, data.category, data.logged_by]
+  )
+  if (!row) throw new Error('Failed to create expense')
+  return rowToExpense(row)
+}
+
+export async function deleteProjectExpense(id: number): Promise<boolean> {
+  const rows = await query('DELETE FROM project_expenses WHERE id=$1 RETURNING id', [id])
+  return rows.length > 0
+}
+
+// ─── Project PCRs (read-only — petty cash requests linked to project) ─────────
+
+export async function getProjectPCRs(projectId: number): Promise<Record<string, unknown>[]> {
+  await ensureProjectTables()
+  return query<Record<string, unknown>>(
+    `SELECT id, req_no, employee_name, company, total_amount, status, request_date, items
+     FROM petty_cash_requests WHERE project_id = $1 ORDER BY request_date DESC`,
+    [projectId]
+  ).catch(() => [])
 }

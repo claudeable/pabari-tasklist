@@ -203,6 +203,17 @@ export interface StatusReport {
   created_at: string
 }
 
+export interface ProjectExpense {
+  id:           number
+  project_id:   number
+  description:  string
+  amount:       number
+  expense_date: string
+  category:     string
+  logged_by:    string
+  created_at:   string
+}
+
 export interface Task {
   id:              string
   sno:             number

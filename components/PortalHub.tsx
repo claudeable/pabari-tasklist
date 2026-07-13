@@ -111,11 +111,12 @@ const systems = [
     iconColor: '#0369a1',
     label: 'Projects',
     description: 'Plan and track cross-company projects with milestones, tasks, timelines, and spend.',
-    badge: 'Live',
-    badgeBg: '#dcfce7',
-    badgeColor: '#15803d',
+    badge: 'Beta',
+    badgeBg: '#ede9fe',
+    badgeColor: '#6d28d9',
     href: '/projects',
     detail: 'Milestones · Gantt · Budget · Thread',
+    projectsOnly: true,
   },
   {
     key: 'docs',
@@ -307,11 +308,15 @@ export default function PortalHub({ currentUser }: Props) {
           gap: 20,
         }}>
           {systems.filter(sys => {
-            const s = sys as { adminOnly?: boolean; superAdminOnly?: boolean }
+            const s = sys as { adminOnly?: boolean; superAdminOnly?: boolean; projectsOnly?: boolean }
             if (s.superAdminOnly) return currentUser.role === 'admin'
             if (s.adminOnly) {
               return currentUser.role === 'admin' ||
                 (currentUser.role === 'director' && currentUser.department === 'Director')
+            }
+            if (s.projectsOnly) {
+              const first = currentUser.name.toLowerCase().split(' ')[0]
+              return currentUser.role === 'admin' || first === 'harshil' || first === 'benson'
             }
             return true
           }).map(sys => {

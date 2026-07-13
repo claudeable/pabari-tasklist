@@ -181,6 +181,16 @@ export default function PettyCashForm({ currentUser, hodName }: Props) {
         <div style={{fontSize:13,color:'#6b7280',marginBottom:18}}>Approved by: Krishna (HOS) → {hodName || 'Your HOD'} → Andu (Finance)</div>
 
         <form onSubmit={handleSubmit}>
+          {/* Project link — top of form, prominent */}
+          {projects.length > 0 && (
+            <div style={{...sectionStyle, border: projectId ? '2px solid #1a3a2a' : '1px solid #e5e7eb', marginBottom:14}}>
+              <label style={labelStyle}>Link to Project <span style={{color:'#9ca3af',fontWeight:400,textTransform:'none',fontSize:11}}>(recommended — helps track project spend)</span></label>
+              <select value={projectId} onChange={e=>setProjectId(e.target.value)} style={inputStyle}>
+                <option value="">— No project —</option>
+                {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.company})</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Header row */}
           <div style={sectionStyle}>
@@ -340,18 +350,6 @@ export default function PettyCashForm({ currentUser, hodName }: Props) {
               ⚠ After payment is made, the legal receipt must be returned to Finance within 48 hours. Failure will result in recovery from payroll.
             </div>
           </div>
-
-          {/* Link to project (optional) */}
-          {projects.length > 0 && (
-            <div style={{marginBottom:16}}>
-              <label style={{...labelStyle, display:'block', marginBottom:6}}>Link to Project (optional)</label>
-              <select value={projectId} onChange={e=>setProjectId(e.target.value)}
-                style={{...inputStyle, width:'100%'}}>
-                <option value="">— No project —</option>
-                {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.company})</option>)}
-              </select>
-            </div>
-          )}
 
           {error && (
             <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:6,padding:'12px 16px',marginBottom:14,fontSize:13,color:'#dc2626'}}>

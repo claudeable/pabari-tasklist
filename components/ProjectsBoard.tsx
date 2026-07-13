@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
-  Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport, SessionUser,
+  Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport, ProjectExpense, SessionUser,
   PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE,
 } from '@/types'
 import type { ProjectNote } from '@/lib/projects'
@@ -29,8 +29,20 @@ const BLANK_FORM = {
   start_date:'', end_date:'', budget:'',
 }
 
-const BLANK_TASK = { particulars:'', responsible:'', due_date:'', priority:'medium', section:'General', category:'Other' }
-const BLANK_REPORT = { rag:'not-set' as RAGStatus, narrative:'', blockers:'', next_steps:'' }
+const BLANK_TASK    = { particulars:'', responsible:'', due_date:'', priority:'medium', section:'General', category:'Other' }
+const BLANK_REPORT  = { rag:'not-set' as RAGStatus, narrative:'', blockers:'', next_steps:'' }
+const BLANK_EXPENSE = { description:'', amount:'', expense_date: new Date().toISOString().slice(0,10), category:'General' }
+
+const EXPENSE_CATEGORIES = ['General','Materials','Labour','Transport','Equipment','Utilities','Professional Fees','Other']
+
+const PCR_STATUS_LABEL: Record<string,string> = {
+  pending_hos:'Pending HOS', pending_hod:'Pending HOD', pending_finance:'Pending Finance',
+  approved:'Approved', rejected:'Rejected',
+}
+const PCR_STATUS_COLOR: Record<string,string> = {
+  pending_hos:'#d97706', pending_hod:'#7c3aed', pending_finance:'#1d4ed8',
+  approved:'#15803d', rejected:'#dc2626',
+}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -139,8 +151,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [editForm,   setEditForm]   = useState({ ...BLANK_FORM, owner: currentUser.name })
   const [editSaving, setEditSaving] = useState(false)
 
+  // Search
+  const [search, setSearch] = useState('')
+
   // Detail tab
-  const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'>('overview')
+  const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'|'budget'>('overview')
 
   // Milestones
   const [msTitle,  setMsTitle]  = useState('')
@@ -180,6 +195,14 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   // Task filter inside project
   const [taskFilter, setTaskFilter] = useState<'all'|'active'|'resolved'>('all')
 
+  // Budget / Expenses / PCRs
+  const [expenses,       setExpenses]       = useState<ProjectExpense[]>([])
+  const [pcrs,           setPcrs]           = useState<Record<string,unknown>[]>([])
+  const [budgetLoaded,   setBudgetLoaded]   = useState(false)
+  const [showAddExpense, setShowAddExpense] = useState(false)
+  const [expenseForm,    setExpenseForm]    = useState({ ...BLANK_EXPENSE })
+  const [expenseSaving,  setExpenseSaving]  = useState(false)
+
   // ── Permissions ──
   const canEdit = currentUser.role !== 'staff'
   const canDelete = currentUser.role === 'admin' || currentUser.role === 'director'
@@ -189,11 +212,14 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
 
   // ── Derived data ──
   const filtered = useMemo(() => projects.filter(p => {
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
+        !p.owner.toLowerCase().includes(search.toLowerCase()) &&
+        !p.company.toLowerCase().includes(search.toLowerCase())) return false
     if (filterStatus  && p.status      !== filterStatus)  return false
     if (filterCompany && p.company     !== filterCompany) return false
     if (filterRAG     && p.rag_status  !== filterRAG)     return false
     return true
-  }), [projects, filterStatus, filterCompany, filterRAG])
+  }), [projects, filterStatus, filterCompany, filterRAG, search])
 
   const healthMap = useMemo(() => {
     const m: Record<number, ReturnType<typeof computeHealth>> = {}
@@ -224,12 +250,26 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       .catch(() => {})
   }, [detailTab, active?.id, reportsLoaded])
 
+  // ── Load budget when tab opens ──
+  useEffect(() => {
+    if (detailTab !== 'budget' || !active || budgetLoaded) return
+    fetch(`/api/projects/${active.id}/budget`, { credentials:'include' })
+      .then(r => r.ok ? r.json() : { expenses:[], pcrs:[] })
+      .then(data => {
+        setExpenses(Array.isArray(data.expenses) ? data.expenses : [])
+        setPcrs(Array.isArray(data.pcrs) ? data.pcrs : [])
+        setBudgetLoaded(true)
+      })
+      .catch(() => {})
+  }, [detailTab, active?.id, budgetLoaded])
+
   // ── Core functions ──
   async function openProject(p: Project) {
     setActive(p)
     setDetailTab('overview')
     setNotes([]); setMembers([]); setTasks([])
     setReports([]); setReportsLoaded(false)
+    setExpenses([]); setPcrs([]); setBudgetLoaded(false)
     setShowLinkTask(false); setTaskFilter('all')
 
     const [res, notesRes, membersRes] = await Promise.all([
@@ -537,6 +577,38 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setCreateTaskSaving(false)
   }
 
+  // Expense functions
+  async function addExpense() {
+    if (!active || !expenseForm.description.trim() || !expenseForm.amount) return
+    setExpenseSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/budget`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify(expenseForm),
+    })
+    if (res.ok) {
+      const expense: ProjectExpense = await res.json()
+      setExpenses(prev => [expense, ...prev])
+      const newSpent = (active.spent || 0) + expense.amount
+      setActive(a => a ? { ...a, spent: newSpent } : a)
+      setProjects(prev => prev.map(p => p.id === active.id ? { ...p, spent: newSpent } : p))
+      setExpenseForm({ ...BLANK_EXPENSE })
+      setShowAddExpense(false)
+    }
+    setExpenseSaving(false)
+  }
+
+  async function deleteExpense(expenseId: number, amount: number) {
+    if (!active) return
+    await fetch(`/api/projects/${active.id}/budget`, {
+      method:'DELETE', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ expense_id: expenseId }),
+    })
+    setExpenses(prev => prev.filter(e => e.id !== expenseId))
+    const newSpent = Math.max(0, (active.spent || 0) - amount)
+    setActive(a => a ? { ...a, spent: newSpent } : a)
+    setProjects(prev => prev.map(p => p.id === active.id ? { ...p, spent: newSpent } : p))
+  }
+
   // ── Style helpers ──
   const inp: React.CSSProperties = { width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'8px 10px', fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit' }
   const lbl: React.CSSProperties = { display:'block', fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:5 }
@@ -584,6 +656,10 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
 
           {/* Filter bar */}
           <div style={{ padding:'10px 12px', background:'white', borderBottom:'1px solid #e5e7eb', flexShrink:0 }}>
+            {/* Search */}
+            <input value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Search projects…"
+              style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'6px 10px', fontSize:12, boxSizing:'border-box', outline:'none', marginBottom:7 }}/>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginBottom:6 }}>
               <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value as ProjectStatus|'')}
                 style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'4px 7px', fontSize:11, background:'white' }}>
@@ -690,7 +766,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     const dl = daysLeft(p.end_date)
                     const s = PROJECT_STATUS_STYLE[p.status]
                     return (
-                      <tr key={p.id} onClick={()=>{ setViewMode('list'); openProject(p) }}
+                      <tr key={p.id} onClick={()=>openProject(p)}
                         style={{ borderBottom:'1px solid #f3f4f6', cursor:'pointer', background:'white' }}
                         onMouseEnter={e=>(e.currentTarget as HTMLTableRowElement).style.background='#f0fdf4'}
                         onMouseLeave={e=>(e.currentTarget as HTMLTableRowElement).style.background='white'}>
@@ -795,15 +871,16 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
             </div>
 
             {/* Tab bar */}
-            <div style={{ borderBottom:'1px solid #e5e7eb', display:'flex', padding:'0 18px', background:'white', flexShrink:0 }}>
+            <div style={{ borderBottom:'1px solid #e5e7eb', display:'flex', padding:'0 18px', background:'white', flexShrink:0, overflowX:'auto' }}>
               {([
-                { key:'overview', label:'📋 Overview' },
-                { key:'reports',  label:'📊 Reports' },
-                { key:'thread',   label:'💬 Thread' },
-                { key:'timeline', label:'📅 Timeline' },
+                { key:'overview',  label:'📋 Overview' },
+                { key:'budget',    label:'💰 Budget' },
+                { key:'reports',   label:'📊 Reports' },
+                { key:'thread',    label:'💬 Thread' },
+                { key:'timeline',  label:'📅 Timeline' },
               ] as const).map(tab => (
                 <button key={tab.key} onClick={()=>setDetailTab(tab.key)}
-                  style={{ border:'none', borderBottom: detailTab===tab.key ? '2px solid #1a3a2a' : '2px solid transparent', background:'transparent', padding:'9px 14px', cursor:'pointer', fontSize:12, fontWeight: detailTab===tab.key ? 700 : 400, color: detailTab===tab.key ? '#1a3a2a' : '#6b7280' }}>
+                  style={{ border:'none', borderBottom: detailTab===tab.key ? '2px solid #1a3a2a' : '2px solid transparent', background:'transparent', padding:'9px 14px', cursor:'pointer', fontSize:12, fontWeight: detailTab===tab.key ? 700 : 400, color: detailTab===tab.key ? '#1a3a2a' : '#6b7280', whiteSpace:'nowrap' }}>
                   {tab.label}
                 </button>
               ))}
@@ -828,6 +905,27 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                   </div>
                 )}
 
+                {/* Budget warning */}
+                {active.budget > 0 && active.spent > 0 && (() => {
+                  const pct = active.spent / active.budget
+                  if (pct < 0.8) return null
+                  const over = pct >= 1
+                  return (
+                    <div style={{ background: over?'#fef2f2':'#fffbeb', border:`1px solid ${over?'#fecaca':'#fde68a'}`, borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', gap:10 }}>
+                      <span style={{ fontSize:18 }}>{over?'🚨':'⚠️'}</span>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color: over?'#dc2626':'#d97706' }}>
+                          {over ? 'Budget exceeded' : 'Budget at risk'} — {Math.round(pct*100)}% used
+                        </div>
+                        <div style={{ fontSize:11, color: over?'#b91c1c':'#b45309', marginTop:1 }}>
+                          KES {active.spent.toLocaleString()} of KES {active.budget.toLocaleString()} · {over ? `KES ${(active.spent-active.budget).toLocaleString()} over` : `KES ${(active.budget-active.spent).toLocaleString()} remaining`}
+                          {' '}<button onClick={()=>setDetailTab('budget')} style={{ background:'none', border:'none', color:'inherit', textDecoration:'underline', cursor:'pointer', fontSize:11, fontWeight:600 }}>View Budget →</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {/* KPI cards */}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
                   {[
@@ -836,18 +934,21 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                       value:`${active.done_count}/${active.task_count} resolved`,
                       sub:`${progressPct(active.done_count,active.task_count)}% complete`,
                       pct: progressPct(active.done_count,active.task_count),
+                      barColor: '',
                     },
                     {
                       label:'Milestones',
                       value:`${active.milestones.filter(m=>m.status==='completed').length}/${active.milestones.length} done`,
                       sub: active.milestones.length===0 ? 'None added' : `${Math.round((active.milestones.filter(m=>m.status==='completed').length/active.milestones.length)*100)}%`,
                       pct: active.milestones.length===0 ? 0 : Math.round((active.milestones.filter(m=>m.status==='completed').length/active.milestones.length)*100),
+                      barColor: '',
                     },
                     {
                       label:'Budget',
                       value: active.budget>0 ? `KES ${active.budget.toLocaleString()}` : 'Not set',
                       sub: active.spent>0 ? `KES ${active.spent.toLocaleString()} spent` : 'No spend logged',
                       pct: active.budget>0 ? Math.min(100,Math.round((active.spent/active.budget)*100)) : 0,
+                      barColor: active.budget>0 && active.spent/active.budget>=1 ? '#dc2626' : active.budget>0 && active.spent/active.budget>=0.8 ? '#d97706' : '',
                     },
                   ].map(kpi=>(
                     <div key={kpi.label} style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, padding:'10px 12px' }}>
@@ -855,7 +956,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                       <div style={{ fontSize:14, fontWeight:700, color:'#111827', marginBottom:1 }}>{kpi.value}</div>
                       <div style={{ fontSize:11, color:'#6b7280', marginBottom:5 }}>{kpi.sub}</div>
                       <div style={{ height:3, background:'#e5e7eb', borderRadius:2 }}>
-                        <div style={{ height:'100%', width:`${kpi.pct}%`, background:kpi.pct===100?'#15803d':'#1a3a2a', borderRadius:2 }}/>
+                        <div style={{ height:'100%', width:`${kpi.pct}%`, background:kpi.barColor||(kpi.pct===100?'#15803d':'#1a3a2a'), borderRadius:2 }}/>
                       </div>
                     </div>
                   ))}
@@ -1061,6 +1162,227 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* ── BUDGET TAB ── */}
+            {detailTab === 'budget' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto' }}>
+
+                {/* Budget summary */}
+                <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:'16px 18px', marginBottom:20 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:'#111827' }}>Budget Summary</div>
+                    {canEdit && (
+                      <button onClick={()=>setDetailTab('overview')}
+                        style={{ background:'none', border:'none', color:'#1a3a2a', fontSize:11, fontWeight:600, cursor:'pointer', textDecoration:'underline' }}>
+                        Edit budget in project settings
+                      </button>
+                    )}
+                  </div>
+                  {active.budget > 0 ? (() => {
+                    const pct = Math.min(100, Math.round((active.spent / active.budget) * 100))
+                    const over = active.spent > active.budget
+                    const warn = !over && pct >= 80
+                    return (
+                      <div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+                          {[
+                            { label:'Allocated', val:`KES ${active.budget.toLocaleString()}`, color:'#374151' },
+                            { label:'Spent', val:`KES ${active.spent.toLocaleString()}`, color: over?'#dc2626':warn?'#d97706':'#374151' },
+                            { label: over?'Over by':'Remaining', val:`KES ${Math.abs(active.budget-active.spent).toLocaleString()}`, color: over?'#dc2626':warn?'#d97706':'#15803d' },
+                          ].map(s=>(
+                            <div key={s.label} style={{ textAlign:'center', padding:'10px', background:'white', borderRadius:6, border:'1px solid #e5e7eb' }}>
+                              <div style={{ fontSize:10, color:'#9ca3af', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:3 }}>{s.label}</div>
+                              <div style={{ fontSize:15, fontWeight:800, color:s.color }}>{s.val}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ height:8, background:'#e5e7eb', borderRadius:4, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${pct}%`, background: over?'#ef4444':warn?'#f59e0b':'#1a3a2a', borderRadius:4, transition:'width 0.3s' }}/>
+                        </div>
+                        <div style={{ fontSize:11, color:'#9ca3af', marginTop:5, textAlign:'right' }}>{pct}% of budget used</div>
+                      </div>
+                    )
+                  })() : (
+                    <div style={{ fontSize:13, color:'#9ca3af', textAlign:'center', padding:'12px 0' }}>
+                      No budget set. <button onClick={openEdit} style={{ background:'none', border:'none', color:'#1a3a2a', fontWeight:600, cursor:'pointer', textDecoration:'underline', fontSize:13 }}>Set one in Edit Project.</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Petty Cash Requests linked to project */}
+                <div style={{ marginBottom:22 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#111827', marginBottom:10 }}>
+                    Petty Cash Requests {pcrs.length > 0 && `(${pcrs.length})`}
+                  </div>
+                  {!budgetLoaded && <div style={{ fontSize:12, color:'#9ca3af', padding:'8px 0' }}>Loading…</div>}
+                  {budgetLoaded && pcrs.length === 0 && (
+                    <div style={{ fontSize:12, color:'#9ca3af', padding:'8px 0' }}>
+                      No petty cash requests linked. When submitting a PCR, select this project to track it here.
+                    </div>
+                  )}
+                  {pcrs.length > 0 && (
+                    <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                        <thead>
+                          <tr style={{ background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
+                            {['Req No','Raised By','Date','Items','Amount','Status'].map(h=>(
+                              <th key={h} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px', whiteSpace:'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(pcrs as any[]).map((r,i)=>{
+                            const statusColor = PCR_STATUS_COLOR[r.status] || '#6b7280'
+                            const items = Array.isArray(r.items) ? r.items : []
+                            return (
+                              <tr key={r.id} style={{ borderBottom: i<pcrs.length-1?'1px solid #f3f4f6':'none', background:'white' }}>
+                                <td style={{ padding:'8px 10px', fontWeight:600, color:'#1a3a2a', whiteSpace:'nowrap' }}>{r.req_no || `#${r.id}`}</td>
+                                <td style={{ padding:'8px 10px', color:'#374151', whiteSpace:'nowrap' }}>{r.employee_name}</td>
+                                <td style={{ padding:'8px 10px', color:'#6b7280', whiteSpace:'nowrap' }}>{r.request_date ? fmtDateShort(String(r.request_date).slice(0,10)) : '—'}</td>
+                                <td style={{ padding:'8px 10px', color:'#6b7280', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                  {items.map((it:any)=>it.description).join(', ') || '—'}
+                                </td>
+                                <td style={{ padding:'8px 10px', fontWeight:600, color:'#111827', whiteSpace:'nowrap' }}>
+                                  KES {Number(r.total_amount).toLocaleString()}
+                                </td>
+                                <td style={{ padding:'8px 10px', whiteSpace:'nowrap' }}>
+                                  <span style={{ color: statusColor, fontWeight:700, fontSize:11 }}>
+                                    {PCR_STATUS_LABEL[r.status] || r.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background:'#f9fafb', borderTop:'2px solid #e5e7eb' }}>
+                            <td colSpan={4} style={{ padding:'8px 10px', fontSize:12, fontWeight:700, color:'#374151', textAlign:'right' }}>PCR Total (approved only)</td>
+                            <td style={{ padding:'8px 10px', fontWeight:800, color:'#1a3a2a', fontSize:13 }}>
+                              KES {(pcrs as any[]).filter(r=>r.status==='approved').reduce((s:number,r:any)=>s+Number(r.total_amount),0).toLocaleString()}
+                            </td>
+                            <td/>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                  <div style={{ marginTop:8 }}>
+                    <a href="/forms/petty-cash/new" style={{ fontSize:12, color:'#1a3a2a', fontWeight:600, textDecoration:'none' }}>
+                      + Submit a petty cash request for this project →
+                    </a>
+                  </div>
+                </div>
+
+                {/* Manual Expenses */}
+                <div>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#111827' }}>
+                      Manual Expenses {expenses.length > 0 && `(${expenses.length})`}
+                    </div>
+                    {canEdit && !showAddExpense && (
+                      <button onClick={()=>setShowAddExpense(true)}
+                        style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:6, padding:'6px 12px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                        + Log Expense
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize:12, color:'#9ca3af', marginBottom:10 }}>
+                    For spend not in petty cash — bank transfers, invoices, supplier payments.
+                  </div>
+
+                  {/* Add expense form */}
+                  {showAddExpense && (
+                    <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, padding:'14px 16px', marginBottom:14 }}>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                        <div style={{ gridColumn:'1/-1' }}>
+                          <label style={lbl}>Description *</label>
+                          <input value={expenseForm.description} onChange={e=>setExpenseForm(f=>({...f,description:e.target.value}))}
+                            placeholder="e.g. Supplier payment — XYZ Ltd" autoFocus style={inp}/>
+                        </div>
+                        <div>
+                          <label style={lbl}>Amount (KES) *</label>
+                          <input type="number" min="0" step="0.01" value={expenseForm.amount}
+                            onChange={e=>setExpenseForm(f=>({...f,amount:e.target.value}))}
+                            placeholder="0.00" style={inp}/>
+                        </div>
+                        <div>
+                          <label style={lbl}>Date</label>
+                          <input type="date" value={expenseForm.expense_date}
+                            onChange={e=>setExpenseForm(f=>({...f,expense_date:e.target.value}))} style={inp}/>
+                        </div>
+                        <div>
+                          <label style={lbl}>Category</label>
+                          <select value={expenseForm.category} onChange={e=>setExpenseForm(f=>({...f,category:e.target.value}))} style={inp}>
+                            {EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                        <button onClick={()=>{ setShowAddExpense(false); setExpenseForm({...BLANK_EXPENSE}) }}
+                          style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'7px 14px', borderRadius:6, fontSize:12, cursor:'pointer' }}>Cancel</button>
+                        <button onClick={addExpense} disabled={!expenseForm.description.trim()||!expenseForm.amount||expenseSaving}
+                          style={{ background:expenseForm.description.trim()&&expenseForm.amount?'#1a3a2a':'#9ca3af', color:'white', border:'none', padding:'7px 14px', borderRadius:6, fontSize:12, fontWeight:600, cursor:expenseForm.description.trim()&&expenseForm.amount?'pointer':'not-allowed' }}>
+                          {expenseSaving?'Saving…':'Log Expense'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {budgetLoaded && expenses.length === 0 && !showAddExpense && (
+                    <div style={{ fontSize:12, color:'#9ca3af', padding:'8px 0' }}>No manual expenses logged yet.</div>
+                  )}
+
+                  {expenses.length > 0 && (
+                    <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                        <thead>
+                          <tr style={{ background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
+                            {['Date','Description','Category','Amount','By',''].map(h=>(
+                              <th key={h} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {expenses.map((e,i)=>(
+                            <tr key={e.id} style={{ borderBottom: i<expenses.length-1?'1px solid #f3f4f6':'none', background:'white' }}>
+                              <td style={{ padding:'8px 10px', color:'#6b7280', whiteSpace:'nowrap' }}>{fmtDateShort(e.expense_date)}</td>
+                              <td style={{ padding:'8px 10px', color:'#111827', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.description}</td>
+                              <td style={{ padding:'8px 10px', color:'#6b7280', whiteSpace:'nowrap' }}>{e.category}</td>
+                              <td style={{ padding:'8px 10px', fontWeight:600, color:'#111827', whiteSpace:'nowrap' }}>KES {e.amount.toLocaleString()}</td>
+                              <td style={{ padding:'8px 10px', color:'#9ca3af', whiteSpace:'nowrap' }}>{e.logged_by}</td>
+                              <td style={{ padding:'8px 10px' }}>
+                                {canEdit && (
+                                  <button onClick={()=>deleteExpense(e.id, e.amount)}
+                                    style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:13 }}>✕</button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background:'#f9fafb', borderTop:'2px solid #e5e7eb' }}>
+                            <td colSpan={3} style={{ padding:'8px 10px', fontSize:12, fontWeight:700, color:'#374151', textAlign:'right' }}>Manual Total</td>
+                            <td style={{ padding:'8px 10px', fontWeight:800, color:'#1a3a2a', fontSize:13 }}>
+                              KES {expenses.reduce((s,e)=>s+e.amount,0).toLocaleString()}
+                            </td>
+                            <td colSpan={2}/>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Grand total */}
+                  {(pcrs.length > 0 || expenses.length > 0) && (
+                    <div style={{ marginTop:14, padding:'12px 16px', background:'#1a3a2a', borderRadius:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:'white' }}>Total Project Spend</span>
+                      <span style={{ fontSize:16, fontWeight:800, color:'white' }}>KES {active.spent.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
