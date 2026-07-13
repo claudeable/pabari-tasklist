@@ -40,6 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.company     !== undefined) patch.company     = body.company
   if (body.owner       !== undefined) patch.owner       = body.owner
   if (body.status      !== undefined) patch.status      = body.status as ProjectStatus
+  if (body.rag_status  !== undefined) patch.rag_status  = body.rag_status
   if (body.start_date  !== undefined) patch.start_date  = body.start_date
   if (body.end_date    !== undefined) patch.end_date    = body.end_date
   if (body.budget      !== undefined) patch.budget      = Number(body.budget)

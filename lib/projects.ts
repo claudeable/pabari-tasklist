@@ -1,5 +1,5 @@
 import { query, queryOne, execute } from './database'
-import { Project, Milestone, ProjectStatus } from '@/types'
+import { Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport } from '@/types'
 
 let tablesReady = false
 
@@ -43,6 +43,29 @@ async function ensureProjectTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
+  await execute(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS rag_status TEXT NOT NULL DEFAULT 'not-set'`)
+  await execute(`
+    CREATE TABLE IF NOT EXISTS project_members (
+      id         SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      user_name  TEXT NOT NULL DEFAULT '',
+      role       TEXT NOT NULL DEFAULT 'member',
+      added_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(project_id, user_name)
+    )
+  `)
+  await execute(`
+    CREATE TABLE IF NOT EXISTS project_status_reports (
+      id         SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      author     TEXT NOT NULL DEFAULT '',
+      rag        TEXT NOT NULL DEFAULT 'not-set',
+      narrative  TEXT NOT NULL DEFAULT '',
+      blockers   TEXT NOT NULL DEFAULT '',
+      next_steps TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
   tablesReady = true
 }
 
@@ -54,6 +77,7 @@ function rowToProject(row: Record<string, unknown>, milestones: Milestone[] = []
     company:     String(row.company || ''),
     owner:       String(row.owner || ''),
     status:      (row.status as ProjectStatus) || 'active',
+    rag_status:  (row.rag_status as RAGStatus)  || 'not-set',
     start_date:  row.start_date ? (row.start_date instanceof Date ? row.start_date.toISOString() : String(row.start_date)).slice(0, 10) : '',
     end_date:    row.end_date   ? (row.end_date   instanceof Date ? row.end_date.toISOString()   : String(row.end_date)).slice(0, 10)   : '',
     budget:      Number(row.budget || 0),
@@ -63,6 +87,29 @@ function rowToProject(row: Record<string, unknown>, milestones: Milestone[] = []
     milestones,
     task_count,
     done_count,
+  }
+}
+
+function rowToMember(row: Record<string, unknown>): ProjectMember {
+  return {
+    id:         Number(row.id),
+    project_id: Number(row.project_id),
+    user_name:  String(row.user_name || ''),
+    role:       String(row.role || 'member'),
+    added_at:   String(row.added_at || ''),
+  }
+}
+
+function rowToReport(row: Record<string, unknown>): StatusReport {
+  return {
+    id:         Number(row.id),
+    project_id: Number(row.project_id),
+    author:     String(row.author || ''),
+    rag:        (row.rag as RAGStatus) || 'not-set',
+    narrative:  String(row.narrative || ''),
+    blockers:   String(row.blockers || ''),
+    next_steps: String(row.next_steps || ''),
+    created_at: String(row.created_at || ''),
   }
 }
 
@@ -191,14 +238,15 @@ export async function getProjectById(id: number): Promise<Project | null> {
 
 export async function createProject(data: {
   name: string; description: string; company: string; owner: string
-  status: ProjectStatus; start_date: string; end_date: string
+  status: ProjectStatus; rag_status?: RAGStatus; start_date: string; end_date: string
   budget: number; created_by: string
 }): Promise<Project> {
   await ensureProjectTables()
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO projects (name, description, company, owner, status, start_date, end_date, budget, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    `INSERT INTO projects (name, description, company, owner, status, rag_status, start_date, end_date, budget, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
     [data.name, data.description, data.company, data.owner, data.status,
+     data.rag_status || 'not-set',
      data.start_date || null, data.end_date || null, data.budget, data.created_by]
   )
   if (!row) throw new Error('Failed to create project')
@@ -207,11 +255,11 @@ export async function createProject(data: {
 
 export async function updateProject(id: number, data: Partial<{
   name: string; description: string; company: string; owner: string
-  status: ProjectStatus; start_date: string; end_date: string
+  status: ProjectStatus; rag_status: RAGStatus; start_date: string; end_date: string
   budget: number; spent: number
 }>): Promise<Project | null> {
   await ensureProjectTables()
-  const allowed = ['name','description','company','owner','status','start_date','end_date','budget','spent']
+  const allowed = ['name','description','company','owner','status','rag_status','start_date','end_date','budget','spent']
   const fields  = Object.keys(data).filter(k => allowed.includes(k) && (data as Record<string,unknown>)[k] !== undefined)
   if (!fields.length) return null
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
@@ -272,4 +320,63 @@ export async function getProjectTasks(projectId: number) {
     `SELECT id, particulars, responsible, status, due_date, company FROM tasks WHERE project_id = $1 ORDER BY created_at DESC`,
     [projectId]
   )
+}
+
+// ─── Members ──────────────────────────────────────────────────────────────────
+
+export async function getProjectMembers(projectId: number): Promise<ProjectMember[]> {
+  await ensureProjectTables()
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM project_members WHERE project_id = $1 ORDER BY added_at ASC', [projectId]
+  )
+  return rows.map(rowToMember)
+}
+
+export async function addProjectMember(data: { project_id: number; user_name: string; role?: string }): Promise<ProjectMember> {
+  await ensureProjectTables()
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO project_members (project_id, user_name, role)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (project_id, user_name) DO UPDATE SET role = EXCLUDED.role
+     RETURNING *`,
+    [data.project_id, data.user_name, data.role || 'member']
+  )
+  if (!row) throw new Error('Failed to add member')
+  return rowToMember(row)
+}
+
+export async function removeProjectMember(projectId: number, userName: string): Promise<boolean> {
+  const rows = await query(
+    'DELETE FROM project_members WHERE project_id=$1 AND user_name=$2 RETURNING id', [projectId, userName]
+  )
+  return rows.length > 0
+}
+
+// ─── Status Reports ───────────────────────────────────────────────────────────
+
+export async function getStatusReports(projectId: number): Promise<StatusReport[]> {
+  await ensureProjectTables()
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM project_status_reports WHERE project_id = $1 ORDER BY created_at DESC', [projectId]
+  )
+  return rows.map(rowToReport)
+}
+
+export async function createStatusReport(data: {
+  project_id: number; author: string; rag: RAGStatus
+  narrative: string; blockers: string; next_steps: string
+}): Promise<StatusReport> {
+  await ensureProjectTables()
+  const row = await queryOne<Record<string, unknown>>(
+    `INSERT INTO project_status_reports (project_id, author, rag, narrative, blockers, next_steps)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [data.project_id, data.author, data.rag, data.narrative, data.blockers, data.next_steps]
+  )
+  if (!row) throw new Error('Failed to create report')
+  return rowToReport(row)
+}
+
+export async function deleteStatusReport(id: number): Promise<boolean> {
+  const rows = await query('DELETE FROM project_status_reports WHERE id=$1 RETURNING id', [id])
+  return rows.length > 0
 }

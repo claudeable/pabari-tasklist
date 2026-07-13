@@ -140,6 +140,7 @@ export const RECURRENCE_OPTIONS: { value: Recurrence; label: string; days: numbe
 ]
 
 export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed'
+export type RAGStatus    = 'green' | 'amber' | 'red' | 'not-set'
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   planning:  'Planning',
@@ -171,6 +172,7 @@ export interface Project {
   company:     string
   owner:       string
   status:      ProjectStatus
+  rag_status:  RAGStatus
   start_date:  string
   end_date:    string
   budget:      number
@@ -180,6 +182,25 @@ export interface Project {
   milestones:  Milestone[]
   task_count:  number
   done_count:  number
+}
+
+export interface ProjectMember {
+  id:         number
+  project_id: number
+  user_name:  string
+  role:       string
+  added_at:   string
+}
+
+export interface StatusReport {
+  id:         number
+  project_id: number
+  author:     string
+  rag:        RAGStatus
+  narrative:  string
+  blockers:   string
+  next_steps: string
+  created_at: string
 }
 
 export interface Task {
