@@ -49,15 +49,26 @@ const PCR_STATUS_COLOR: Record<string,string> = {
 function avatarColor(name: string) { return AVATAR_COLORS[name.toLowerCase().split(/[\s&./]+/)[0]] || '#2d6a4f' }
 function avatarInitials(name: string) { return name.split(/[\s&./]+/).map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2) }
 
+function parseDate(d: string): Date {
+  if (!d) return new Date('invalid')
+  // Already a full ISO timestamp — parse directly
+  if (d.length > 10) return new Date(d)
+  // YYYY-MM-DD — append time to avoid UTC midnight offset
+  return new Date(d + 'T00:00:00')
+}
+
 function fmtDate(d: string) {
   if (!d) return '—'
-  const dt = new Date(d + 'T00:00:00')
+  const dt = parseDate(d)
+  if (isNaN(dt.getTime())) return '—'
   return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
 }
 
 function fmtDateShort(d: string) {
   if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'2-digit' })
+  const dt = parseDate(d)
+  if (isNaN(dt.getTime())) return '—'
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'2-digit' })
 }
 
 function fmtTs(ts: string) {
@@ -69,7 +80,9 @@ function fmtTs(ts: string) {
 function daysLeft(d: string): number {
   if (!d) return Infinity
   const today = new Date(); today.setHours(0,0,0,0)
-  return Math.ceil((new Date(d+'T00:00:00').getTime() - today.getTime()) / 86400000)
+  const dt = parseDate(d)
+  if (isNaN(dt.getTime())) return Infinity
+  return Math.ceil((dt.getTime() - today.getTime()) / 86400000)
 }
 
 function progressPct(done: number, total: number) { return total === 0 ? 0 : Math.round((done / total) * 100) }
