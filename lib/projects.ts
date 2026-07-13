@@ -318,7 +318,7 @@ export async function createMilestone(data: {
 export async function updateMilestone(id: number, data: { status?: 'pending' | 'completed'; title?: string; due_date?: string }): Promise<Milestone | null> {
   await ensureProjectTables()
   const allowed = ['status', 'title', 'due_date']
-  const fields  = Object.keys(data).filter(k => allowed.includes(k))
+  const fields  = Object.keys(data).filter(k => allowed.includes(k) && (data as Record<string,unknown>)[k] !== undefined)
   if (!fields.length) return null
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
   const values = fields.map(f => {
