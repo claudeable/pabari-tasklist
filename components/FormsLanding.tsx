@@ -53,17 +53,6 @@ export default function FormsLanding({ currentUser }: Props) {
       pendingCount: pending?.leave ?? 0,
     },
     {
-      title:        'Petty Cash Requisition (KISCOL)',
-      description:  'For KISCOL staff only. Raise a petty cash request — approved by Suresh → Ahmad.',
-      icon:         '💵',
-      listHref:     '/forms/petty-cash?type=kiscol',
-      newHref:      '/forms/petty-cash/new?type=kiscol',
-      visible:      hasKiscol,
-      badge:        'KISCOL',
-      badgeColor:   '#e17055',
-      pendingCount: pending?.pettyCashKiscol ?? 0,
-    },
-    {
       title:        'Petty Cash Requisition (General)',
       description:  'For all other companies under Pabari Group. Approved by Krishna → HOD → Andu.',
       icon:         '💵',
@@ -144,9 +133,8 @@ export default function FormsLanding({ currentUser }: Props) {
               <span style={{fontSize:13,fontWeight:700,color:'#92400e'}}>
                 {pending.total} request{pending.total !== 1 ? 's' : ''} pending your approval —{' '}
               </span>
-              {pending.leave > 0 && <span style={{fontSize:12,color:'#b45309'}}>Leave ({pending.leave}){pending.pettyCashGeneral > 0 || pending.pettyCashKiscol > 0 ? ' · ' : ''}</span>}
-              {pending.pettyCashGeneral > 0 && <span style={{fontSize:12,color:'#b45309'}}>Petty Cash General ({pending.pettyCashGeneral}){pending.pettyCashKiscol > 0 ? ' · ' : ''}</span>}
-              {pending.pettyCashKiscol > 0 && <span style={{fontSize:12,color:'#b45309'}}>Petty Cash KISCOL ({pending.pettyCashKiscol})</span>}
+              {pending.leave > 0 && <span style={{fontSize:12,color:'#b45309'}}>Leave ({pending.leave}){pending.pettyCashGeneral > 0 ? ' · ' : ''}</span>}
+              {pending.pettyCashGeneral > 0 && <span style={{fontSize:12,color:'#b45309'}}>Petty Cash ({pending.pettyCashGeneral})</span>}
             </div>
           </div>
         )}

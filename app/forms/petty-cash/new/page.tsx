@@ -22,13 +22,10 @@ export default async function NewPettyCashPage() {
     if (rows.length > 0) hodName = String(rows[0].name)
   }
 
-  const hasKiscol = user.companies.includes('ALL') || user.companies.includes('KISCOL')
-
   return (
     <PettyCashForm
       currentUser={user}
       hodName={hodName || user.reports_to}
-      hasKiscol={hasKiscol}
     />
   )
 }

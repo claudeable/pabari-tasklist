@@ -7,7 +7,6 @@ import { LEAVE_COMPANIES } from '@/lib/leaveTypes'
 interface Props {
   currentUser: SessionUser
   hodName:     string
-  hasKiscol:   boolean
 }
 
 interface Item { id: string; description: string; account_no: string; amount: string }
@@ -37,14 +36,11 @@ function newItem(): Item {
   return { id: String(Math.random()), description: '', account_no: '', amount: '' }
 }
 
-export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props) {
+export default function PettyCashForm({ currentUser, hodName }: Props) {
   const [isMobile,       setIsMobile]       = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
 
-  // Determine default form type
-  const onlyKiscol = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
-  const [formType,  setFormType]  = useState<'kiscol'|'general'>(onlyKiscol ? 'kiscol' : 'general')
-  const [company,   setCompany]   = useState(onlyKiscol ? 'Kwale International Sugar Company Ltd (KISCOL)' : '')
+  const [company,   setCompany]   = useState('')
   const [reqDate,   setReqDate]   = useState(() => new Date().toISOString().split('T')[0])
   const [idNo,      setIdNo]      = useState('')
   const [items,     setItems]     = useState<Item[]>([newItem(), newItem(), newItem()])
@@ -70,12 +66,6 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
-
-  // Lock company when KISCOL form selected
-  useEffect(() => {
-    if (formType === 'kiscol') setCompany('Kwale International Sugar Company Ltd (KISCOL)')
-    else if (onlyKiscol) { /* no-op */ }
-  }, [formType, onlyKiscol])
 
   const total       = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
   const wordsAmount = amountInWords(total)
@@ -104,7 +94,7 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          form_type:      formType,
+          form_type:      'general',
           payment_method: payMethod,
           request_date:   reqDate,
           company,
@@ -158,9 +148,7 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
             <div style={{fontSize:20,fontWeight:700,color:'#1a3a2a',marginBottom:4}}>Request Submitted</div>
             <div style={{fontSize:14,color:'#9ca3af',fontWeight:600,marginBottom:12}}>{success.reqNo}</div>
             <p style={{color:'#6b7280',fontSize:14,marginBottom:24,lineHeight:1.6}}>
-              {formType === 'kiscol'
-                ? 'Your KISCOL petty cash request has been sent to Suresh for review. After his approval, it goes to Ahmad for final sign-off.'
-                : 'Your petty cash request has been sent to Krishna for review. After approval, it will go to your HOD, then to Andu (Finance).'}
+              Your petty cash request has been sent to Krishna for review. After approval, it will go to your HOD, then to Andu (Finance).
             </p>
             <p style={{color:'#d97706',fontSize:13,fontWeight:600,marginBottom:24,padding:'10px 14px',background:'#fef3c7',borderRadius:6,lineHeight:1.5}}>
               Reminder: After payment, the legal receipt must be returned to Finance within 48 hours — otherwise it will be recovered from payroll.
@@ -193,26 +181,6 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
         <div style={{fontSize:13,color:'#6b7280',marginBottom:18}}>Approved by: Krishna (HOS) → {hodName || 'Your HOD'} → Andu (Finance)</div>
 
         <form onSubmit={handleSubmit}>
-          {/* Form type selection (only for users who have KISCOL access AND are not KISCOL-only) */}
-          {hasKiscol && !onlyKiscol && (
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Form Type</label>
-              <div style={{display:'flex',gap:10}}>
-                {(['general','kiscol'] as const).map(t => (
-                  <label key={t} style={{
-                    display:'flex',alignItems:'center',gap:8,padding:'10px 16px',
-                    border:`2px solid ${formType===t?'#1a3a2a':'#e5e7eb'}`,borderRadius:6,cursor:'pointer',
-                    fontSize:13,fontWeight:formType===t?600:400,
-                    background:formType===t?'#f0f4f1':'white',color:formType===t?'#1a3a2a':'#374151',
-                  }}>
-                    <input type="radio" name="formType" value={t} checked={formType===t}
-                      onChange={()=>setFormType(t)} style={{accentColor:'#1a3a2a'}}/>
-                    {t === 'general' ? 'General (Pabari Investments)' : 'KISCOL'}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Header row */}
           <div style={sectionStyle}>
@@ -233,14 +201,10 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
 
             <div>
               <label style={labelStyle}>Company <span style={{color:'#dc2626'}}>*</span></label>
-              {formType === 'kiscol' ? (
-                <input style={{...inputStyle,background:'#f9fafb',color:'#6b7280'}} value={company} disabled />
-              ) : (
-                <select style={inputStyle} value={company} onChange={e=>setCompany(e.target.value)} required>
-                  <option value="">-- Select company --</option>
-                  {LEAVE_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              )}
+              <select style={inputStyle} value={company} onChange={e=>setCompany(e.target.value)} required>
+                <option value="">-- Select company --</option>
+                {LEAVE_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
 
@@ -358,20 +322,13 @@ export default function PettyCashForm({ currentUser, hodName, hasKiscol }: Props
           {/* Approval chain (read-only preview) */}
           <div style={{...sectionStyle,background:'#f9fafb'}}>
             <div style={{fontSize:14,fontWeight:700,color:'#374151',marginBottom:14}}>Approval Chain</div>
-            <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr 1fr' : formType === 'kiscol' ? 'repeat(3,1fr)' : 'repeat(4,1fr)',gap:10}}>
-              {(formType === 'kiscol'
-                ? [
-                    { label:'Raised By',      name: currentUser.name, role:'Employee' },
-                    { label:'Checked By',     name:'Suresh',          role:'KISCOL HOD' },
-                    { label:'Final Approval', name:'Ahmad',           role:'KISCOL Head' },
-                  ]
-                : [
-                    { label:'Raised By',              name: currentUser.name,            role:'Employee' },
-                    { label:'Checked By HOS',          name:'Krishna',                   role:'Head of Section' },
-                    { label:'Verified & Approved By HOD', name: hodName || '(your HOD)', role:'Head of Department' },
-                    { label:'Approved By Finance HOD', name:'Andu',                      role:'Finance HOD' },
-                  ]
-              ).map(step => (
+            <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)',gap:10}}>
+              {[
+                { label:'Raised By',                  name: currentUser.name,            role:'Employee' },
+                { label:'Checked By HOS',              name:'Krishna',                   role:'Head of Section' },
+                { label:'Verified & Approved By HOD', name: hodName || '(your HOD)',     role:'Head of Department' },
+                { label:'Approved By Finance HOD',    name:'Andu',                       role:'Finance HOD' },
+              ].map(step => (
                 <div key={step.label} style={{padding:'10px 12px',background:'white',borderRadius:6,border:'1px solid #e5e7eb'}}>
                   <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:4}}>{step.label}</div>
                   <div style={{fontSize:13,fontWeight:600,color:'#1a3a2a'}}>{step.name}</div>
