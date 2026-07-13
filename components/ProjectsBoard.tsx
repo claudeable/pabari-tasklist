@@ -158,9 +158,13 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'|'budget'>('overview')
 
   // Milestones
-  const [msTitle,  setMsTitle]  = useState('')
-  const [msDate,   setMsDate]   = useState('')
-  const [msAdding, setMsAdding] = useState(false)
+  const [msTitle,    setMsTitle]    = useState('')
+  const [msDate,     setMsDate]     = useState('')
+  const [msAdding,   setMsAdding]   = useState(false)
+  const [editingMsId,   setEditingMsId]   = useState<number|null>(null)
+  const [editingMsTitle,setEditingMsTitle] = useState('')
+  const [editingMsDate, setEditingMsDate]  = useState('')
+  const [msSaving,   setMsSaving]   = useState(false)
 
   // Thread
   const [notes,      setNotes]      = useState<ProjectNote[]>([])
@@ -382,6 +386,10 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setMsAdding(false)
   }
 
+  function syncMilestones(projectId: number, newMs: Milestone[]) {
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, milestones: newMs } : p))
+  }
+
   async function toggleMilestone(ms: Milestone) {
     if (!active || !canEdit) return
     const newStatus = ms.status === 'completed' ? 'pending' : 'completed'
@@ -392,14 +400,34 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     if (res.ok) {
       const updated: Milestone = await res.json()
       const newMs = active.milestones.map(m => m.id === updated.id ? updated : m)
-      setActive({ ...active, milestones: newMs })
+      setActive(a => a ? { ...a, milestones: newMs } : a)
+      syncMilestones(active.id, newMs)
     }
+  }
+
+  async function saveMilestoneEdit(ms: Milestone) {
+    if (!active || msSaving) return
+    setMsSaving(true)
+    const res = await fetch(`/api/milestones/${ms.id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ title: editingMsTitle.trim() || ms.title, due_date: editingMsDate }),
+    })
+    if (res.ok) {
+      const updated: Milestone = await res.json()
+      const newMs = active.milestones.map(m => m.id === updated.id ? updated : m)
+      setActive(a => a ? { ...a, milestones: newMs } : a)
+      syncMilestones(active.id, newMs)
+    }
+    setEditingMsId(null)
+    setMsSaving(false)
   }
 
   async function deleteMilestone(msId: number) {
     if (!active) return
     await fetch(`/api/milestones/${msId}`, { method:'DELETE', credentials:'include' })
-    setActive({ ...active, milestones: active.milestones.filter(m => m.id !== msId) })
+    const newMs = active.milestones.filter(m => m.id !== msId)
+    setActive(a => a ? { ...a, milestones: newMs } : a)
+    syncMilestones(active.id, newMs)
   }
 
   // Edit project
@@ -1026,23 +1054,54 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                       const dl = daysLeft(ms.due_date)
                       const done = ms.status==='completed'
                       const overdue = !done && ms.due_date && dl < 0
+                      const isEditing = editingMsId === ms.id
                       return (
                         <div key={ms.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:done?'#f0fdf4':overdue?'#fff7f7':'#f9fafb', border:`1px solid ${done?'#bbf7d0':overdue?'#fecaca':'#e5e7eb'}`, borderRadius:6 }}>
+                          {/* Toggle button */}
                           <button onClick={()=>canEdit&&toggleMilestone(ms)}
+                            title={canEdit ? (done ? 'Mark as Pending' : 'Mark as Completed') : ms.status}
                             style={{ width:18, height:18, borderRadius:'50%', border:`2px solid ${done?'#15803d':overdue?'#ef4444':'#d1d5db'}`, background:done?'#15803d':'white', cursor:canEdit?'pointer':'default', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                             {done && <span style={{ color:'white', fontSize:10 }}>✓</span>}
                           </button>
-                          <div style={{ flex:1 }}>
-                            <span style={{ fontSize:13, color:done?'#6b7280':'#111827', textDecoration:done?'line-through':'none', fontWeight:500 }}>{ms.title}</span>
-                            {ms.due_date && (
-                              <span style={{ marginLeft:8, fontSize:11, color:done?'#9ca3af':overdue?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight:overdue?700:400 }}>
-                                {fmtDate(ms.due_date)}{overdue?` (${Math.abs(dl)}d overdue)`:dl===0&&!done?' (today)':''}
-                              </span>
-                            )}
-                          </div>
-                          {canDelete && (
-                            <button onClick={()=>deleteMilestone(ms.id)}
-                              style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:13, padding:'0 2px' }}>✕</button>
+
+                          {/* Inline edit mode */}
+                          {isEditing ? (
+                            <>
+                              <input value={editingMsTitle} onChange={e=>setEditingMsTitle(e.target.value)}
+                                onKeyDown={e=>{ if(e.key==='Enter') saveMilestoneEdit(ms); if(e.key==='Escape') setEditingMsId(null) }}
+                                autoFocus
+                                style={{ flex:1, border:'1px solid #1a3a2a', borderRadius:4, padding:'3px 7px', fontSize:12, outline:'none' }} />
+                              <input type="date" value={editingMsDate} onChange={e=>setEditingMsDate(e.target.value)}
+                                style={{ border:'1px solid #d1d5db', borderRadius:4, padding:'3px 6px', fontSize:12 }} />
+                              <button onClick={()=>saveMilestoneEdit(ms)} disabled={msSaving}
+                                style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:4, padding:'3px 9px', fontSize:11, cursor:'pointer', fontWeight:600 }}>
+                                {msSaving?'…':'Save'}
+                              </button>
+                              <button onClick={()=>setEditingMsId(null)}
+                                style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:4, padding:'3px 7px', fontSize:11, cursor:'pointer', color:'#6b7280' }}>
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ flex:1 }}>
+                                <span style={{ fontSize:13, color:done?'#6b7280':'#111827', textDecoration:done?'line-through':'none', fontWeight:500 }}>{ms.title}</span>
+                                {ms.due_date && (
+                                  <span style={{ marginLeft:8, fontSize:11, color:done?'#9ca3af':overdue?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight:overdue?700:400 }}>
+                                    {fmtDate(ms.due_date)}{overdue?` (${Math.abs(dl)}d overdue)`:dl===0&&!done?' (today)':''}
+                                  </span>
+                                )}
+                              </div>
+                              {canEdit && (
+                                <button onClick={()=>{ setEditingMsId(ms.id); setEditingMsTitle(ms.title); setEditingMsDate(ms.due_date||'') }}
+                                  title="Edit milestone"
+                                  style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:12, padding:'0 3px', lineHeight:1 }}>✏️</button>
+                              )}
+                              {canDelete && (
+                                <button onClick={()=>deleteMilestone(ms.id)}
+                                  style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:13, padding:'0 2px' }}>✕</button>
+                              )}
+                            </>
                           )}
                         </div>
                       )
