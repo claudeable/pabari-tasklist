@@ -88,19 +88,26 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
     setSaving(true)
     try {
+      // Ensure table exists first
+      await fetch('/api/delivery-notes/migrate', { method: 'POST' }).catch(() => {})
+
       const r = await fetch('/api/delivery-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ ...form, items: filledItems }),
       })
-      if (!r.ok) { const j = await r.json(); setError(j.error ?? 'Save failed'); return }
-      const { id } = await r.json()
-      setShowForm(false)
-      setForm(emptyForm())
-      await load()
+      const j = await r.json()
+      if (!r.ok) {
+        setError(j.error ?? `Save failed (${r.status})`)
+        setSaving(false)
+        return
+      }
+      const id = j.id
+      if (!id) { setError('No ID returned from server'); setSaving(false); return }
       window.location.href = `/delivery-notes/${id}`
-    } finally {
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error — please try again')
       setSaving(false)
     }
   }
@@ -222,8 +229,6 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
               </div>
             </div>
 
-            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626', marginBottom: 16 }}>{error}</div>}
-
             {/* Row 1 */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
               <Field label="Delivery Note No *" value={form.note_number} onChange={v => setForm(f => ({ ...f, note_number: v }))} placeholder="e.g. 001" />
@@ -291,6 +296,12 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                 style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
+
+            {error && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626', marginBottom: 12 }}>
+                ⚠ {error}
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowForm(false)}
