@@ -97,16 +97,42 @@ export default function DocumentManager({ currentUser }: Props) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Preview
-  const [previewDoc, setPreviewDoc] = useState<DocMeta | null>(null)
+  const [previewDoc,     setPreviewDoc]     = useState<DocMeta | null>(null)
+  const [previewSrc,     setPreviewSrc]     = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
-  function openPreview(doc: DocMeta) { setPreviewDoc(doc) }
-  function closePreview() { setPreviewDoc(null) }
-
-  function canPreviewInBrowser(mime: string, name: string) {
-    if (mime.startsWith('image/')) return true
-    if (mime === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) return true
-    return false
+  function isOfficeFile(mime: string, name: string) {
+    return mime.includes('word') || mime.includes('sheet') || mime.includes('presentation') ||
+      /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i.test(name)
   }
+
+  async function openPreview(doc: DocMeta) {
+    setPreviewDoc(doc)
+    setPreviewSrc(null)
+    const mime = doc.mime_type || ''
+    if (mime.startsWith('image/') || mime === 'application/pdf' || doc.name.toLowerCase().endsWith('.pdf')) {
+      // Direct URL — session cookie handles auth
+      setPreviewSrc(`/api/documents/${doc.id}`)
+      return
+    }
+    if (isOfficeFile(mime, doc.name)) {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch(`/api/documents/${doc.id}/viewtoken`, { method: 'POST', credentials: 'include' })
+        const { token } = await res.json()
+        const fileUrl = `${window.location.origin}/api/documents/view/${token}`
+        setPreviewSrc(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`)
+      } catch {
+        setPreviewSrc(null)
+      } finally {
+        setPreviewLoading(false)
+      }
+      return
+    }
+    // Unknown type — show download prompt (previewSrc stays null)
+  }
+
+  function closePreview() { setPreviewDoc(null); setPreviewSrc(null) }
 
   const isAdmin = currentUser.role === 'admin'
   const [isMobile, setIsMobile] = useState(false)
@@ -600,36 +626,36 @@ export default function DocumentManager({ currentUser }: Props) {
           </div>
 
           {/* Content */}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {(() => {
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            {previewLoading && (
+              <div style={{ color: 'white', textAlign: 'center' }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
+                <div style={{ fontSize: 14 }}>Preparing document viewer…</div>
+              </div>
+            )}
+            {!previewLoading && previewSrc && (() => {
               const mime = previewDoc.mime_type || ''
-              const src  = `/api/documents/${previewDoc.id}`
               if (mime.startsWith('image/')) {
-                return (
-                  <img src={src} alt={previewDoc.name}
-                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                )
-              }
-              if (canPreviewInBrowser(mime, previewDoc.name)) {
-                return (
-                  <iframe src={src} title={previewDoc.name}
-                    style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} />
-                )
+                return <img src={previewSrc} alt={previewDoc.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               }
               return (
-                <div style={{ color: 'white', textAlign: 'center', padding: 32 }}>
-                  <div style={{ fontSize: 64, marginBottom: 16 }}>{fileIcon(mime, previewDoc.name)}</div>
-                  <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{previewDoc.name}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 24 }}>
-                    This file type can&apos;t be previewed — open it with the appropriate app.
-                  </div>
-                  <a href={`/api/documents/${previewDoc.id}?download=1`}
-                    style={{ background: '#b5833a', color: 'white', padding: '12px 24px', borderRadius: 6, textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
-                    ↓ Download {previewDoc.name}
-                  </a>
-                </div>
+                <iframe src={previewSrc} title={previewDoc.name}
+                  style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} />
               )
             })()}
+            {!previewLoading && !previewSrc && (
+              <div style={{ color: 'white', textAlign: 'center', padding: 32 }}>
+                <div style={{ fontSize: 64, marginBottom: 16 }}>{fileIcon(previewDoc.mime_type || '', previewDoc.name)}</div>
+                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{previewDoc.name}</div>
+                <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 24 }}>
+                  This file type can&apos;t be previewed. Download it to open with the appropriate app.
+                </div>
+                <a href={`/api/documents/${previewDoc.id}?download=1`}
+                  style={{ background: '#b5833a', color: 'white', padding: '12px 24px', borderRadius: 6, textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
+                  ↓ Download {previewDoc.name}
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}
