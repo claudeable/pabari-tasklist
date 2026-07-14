@@ -1,11 +1,229 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { SessionUser } from '@/types'
 import { NotifItem } from './NotificationBell'
 import ChatPanel from './ChatPanel'
 
 type Tab = 'inbox' | 'chat' | 'ai'
+
+interface AiMessage { role: 'user' | 'assistant'; content: string }
+
+const AI_SUGGESTIONS = [
+  'What do I need to finish today?',
+  'Show my overdue tasks',
+  'Do I have any pending approvals?',
+  'What changed while I was away?',
+]
+
+function AiTab({ currentUser }: { currentUser: SessionUser }) {
+  const [messages, setMessages]     = useState<AiMessage[]>([])
+  const [input,    setInput]        = useState('')
+  const [loading,  setLoading]      = useState(false)
+  const [error,    setError]        = useState('')
+  const [started,  setStarted]      = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
+  const firstName = currentUser.name.split(' ')[0]
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  async function send(text: string) {
+    if (!text.trim() || loading) return
+    setStarted(true)
+    setError('')
+    const next: AiMessage[] = [...messages, { role: 'user', content: text.trim() }]
+    setMessages(next)
+    setInput('')
+    setLoading(true)
+    const placeholder: AiMessage = { role: 'assistant', content: '' }
+    setMessages([...next, placeholder])
+
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ messages: next }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error ?? `Error ${res.status}`)
+      }
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let full = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+        setMessages([...next, { role: 'assistant', content: full }])
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Something went wrong'
+      setError(msg)
+      setMessages(next)
+    } finally {
+      setLoading(false)
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) }
+  }
+
+  /* ── Render message content with basic markdown-ish formatting ── */
+  function renderContent(text: string) {
+    const lines = text.split('\n')
+    return lines.map((line, i) => {
+      if (line.startsWith('## '))  return <div key={i} style={{ fontWeight: 800, fontSize: 13, color: '#111827', marginTop: 10, marginBottom: 2 }}>{line.slice(3)}</div>
+      if (line.startsWith('# '))   return <div key={i} style={{ fontWeight: 800, fontSize: 15, color: '#111827', marginTop: 8, marginBottom: 2 }}>{line.slice(2)}</div>
+      if (line.startsWith('- ') || line.startsWith('• ')) {
+        const content = line.slice(2)
+        // linkify /path references
+        const parts = content.split(/(\[.*?\]\(.*?\)|\/\w[\w/-]*)/g)
+        return (
+          <div key={i} style={{ display: 'flex', gap: 6, paddingLeft: 4, marginBottom: 2 }}>
+            <span style={{ color: '#9ca3af', flexShrink: 0 }}>•</span>
+            <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+              {parts.map((p, j) => {
+                const mdLink = p.match(/^\[(.*?)\]\((.*?)\)$/)
+                if (mdLink) return <a key={j} href={mdLink[2]} style={{ color: '#1a3a2a', fontWeight: 600, textDecoration: 'underline' }}>{mdLink[1]}</a>
+                if (/^\/\w/.test(p)) return <a key={j} href={p} style={{ color: '#1a3a2a', fontWeight: 600, textDecoration: 'underline' }}>{p}</a>
+                return p
+              })}
+            </span>
+          </div>
+        )
+      }
+      if (line.trim() === '') return <div key={i} style={{ height: 6 }} />
+      const parts = line.split(/(\[.*?\]\(.*?\)|\/\w[\w/-]*|\*\*.*?\*\*)/g)
+      return (
+        <div key={i} style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 1 }}>
+          {parts.map((p, j) => {
+            const mdLink = p.match(/^\[(.*?)\]\((.*?)\)$/)
+            if (mdLink) return <a key={j} href={mdLink[2]} style={{ color: '#1a3a2a', fontWeight: 600, textDecoration: 'underline' }}>{mdLink[1]}</a>
+            if (/^\/\w/.test(p)) return <a key={j} href={p} style={{ color: '#1a3a2a', fontWeight: 600, textDecoration: 'underline' }}>{p}</a>
+            const bold = p.match(/^\*\*(.*?)\*\*$/)
+            if (bold) return <strong key={j}>{bold[1]}</strong>
+            return p
+          })}
+        </div>
+      )
+    })
+  }
+
+  if (!started) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', gap: 24 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>🤖</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Pabari AI</div>
+          <div style={{ fontSize: 13, color: '#6b7280', maxWidth: 340, lineHeight: 1.6 }}>
+            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {firstName}. Ask me anything about your work.
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, width: '100%', maxWidth: 460 }}>
+          {AI_SUGGESTIONS.map(s => (
+            <button key={s} onClick={() => send(s)}
+              style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', textAlign: 'left', fontSize: 12, color: '#374151', lineHeight: 1.4, transition: 'border-color 0.1s' }}
+              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a3a2a'}
+              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = '#e5e7eb'}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ width: '100%', maxWidth: 560 }}>
+          <AiInput inputRef={inputRef} input={input} setInput={setInput} loading={loading} onSend={() => send(input)} onKey={handleKey} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 8px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              {m.role === 'user' ? (
+                <div style={{ background: '#1a3a2a', color: 'white', borderRadius: '16px 16px 4px 16px', padding: '10px 16px', maxWidth: '80%', fontSize: 13, lineHeight: 1.5 }}>
+                  {m.content}
+                </div>
+              ) : (
+                <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '4px 16px 16px 16px', padding: '14px 18px', maxWidth: '90%', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  {m.content ? renderContent(m.content) : (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', height: 20 }}>
+                      {[0,1,2].map(j => (
+                        <div key={j} style={{ width: 6, height: 6, borderRadius: '50%', background: '#9ca3af', animation: `pulse 1.2s ease-in-out ${j * 0.2}s infinite` }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+          {error && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 16px', fontSize: 12, color: '#dc2626', marginBottom: 16 }}>
+              ⚠ {error}
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Input bar */}
+      <div style={{ padding: '12px 24px 16px', borderTop: '1px solid #e5e7eb', background: 'white' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <AiInput inputRef={inputRef} input={input} setInput={setInput} loading={loading} onSend={() => send(input)} onKey={handleKey} />
+          {messages.length > 1 && (
+            <div style={{ textAlign: 'center', marginTop: 8 }}>
+              <button onClick={() => { setMessages([]); setStarted(false); setError('') }}
+                style={{ background: 'transparent', border: 'none', fontSize: 11, color: '#9ca3af', cursor: 'pointer', textDecoration: 'underline' }}>
+                Start new conversation
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`@keyframes pulse { 0%,80%,100%{opacity:.3} 40%{opacity:1} }`}</style>
+    </div>
+  )
+}
+
+function AiInput({ inputRef, input, setInput, loading, onSend, onKey }: {
+  inputRef: React.RefObject<HTMLTextAreaElement>
+  input: string; setInput: (v: string) => void
+  loading: boolean; onSend: () => void
+  onKey: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '8px 8px 8px 14px', transition: 'border-color 0.1s' }}
+      onFocus={() => {}} >
+      <textarea
+        ref={inputRef}
+        value={input}
+        onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
+        onKeyDown={onKey}
+        placeholder="Ask Pabari AI anything… (Enter to send, Shift+Enter for newline)"
+        rows={1}
+        style={{ flex: 1, border: 'none', background: 'transparent', resize: 'none', outline: 'none', fontSize: 13, color: '#111827', lineHeight: 1.5, minHeight: 22, maxHeight: 120, overflow: 'auto', fontFamily: 'inherit' }}
+      />
+      <button onClick={onSend} disabled={!input.trim() || loading}
+        style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: (!input.trim() || loading) ? '#e5e7eb' : '#1a3a2a', color: (!input.trim() || loading) ? '#9ca3af' : 'white', cursor: (!input.trim() || loading) ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.15s', fontSize: 15 }}>
+        {loading ? '…' : '↑'}
+      </button>
+    </div>
+  )
+}
 type Filter = 'all' | 'approval' | 'overdue' | 'task_assigned' | 'activity'
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -137,8 +355,8 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
               [
                 { key: 'inbox', icon: '📥', label: 'Inbox', badge: counts.all },
                 { key: 'chat',  icon: '💬', label: 'Chat',  badge: 0 },
-                { key: 'ai',    icon: '🤖', label: 'Pabari AI', badge: 0, soon: true },
-              ] as { key: Tab; icon: string; label: string; badge: number; soon?: boolean }[]
+                { key: 'ai',    icon: '🤖', label: 'Pabari AI', badge: 0 },
+              ] as { key: Tab; icon: string; label: string; badge: number }[]
             ).map(item => (
               <button
                 key={item.key}
@@ -162,7 +380,6 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
                     {item.badge}
                   </span>
                 )}
-                {item.soon && <span style={{ fontSize: 9, fontWeight: 700, background: '#ede9fe', color: '#7c3aed', padding: '1px 5px', borderRadius: 4 }}>SOON</span>}
               </button>
             ))}
 
@@ -178,7 +395,7 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
         )}
 
         {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: tab === 'chat' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: (tab === 'chat' || tab === 'ai') ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
 
           {/* Mobile tab bar */}
           {isMobile && (
@@ -281,45 +498,7 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
 
           {/* ── AI TAB ──────────────────────────────────────────────────────── */}
           {tab === 'ai' && (
-            <div style={{ flex: 1, maxWidth: 700, padding: isMobile ? '12px' : '24px 32px' }}>
-              <div style={{ marginBottom: 20 }}>
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111827' }}>Pabari AI</h2>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Your enterprise operating assistant.</p>
-              </div>
-
-              <div style={{ background: 'linear-gradient(135deg, #1a3a2a 0%, #2d5a40 100%)', borderRadius: 16, padding: '32px 28px', marginBottom: 16, textAlign: 'center' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🤖</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 6 }}>Pabari AI</div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', maxWidth: 380, margin: '0 auto 20px' }}>
-                  The AI that understands your role, your work, and your organisation. Ask anything — from task summaries to procurement analytics.
-                </div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 16px' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.05em' }}>COMING IN PHASE 3</span>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                {[
-                  { icon: '📋', title: 'Personal Productivity', items: ['What do I need to finish today?', 'Show my overdue tasks', 'What changed while I was away?', 'Summarise my work'] },
-                  { icon: '🔍', title: 'Search Everything', items: ['Find Invoice INV-2032', 'Search supplier agreements', 'Find procurement SOP', 'Open leave request #45'] },
-                  { icon: '📊', title: 'Report Generator', items: ['Generate procurement report', 'Weekly finance summary', 'Monthly HR report', 'Export as PDF / Excel'] },
-                  { icon: '⚡', title: 'Workflow Assistant', items: ['Create a leave request', 'Assign a task to Sarah', 'Draft supplier email', 'Schedule a meeting'] },
-                ].map(card => (
-                  <div key={card.title} style={{ background: 'white', borderRadius: 10, border: '1px solid #e5e7eb', padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 18 }}>{card.icon}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{card.title}</span>
-                    </div>
-                    {card.items.map(i => (
-                      <div key={i} style={{ fontSize: 11, color: '#6b7280', padding: '4px 0', borderBottom: '1px solid #f9fafb', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: '#d1d5db' }}>›</span> {i}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AiTab currentUser={currentUser} />
           )}
 
         </div>

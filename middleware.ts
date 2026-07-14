@@ -64,7 +64,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/chat')           ||
     pathname.startsWith('/centre')             ||
     pathname.startsWith('/api/notifications')  ||
-    pathname.startsWith('/api/centre')
+    pathname.startsWith('/api/centre')         ||
+    pathname.startsWith('/api/ai')
 
   if (!isProtected) return NextResponse.next()
 
@@ -97,5 +98,6 @@ export const config = {
     '/centre', '/centre/:path*',
     '/api/notifications', '/api/notifications/:path*',
     '/api/centre/:path*',
+    '/api/ai/:path*',
   ],
 }
