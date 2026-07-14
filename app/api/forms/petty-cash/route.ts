@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth'
 import { getAllPettyCashRequests, getMyPettyCashRequests, createPettyCashRequest } from '@/lib/pettyCash'
 import { query } from '@/lib/database'
 import { logActivity } from '@/lib/activityLog'
+import { notifyByEmail } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,6 +102,13 @@ export async function POST(req: NextRequest) {
     })
     logActivity(user.email, user.name, 'petty_cash_submitted',
       `${user.name} submitted petty cash request — KES ${pcr.total_amount ?? ''} [${pcr.company}]`).catch(() => {})
+
+    // WhatsApp: notify first approver (HOS for general, Suresh for KISCOL)
+    const approverEmail = form_type === 'kiscol' ? SURESH_EMAIL : HOS_EMAIL
+    notifyByEmail(approverEmail,
+      `Pabari ERP: ${user.name} submitted a petty cash request for KES ${Number(total_amount).toLocaleString()} [${company}]. Please log in to approve.`
+    ).catch(() => {})
+
     return NextResponse.json({ pcr })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

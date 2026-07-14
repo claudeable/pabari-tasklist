@@ -273,11 +273,15 @@ async function signOut() {
 }
 
 export default function PabariCentre({ currentUser }: { currentUser: SessionUser }) {
-  const [tab,      setTab]      = useState<Tab>('inbox')
-  const [filter,   setFilter]   = useState<Filter>('all')
-  const [items,    setItems]    = useState<NotifItem[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [isMobile, setIsMobile] = useState(false)
+  const [tab,        setTab]        = useState<Tab>('inbox')
+  const [filter,     setFilter]     = useState<Filter>('all')
+  const [items,      setItems]      = useState<NotifItem[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [isMobile,   setIsMobile]   = useState(false)
+  const [showWA,     setShowWA]     = useState(false)
+  const [waPhone,    setWaPhone]    = useState('')
+  const [waSaving,   setWaSaving]   = useState(false)
+  const [waMsg,      setWaMsg]      = useState('')
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -301,6 +305,28 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
   }, [])
 
   useEffect(() => { loadInbox() }, [loadInbox])
+
+  // Load saved WhatsApp number when modal opens
+  useEffect(() => {
+    if (!showWA) return
+    fetch('/api/profile/whatsapp', { credentials: 'include' })
+      .then(r => r.json()).then(d => setWaPhone(d.phone ?? '')).catch(() => {})
+  }, [showWA])
+
+  async function saveWhatsApp() {
+    setWaSaving(true); setWaMsg('')
+    try {
+      const r = await fetch('/api/profile/whatsapp', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: waPhone }),
+      })
+      const j = await r.json()
+      if (!r.ok) { setWaMsg(j.error ?? 'Failed to save'); return }
+      setWaMsg('Saved! You will now receive WhatsApp notifications.')
+      setTimeout(() => setShowWA(false), 1800)
+    } finally { setWaSaving(false) }
+  }
 
   const filtered = filter === 'all' ? items : items.filter(i => i.type === filter)
   const counts: Record<Filter, number> = {
@@ -334,6 +360,10 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
           <a href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>Portal</a>
           {!isMobile && <span style={{ fontSize: 13, color: '#374151' }}>{currentUser.name}</span>}
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a3a2a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{initials}</div>
+          <button onClick={() => setShowWA(true)} title="Set WhatsApp notification number"
+            style={{ background: '#25D366', color: 'white', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>
+            📱
+          </button>
           <button onClick={signOut} style={{ background: 'transparent', border: '1px solid #d1d5db', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: '#374151', cursor: 'pointer' }}>
             {isMobile ? 'Out' : 'Sign out'}
           </button>
@@ -503,6 +533,58 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
 
         </div>
       </div>
+
+      {/* ── WHATSAPP SETUP MODAL ─────────────────────────────────────────────── */}
+      {showWA && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 400, padding: 28, position: 'relative' }}>
+            <button onClick={() => setShowWA(false)}
+              style={{ position: 'absolute', top: 12, right: 14, background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: '#9ca3af' }}>✕</button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📱</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>WhatsApp Notifications</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Get notified when you&#39;re away from the portal</div>
+              </div>
+            </div>
+
+            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#166534', marginBottom: 16 }}>
+              You&#39;ll receive WhatsApp alerts for approvals, task assignments, disbursements, and leave decisions.
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
+              Your WhatsApp Number (with country code)
+            </label>
+            <input
+              type="tel"
+              value={waPhone}
+              onChange={e => setWaPhone(e.target.value)}
+              placeholder="+254 700 000 000"
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
+            />
+
+            {waMsg && (
+              <div style={{ fontSize: 12, color: waMsg.startsWith('Saved') ? '#166534' : '#dc2626', marginBottom: 10, padding: '6px 10px', background: waMsg.startsWith('Saved') ? '#f0fdf4' : '#fef2f2', borderRadius: 6 }}>
+                {waMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={saveWhatsApp} disabled={waSaving}
+                style={{ flex: 1, background: '#25D366', color: 'white', border: 'none', borderRadius: 8, padding: '10px 0', fontSize: 14, fontWeight: 700, cursor: waSaving ? 'not-allowed' : 'pointer', opacity: waSaving ? 0.7 : 1 }}>
+                {waSaving ? 'Saving…' : 'Save Number'}
+              </button>
+              {waPhone && (
+                <button onClick={() => { setWaPhone(''); saveWhatsApp() }}
+                  style={{ background: 'transparent', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, cursor: 'pointer' }}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
