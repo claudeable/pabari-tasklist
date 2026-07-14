@@ -282,6 +282,8 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
   const [waPhone,    setWaPhone]    = useState('')
   const [waSaving,   setWaSaving]   = useState(false)
   const [waMsg,      setWaMsg]      = useState('')
+  const [waLogs,     setWaLogs]     = useState<{id:number;to_phone:string;status:string;error_msg:string;created_at:string}[]>([])
+  const [waTab,      setWaTab]      = useState<'number'|'log'>('number')
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -306,12 +308,18 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
 
   useEffect(() => { loadInbox() }, [loadInbox])
 
-  // Load saved WhatsApp number when modal opens
+  const isAdmin = currentUser.role === 'admin'
+
+  // Load saved WhatsApp number and delivery log when modal opens
   useEffect(() => {
     if (!showWA) return
     fetch('/api/profile/whatsapp', { credentials: 'include' })
       .then(r => r.json()).then(d => setWaPhone(d.phone ?? '')).catch(() => {})
-  }, [showWA])
+    if (isAdmin) {
+      fetch('/api/admin/whatsapp-log', { credentials: 'include' })
+        .then(r => r.json()).then(d => setWaLogs(d.logs ?? [])).catch(() => {})
+    }
+  }, [showWA, isAdmin])
 
   async function saveWhatsApp() {
     setWaSaving(true); setWaMsg('')
@@ -536,50 +544,107 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
 
       {/* ── WHATSAPP SETUP MODAL ─────────────────────────────────────────────── */}
       {showWA && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 400, padding: 28, position: 'relative' }}>
-            <button onClick={() => setShowWA(false)}
-              style={{ position: 'absolute', top: 12, right: 14, background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: '#9ca3af' }}>✕</button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📱</div>
-              <div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+          <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 480, position: 'relative' }}>
+            {/* Header */}
+            <div style={{ padding: '24px 24px 0', borderBottom: '1px solid #f3f4f6', paddingBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>📱</div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>WhatsApp Notifications</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>Get notified when you&#39;re away from the portal</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Backup alerts when you&#39;re offline</div>
               </div>
+              <button onClick={() => setShowWA(false)}
+                style={{ background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9ca3af', padding: 4 }}>✕</button>
             </div>
 
-            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#166534', marginBottom: 16 }}>
-              You&#39;ll receive WhatsApp alerts for approvals, task assignments, disbursements, and leave decisions.
-            </div>
-
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
-              Your WhatsApp Number (with country code)
-            </label>
-            <input
-              type="tel"
-              value={waPhone}
-              onChange={e => setWaPhone(e.target.value)}
-              placeholder="+254 700 000 000"
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
-            />
-
-            {waMsg && (
-              <div style={{ fontSize: 12, color: waMsg.startsWith('Saved') ? '#166534' : '#dc2626', marginBottom: 10, padding: '6px 10px', background: waMsg.startsWith('Saved') ? '#f0fdf4' : '#fef2f2', borderRadius: 6 }}>
-                {waMsg}
+            {/* Tabs — admin only sees Log tab */}
+            {isAdmin && (
+              <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', padding: '0 24px' }}>
+                {(['number', 'log'] as const).map(t => (
+                  <button key={t} onClick={() => setWaTab(t)}
+                    style={{ padding: '10px 14px', border: 'none', borderBottom: waTab === t ? '2px solid #25D366' : '2px solid transparent', background: 'transparent', fontSize: 13, fontWeight: waTab === t ? 700 : 400, color: waTab === t ? '#111827' : '#6b7280', cursor: 'pointer' }}>
+                    {t === 'number' ? 'My Number' : 'Delivery Log'}
+                  </button>
+                ))}
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={saveWhatsApp} disabled={waSaving}
-                style={{ flex: 1, background: '#25D366', color: 'white', border: 'none', borderRadius: 8, padding: '10px 0', fontSize: 14, fontWeight: 700, cursor: waSaving ? 'not-allowed' : 'pointer', opacity: waSaving ? 0.7 : 1 }}>
-                {waSaving ? 'Saving…' : 'Save Number'}
-              </button>
-              {waPhone && (
-                <button onClick={() => { setWaPhone(''); saveWhatsApp() }}
-                  style={{ background: 'transparent', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, cursor: 'pointer' }}>
-                  Remove
-                </button>
+            <div style={{ padding: 24 }}>
+
+              {/* ── NUMBER TAB ── */}
+              {waTab === 'number' && (<>
+                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#166534', marginBottom: 16 }}>
+                  You&#39;ll receive WhatsApp alerts for: petty cash approvals, disbursements, leave decisions, and task assignments.
+                </div>
+
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
+                  Your WhatsApp Number (with country code)
+                </label>
+                <input type="tel" value={waPhone} onChange={e => setWaPhone(e.target.value)}
+                  placeholder="+254 700 000 000"
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
+                />
+
+                {waMsg && (
+                  <div style={{ fontSize: 12, color: waMsg.startsWith('Saved') ? '#166534' : '#dc2626', marginBottom: 10, padding: '8px 12px', background: waMsg.startsWith('Saved') ? '#f0fdf4' : '#fef2f2', borderRadius: 6 }}>
+                    {waMsg}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={saveWhatsApp} disabled={waSaving}
+                    style={{ flex: 1, background: '#25D366', color: 'white', border: 'none', borderRadius: 8, padding: '10px 0', fontSize: 14, fontWeight: 700, cursor: waSaving ? 'not-allowed' : 'pointer', opacity: waSaving ? 0.7 : 1 }}>
+                    {waSaving ? 'Saving…' : 'Save Number'}
+                  </button>
+                  {waPhone && (
+                    <button onClick={() => { setWaPhone(''); saveWhatsApp() }}
+                      style={{ background: 'transparent', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, cursor: 'pointer' }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {/* Webhook setup info for admin */}
+                {isAdmin && (
+                  <div style={{ marginTop: 20, padding: 14, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Webhook Setup (Meta Dashboard)</div>
+                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700 }}>Callback URL:</span>
+                    </div>
+                    <div style={{ background: '#1e293b', color: '#86efac', padding: '8px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', marginBottom: 10 }}>
+                      {typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/whatsapp
+                    </div>
+                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700 }}>Verify Token:</span> set <code style={{ background: '#f1f5f9', padding: '2px 5px', borderRadius: 3, fontSize: 11 }}>WHATSAPP_WEBHOOK_VERIFY_TOKEN</code> in Railway to any secret string, then paste the same value in Meta.
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>Subscribe to: <strong>messages</strong> and <strong>message_deliveries</strong></div>
+                  </div>
+                )}
+              </>)}
+
+              {/* ── DELIVERY LOG TAB (admin only) ── */}
+              {waTab === 'log' && isAdmin && (
+                <div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>Recent WhatsApp delivery statuses (last 200)</div>
+                  {waLogs.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 24, color: '#9ca3af', fontSize: 13 }}>No delivery records yet</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+                      {waLogs.map(l => {
+                        const statusColor: Record<string, string> = { sent: '#2563eb', delivered: '#059669', read: '#7c3aed', failed: '#dc2626' }
+                        const col = statusColor[l.status] ?? '#6b7280'
+                        return (
+                          <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: '#f9fafb', borderRadius: 6, border: `1px solid ${l.status === 'failed' ? '#fecaca' : '#e5e7eb'}` }}>
+                            <span style={{ width: 64, fontSize: 11, fontWeight: 700, color: col, textTransform: 'uppercase', flexShrink: 0 }}>{l.status}</span>
+                            <span style={{ flex: 1, fontSize: 12, color: '#374151' }}>{l.to_phone}</span>
+                            {l.error_msg && <span style={{ fontSize: 11, color: '#dc2626' }} title={l.error_msg}>⚠ {l.error_msg.slice(0, 30)}</span>}
+                            <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{new Date(l.created_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

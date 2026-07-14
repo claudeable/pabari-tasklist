@@ -66,8 +66,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/notifications')  ||
     pathname.startsWith('/api/centre')         ||
     pathname.startsWith('/api/ai')              ||
-    pathname.startsWith('/delivery-notes')     ||
-    pathname.startsWith('/api/delivery-notes') ||
+    pathname.startsWith('/delivery-notes')       ||
+    pathname.startsWith('/api/delivery-notes')  ||
     pathname.startsWith('/api/profile')
 
   if (!isProtected) return NextResponse.next()
