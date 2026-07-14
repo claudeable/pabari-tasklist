@@ -94,6 +94,33 @@ export default function DocumentManager({ currentUser }: Props) {
   const [delFolderName,  setDelFolderName]  = useState<string | null>(null)
   const [delFolderError, setDelFolderError] = useState('')
 
+  // Preview
+  const [previewDoc,  setPreviewDoc]  = useState<DocMeta | null>(null)
+  const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  async function openPreview(doc: DocMeta) {
+    setPreviewDoc(doc)
+    setPreviewUrl(null)
+    setPreviewLoading(true)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}`, { credentials: 'include' })
+      if (!res.ok) throw new Error('Failed to load')
+      const blob = await res.blob()
+      setPreviewUrl(URL.createObjectURL(blob))
+    } catch {
+      setPreviewUrl(null)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  function closePreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewDoc(null)
+    setPreviewUrl(null)
+  }
+
   const isAdmin = currentUser.role === 'admin'
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
@@ -317,106 +344,144 @@ export default function DocumentManager({ currentUser }: Props) {
       </div>
 
       {/* ── MAIN LAYOUT ─────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden' }}>
 
-        {/* SIDEBAR */}
-        <div style={{ width: 240, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+        {/* SIDEBAR (desktop) / TOP STRIP (mobile) */}
+        <div style={isMobile
+          ? { background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }
+          : { width: 240, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
 
           {/* Entity selector */}
-          <div style={{ padding: '16px 16px 8px' }}>
-            <div style={{ fontSize: 9, fontWeight: 800, color: '#9ca3af', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 6 }}>Entity</div>
-            <select value={entity} onChange={e => selectEntity(e.target.value)}
-              style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontWeight: 600, color: '#111', background: 'white', cursor: 'pointer', outline: 'none' }}>
-              {DOC_ENTITIES.map(e => <option key={e} value={e}>{e}</option>)}
-            </select>
-          </div>
-
-          {/* Folders list */}
-          <div style={{ flex: 1, overflow: 'auto', paddingTop: 8 }}>
-            <div style={{ padding: '4px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 9, fontWeight: 800, color: '#9ca3af', letterSpacing: '1px', textTransform: 'uppercase' }}>Folders</div>
-              <button onClick={() => { setShowNewFolder(true); setNewFolderName(''); setFolderError('') }}
-                style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }} title="New folder">+</button>
+          {!isMobile ? (
+            <div style={{ padding: '16px 16px 8px' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#9ca3af', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 6 }}>Entity</div>
+              <select value={entity} onChange={e => selectEntity(e.target.value)}
+                style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontWeight: 600, color: '#111', background: 'white', cursor: 'pointer', outline: 'none' }}>
+                {DOC_ENTITIES.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
             </div>
+          ) : (
+            <div style={{ padding: '10px 12px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select value={entity} onChange={e => selectEntity(e.target.value)}
+                style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontWeight: 600, color: '#111', background: 'white', cursor: 'pointer', outline: 'none', flex: 1 }}>
+                {DOC_ENTITIES.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+              <button onClick={() => { setShowNewFolder(true); setNewFolderName(''); setFolderError('') }}
+                style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', borderRadius: 6, padding: '7px 12px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                + Folder
+              </button>
+            </div>
+          )}
 
-            {/* All documents */}
-            <button onClick={() => selectFolder(null)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 16px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                background: activeFolder === null ? '#f0fdf4' : 'transparent',
-                borderLeft: activeFolder === null ? '3px solid #1a3a2a' : '3px solid transparent',
-                color: activeFolder === null ? '#1a3a2a' : '#374151',
-                fontWeight: activeFolder === null ? 700 : 400, fontSize: 13 }}>
-              <span>All Documents</span>
-              <span style={{ fontSize: 11, color: '#9ca3af', background: '#f3f4f6', borderRadius: 10, padding: '1px 7px' }}>{docs.length || ''}</span>
-            </button>
+          {/* Folders — vertical list on desktop, horizontal chips on mobile */}
+          {!isMobile ? (
+            <div style={{ flex: 1, overflow: 'auto', paddingTop: 8 }}>
+              <div style={{ padding: '4px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: '#9ca3af', letterSpacing: '1px', textTransform: 'uppercase' }}>Folders</div>
+                <button onClick={() => { setShowNewFolder(true); setNewFolderName(''); setFolderError('') }}
+                  style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }} title="New folder">+</button>
+              </div>
 
-            {folders.map(f => (
-              <div key={f.name} style={{ position: 'relative' }}
-                onMouseEnter={e => (e.currentTarget.querySelector('.folder-actions') as HTMLElement | null)?.style && ((e.currentTarget.querySelector('.folder-actions') as HTMLElement).style.display = 'flex')}
-                onMouseLeave={e => (e.currentTarget.querySelector('.folder-actions') as HTMLElement | null)?.style && ((e.currentTarget.querySelector('.folder-actions') as HTMLElement).style.display = 'none')}>
-                <button onClick={() => selectFolder(f.name)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 16px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                    background: activeFolder === f.name ? '#f0fdf4' : 'transparent',
-                    borderLeft: activeFolder === f.name ? '3px solid #1a3a2a' : '3px solid transparent',
-                    color: activeFolder === f.name ? '#1a3a2a' : '#374151',
-                    fontWeight: activeFolder === f.name ? 700 : 400, fontSize: 13 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 4 }}>{f.name}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                    {f.expiring_count > 0 && (
-                      <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: 10, fontWeight: 700, borderRadius: 8, padding: '0 5px' }}>{f.expiring_count}</span>
-                    )}
-                    <span style={{ fontSize: 11, color: '#9ca3af', background: '#f3f4f6', borderRadius: 10, padding: '1px 7px' }}>{f.count}</span>
+              <button onClick={() => selectFolder(null)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 16px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                  background: activeFolder === null ? '#f0fdf4' : 'transparent',
+                  borderLeft: activeFolder === null ? '3px solid #1a3a2a' : '3px solid transparent',
+                  color: activeFolder === null ? '#1a3a2a' : '#374151',
+                  fontWeight: activeFolder === null ? 700 : 400, fontSize: 13 }}>
+                <span>All Documents</span>
+                <span style={{ fontSize: 11, color: '#9ca3af', background: '#f3f4f6', borderRadius: 10, padding: '1px 7px' }}>{docs.length || ''}</span>
+              </button>
+
+              {folders.map(f => (
+                <div key={f.name} style={{ position: 'relative' }}
+                  onMouseEnter={e => (e.currentTarget.querySelector('.folder-actions') as HTMLElement | null)?.style && ((e.currentTarget.querySelector('.folder-actions') as HTMLElement).style.display = 'flex')}
+                  onMouseLeave={e => (e.currentTarget.querySelector('.folder-actions') as HTMLElement | null)?.style && ((e.currentTarget.querySelector('.folder-actions') as HTMLElement).style.display = 'none')}>
+                  <button onClick={() => selectFolder(f.name)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 16px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                      background: activeFolder === f.name ? '#f0fdf4' : 'transparent',
+                      borderLeft: activeFolder === f.name ? '3px solid #1a3a2a' : '3px solid transparent',
+                      color: activeFolder === f.name ? '#1a3a2a' : '#374151',
+                      fontWeight: activeFolder === f.name ? 700 : 400, fontSize: 13 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 4 }}>{f.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      {f.expiring_count > 0 && (
+                        <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: 10, fontWeight: 700, borderRadius: 8, padding: '0 5px' }}>{f.expiring_count}</span>
+                      )}
+                      <span style={{ fontSize: 11, color: '#9ca3af', background: '#f3f4f6', borderRadius: 10, padding: '1px 7px' }}>{f.count}</span>
+                    </div>
+                  </button>
+                  <div className="folder-actions" style={{ display: 'none', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', gap: 2, background: 'white', borderRadius: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', zIndex: 5, padding: '2px' }}>
+                    <button onClick={e => { e.stopPropagation(); setRenameTarget(f.name); setRenameVal(f.name) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280', padding: '3px 6px' }}>✏️</button>
+                    <button onClick={e => { e.stopPropagation(); setDelFolderName(f.name); setDelFolderError('') }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#dc2626', padding: '3px 6px' }}>🗑</button>
                   </div>
-                </button>
-                <div className="folder-actions" style={{ display: 'none', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', gap: 2, background: 'white', borderRadius: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', zIndex: 5, padding: '2px' }}>
-                  <button onClick={e => { e.stopPropagation(); setRenameTarget(f.name); setRenameVal(f.name) }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280', padding: '3px 6px' }}>✏️</button>
-                  <button onClick={e => { e.stopPropagation(); setDelFolderName(f.name); setDelFolderError('') }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#dc2626', padding: '3px 6px' }}>🗑</button>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {folders.length === 0 && (
-              <div style={{ padding: '12px 16px', fontSize: 12, color: '#9ca3af' }}>
-                No folders yet.
-                <button onClick={() => { setShowNewFolder(true); setNewFolderName('') }}
-                  style={{ background: 'none', border: 'none', color: '#1a3a2a', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, padding: 0, marginLeft: 4 }}>
-                  Create one
+              {folders.length === 0 && (
+                <div style={{ padding: '12px 16px', fontSize: 12, color: '#9ca3af' }}>
+                  No folders yet.
+                  <button onClick={() => { setShowNewFolder(true); setNewFolderName('') }}
+                    style={{ background: 'none', border: 'none', color: '#1a3a2a', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, padding: 0, marginLeft: 4 }}>
+                    Create one
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Mobile: horizontal scrolling folder chips */
+            <div style={{ overflowX: 'auto', display: 'flex', gap: 8, padding: '10px 12px', scrollbarWidth: 'none' }}>
+              <button onClick={() => selectFolder(null)}
+                style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  background: activeFolder === null ? '#1a3a2a' : '#f3f4f6',
+                  color: activeFolder === null ? 'white' : '#374151' }}>
+                All <span style={{ opacity: 0.7, fontWeight: 400 }}>({docs.length})</span>
+              </button>
+              {folders.map(f => (
+                <button key={f.name} onClick={() => selectFolder(f.name)}
+                  style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+                    background: activeFolder === f.name ? '#1a3a2a' : '#f3f4f6',
+                    color: activeFolder === f.name ? 'white' : '#374151' }}>
+                  {f.name}
+                  {f.expiring_count > 0 && <span style={{ background: '#dc2626', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 8, padding: '0 5px' }}>{f.expiring_count}</span>}
+                  <span style={{ opacity: 0.6, fontWeight: 400 }}>({f.count})</span>
                 </button>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* MAIN CONTENT */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
           {/* Search bar */}
-          <div style={{ padding: '14px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ padding: isMobile ? '10px 12px' : '14px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 15 }}>🔍</span>
               <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search documents by name, type or uploader…"
+                placeholder={isMobile ? 'Search…' : 'Search documents by name, type or uploader…'}
                 style={{ ...inp, paddingLeft: 36, fontSize: 13 }}/>
             </div>
           </div>
 
           {/* Folder header */}
-          <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
+          <div style={{ padding: isMobile ? '12px 12px 0' : '16px 24px 0', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 17, color: '#111' }}>
-                  {activeFolder || 'All Documents'} — {entity}
+                <div style={{ fontWeight: 800, fontSize: isMobile ? 15 : 17, color: '#111' }}>
+                  {activeFolder || 'All Documents'}{!isMobile && ` — ${entity}`}
                 </div>
                 <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
                   {filtered.length} document{filtered.length !== 1 ? 's' : ''}
                 </div>
               </div>
-              <button onClick={openUpload}
-                style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                + Upload
-              </button>
+              {!isMobile && (
+                <button onClick={openUpload}
+                  style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  + Upload
+                </button>
+              )}
             </div>
 
             {/* Expiry warning banner */}
@@ -431,7 +496,7 @@ export default function DocumentManager({ currentUser }: Props) {
           </div>
 
           {/* Document list */}
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '12px 12px' : '16px 24px' }}>
             {loading ? (
               <div style={{ color: '#9ca3af', fontSize: 14, padding: 20 }}>Loading…</div>
             ) : filtered.length === 0 ? (
@@ -458,12 +523,10 @@ export default function DocumentManager({ currentUser }: Props) {
                       {/* Name + meta */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {/* On mobile use download link so it triggers save-to-phone; on desktop open inline */}
-                          <a href={isMobile ? `/api/documents/${doc.id}?download=1` : `/api/documents/${doc.id}`}
-                            target={isMobile ? '_self' : '_blank'} rel="noopener noreferrer"
-                            style={{ fontWeight: 600, fontSize: 14, color: '#111', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => openPreview(doc)}
+                            style={{ fontWeight: 600, fontSize: 14, color: '#1a3a2a', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
                             {doc.name}
-                          </a>
+                          </button>
                           {doc.reference_no && (
                             <span style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                               {doc.reference_no}
@@ -492,8 +555,12 @@ export default function DocumentManager({ currentUser }: Props) {
                     <div style={{ display: 'flex', gap: isMobile ? 8 : 4, flexShrink: 0, width: isMobile ? '100%' : undefined, alignItems: 'center' }}>
                       {isMobile && <ExpiryBadge expiry_date={doc.expiry_date} />}
                       {isMobile && <div style={{ flex: 1 }} />}
+                      <button onClick={() => openPreview(doc)} title="View"
+                        style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 16px' : '4px 9px', fontSize: isMobile ? 13 : 11, fontWeight: isMobile ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {isMobile ? '👁 View' : '👁'}
+                      </button>
                       <a href={`/api/documents/${doc.id}?download=1`} title="Download"
-                        style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 16px' : '4px 9px', fontSize: isMobile ? 13 : 11, textDecoration: 'none', fontWeight: isMobile ? 600 : 400, whiteSpace: 'nowrap' }}>
+                        style={{ background: 'white', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 14px' : '4px 9px', fontSize: isMobile ? 13 : 11, textDecoration: 'none', fontWeight: isMobile ? 600 : 400, whiteSpace: 'nowrap' }}>
                         {isMobile ? '↓ Download' : '↓'}
                       </a>
                       {!isMobile && (
@@ -518,6 +585,77 @@ export default function DocumentManager({ currentUser }: Props) {
           </div>
         </div>
       </div>
+
+      {/* ═══ PREVIEW MODAL ══════════════════════════════════════════════════ */}
+      {previewDoc && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column' }}
+          onClick={e => { if (e.target === e.currentTarget) closePreview() }}>
+          {/* Header */}
+          <div style={{ background: '#1a3a2a', padding: '0 16px', height: 52, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{previewDoc.name}</div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>{fmtSize(previewDoc.size)}</div>
+            </div>
+            <a href={`/api/documents/${previewDoc.id}?download=1`}
+              style={{ background: '#b5833a', color: 'white', padding: '7px 14px', borderRadius: 5, fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              ↓ Download
+            </a>
+            <button onClick={closePreview}
+              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>
+              ✕ Close
+            </button>
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {previewLoading && (
+              <div style={{ color: 'white', fontSize: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+                Loading document…
+              </div>
+            )}
+            {!previewLoading && !previewUrl && (
+              <div style={{ color: 'white', textAlign: 'center', padding: 32 }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>😞</div>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Could not load preview</div>
+                <a href={`/api/documents/${previewDoc.id}?download=1`}
+                  style={{ background: '#b5833a', color: 'white', padding: '10px 20px', borderRadius: 6, textDecoration: 'none', fontWeight: 600 }}>
+                  Download instead
+                </a>
+              </div>
+            )}
+            {!previewLoading && previewUrl && (() => {
+              const mime = previewDoc.mime_type || ''
+              if (mime.startsWith('image/')) {
+                return (
+                  <img src={previewUrl} alt={previewDoc.name}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                )
+              }
+              if (mime === 'application/pdf' || previewDoc.name.toLowerCase().endsWith('.pdf')) {
+                return (
+                  <iframe src={previewUrl} title={previewDoc.name}
+                    style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} />
+                )
+              }
+              // Office docs and others — no universal viewer
+              return (
+                <div style={{ color: 'white', textAlign: 'center', padding: 32 }}>
+                  <div style={{ fontSize: 64, marginBottom: 16 }}>{fileIcon(mime, previewDoc.name)}</div>
+                  <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{previewDoc.name}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 24 }}>
+                    This file type cannot be previewed in the browser.<br/>Download it to open with the appropriate app.
+                  </div>
+                  <a href={`/api/documents/${previewDoc.id}?download=1`}
+                    style={{ background: '#b5833a', color: 'white', padding: '12px 24px', borderRadius: 6, textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
+                    ↓ Download {previewDoc.name}
+                  </a>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* ═══ EXPIRING PANEL ══════════════════════════════════════════════════ */}
       {showExpiring && (

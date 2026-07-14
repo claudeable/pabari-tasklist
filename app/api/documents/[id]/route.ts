@@ -23,12 +23,7 @@ export async function GET(
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const forceDownload = req.nextUrl.searchParams.get('download') === '1'
-  // Always use attachment on mobile — inline PDF rendering is unreliable on iOS/Android
-  const ua = req.headers.get('user-agent') || ''
-  const isMobile = /mobile|android|iphone|ipad|ipod/i.test(ua)
-  const useAttachment = forceDownload || isMobile
-
-  const disposition = useAttachment
+  const disposition = forceDownload
     ? `attachment; filename*=UTF-8''${encodeURIComponent(doc.name)}`
     : `inline; filename*=UTF-8''${encodeURIComponent(doc.name)}`
 
