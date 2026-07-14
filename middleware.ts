@@ -65,7 +65,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/centre')             ||
     pathname.startsWith('/api/notifications')  ||
     pathname.startsWith('/api/centre')         ||
-    pathname.startsWith('/api/ai')
+    pathname.startsWith('/api/ai')              ||
+    pathname.startsWith('/delivery-notes')     ||
+    pathname.startsWith('/api/delivery-notes')
 
   if (!isProtected) return NextResponse.next()
 
@@ -99,5 +101,7 @@ export const config = {
     '/api/notifications', '/api/notifications/:path*',
     '/api/centre/:path*',
     '/api/ai/:path*',
+    '/delivery-notes', '/delivery-notes/:path*',
+    '/api/delivery-notes', '/api/delivery-notes/:path*',
   ],
 }
