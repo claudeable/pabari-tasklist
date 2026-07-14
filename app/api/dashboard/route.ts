@@ -42,48 +42,52 @@ export async function GET() {
   let awaitingHkApproval = 0
   let highPriorityTasks: { id: string; description: string; company: string; due_date: string }[] = []
 
+  // Each count is independent — one failure won't zero out the others
   try {
-    const queries: Promise<{ count: string }[]>[] = [
-      // My open tasks
-      query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status NOT IN (${DONE_STATUSES})
-         AND LOWER(responsible) = LOWER($1)`,
-        [user.name]
-      ),
-      // My overdue tasks
-      query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status NOT IN (${DONE_STATUSES})
-         AND due_date IS NOT NULL AND due_date != '' AND due_date < $1
-         AND LOWER(responsible) = LOWER($2)`,
-        [today, user.name]
-      ),
-      // My tasks due today
-      query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status NOT IN (${DONE_STATUSES})
-         AND due_date = $1
-         AND LOWER(responsible) = LOWER($2)`,
-        [today, user.name]
-      ),
-      // My tasks resolved today
-      query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status = 'resolved'
-         AND DATE(updated_at) = $1
-         AND LOWER(responsible) = LOWER($2)`,
-        [today, user.name]
-      ),
-    ]
+    const r = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM tasks
+       WHERE status NOT IN (${DONE_STATUSES})
+       AND LOWER(responsible) = LOWER($1)`,
+      [user.name]
+    )
+    myTasks = cnt(r)
+  } catch { /* */ }
 
-    const [mine, overdue, todayDue, completedT] = await Promise.all(queries)
-    myTasks        = cnt(mine)
-    overdueTasks   = cnt(overdue)
-    dueToday       = cnt(todayDue)
-    completedToday = cnt(completedT)
+  try {
+    const r = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM tasks
+       WHERE status NOT IN (${DONE_STATUSES})
+       AND due_date IS NOT NULL AND due_date != '' AND due_date < $1
+       AND LOWER(responsible) = LOWER($2)`,
+      [today, user.name]
+    )
+    overdueTasks = cnt(r)
+  } catch { /* */ }
 
-    // High priority tasks assigned to me
+  try {
+    const r = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM tasks
+       WHERE status NOT IN (${DONE_STATUSES})
+       AND due_date = $1
+       AND LOWER(responsible) = LOWER($2)`,
+      [today, user.name]
+    )
+    dueToday = cnt(r)
+  } catch { /* */ }
+
+  try {
+    // Use LEFT(updated_at::text,10) to safely compare regardless of column type
+    const r = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM tasks
+       WHERE status = 'resolved'
+       AND LEFT(updated_at::text, 10) = $1
+       AND LOWER(responsible) = LOWER($2)`,
+      [today, user.name]
+    )
+    completedToday = cnt(r)
+  } catch { /* */ }
+
+  try {
     highPriorityTasks = await query<{ id: string; description: string; company: string; due_date: string }>(
       `SELECT id::text, particulars AS description, company, COALESCE(due_date,'') AS due_date FROM tasks
        WHERE status NOT IN (${DONE_STATUSES})
@@ -93,23 +97,25 @@ export async function GET() {
        LIMIT 5`,
       [user.name]
     )
+  } catch { /* */ }
 
-    // HK-specific counts (Harshil / admin)
-    if (isHK) {
-      const [commentNeeded, awaitingHK] = await Promise.all([
-        query<{ count: string }>(
-          `SELECT COUNT(*)::text AS count FROM tasks
-           WHERE status NOT IN (${DONE_STATUSES})
-           AND (hk_comment IS NULL OR TRIM(hk_comment) = '')`
-        ),
-        query<{ count: string }>(
-          `SELECT COUNT(*)::text AS count FROM tasks WHERE status = 'awaiting-hk-approval'`
-        ),
-      ])
-      needsHkComment     = cnt(commentNeeded)
-      awaitingHkApproval = cnt(awaitingHK)
-    }
-  } catch { /* tasks table may not exist */ }
+  if (isHK) {
+    try {
+      const r = await query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM tasks
+         WHERE status NOT IN (${DONE_STATUSES})
+         AND (hk_comment IS NULL OR TRIM(hk_comment) = '')`
+      )
+      needsHkComment = cnt(r)
+    } catch { /* */ }
+
+    try {
+      const r = await query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM tasks WHERE status = 'awaiting-hk-approval'`
+      )
+      awaitingHkApproval = cnt(r)
+    } catch { /* */ }
+  }
 
   // ── Approvals ───────────────────────────────────────────────────────────────
   let approvalsWaiting = 0
