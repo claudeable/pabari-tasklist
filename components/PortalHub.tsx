@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { SessionUser } from '@/types'
+import NotificationBell from './NotificationBell'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ActivityEntry {
@@ -184,6 +185,8 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
   })
 
   const isHK = currentUser.role === 'admin' || (currentUser.role === 'director' && firstName.toLowerCase() === 'harshil')
+  // Only admin, Harshil, and Benson see activity log, recent activity, and quick actions
+  const canSeeActivity = currentUser.role === 'admin' || firstName.toLowerCase() === 'harshil' || firstName.toLowerCase() === 'benson'
   const hasAttention = (dash?.approvalsWaiting ?? 0) > 0 || (dash?.overdueTasks ?? 0) > 0 || (dash?.highPriorityTasks?.length ?? 0) > 0 || (isHK && (dash?.needsHkComment ?? 0) > 0)
 
   // ── Styles ───────────────────────────────────────────────────────────────────
@@ -199,8 +202,14 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ background:'#b5833a', color:'white', fontWeight:800, fontSize:11, padding:'5px 10px', borderRadius:4, letterSpacing:'1px' }}>PABARI</div>
           {!isMobile && <span style={{ fontSize:13, color:'#6b7280', fontWeight:500 }}>Work Hub</span>}
+          {!isMobile && (
+            <a href="/centre" style={{ fontSize:12, fontWeight:600, color:'#1a3a2a', textDecoration:'none', background:'#f0fdf4', border:'1px solid #86efac', padding:'4px 10px', borderRadius:6, display:'flex', alignItems:'center', gap:5 }}>
+              <span>📥</span> Centre
+            </a>
+          )}
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <NotificationBell userEmail={currentUser.email} />
           {!isMobile && <span style={{ fontSize:13, color:'#374151' }}>{currentUser.name}</span>}
           <div style={{ width:32, height:32, borderRadius:'50%', background:'#1a3a2a', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>{initials}</div>
           <button onClick={signOut} style={{ background:'transparent', border:'1px solid #d1d5db', borderRadius:6, padding:'5px 12px', fontSize:12, color:'#374151', cursor:'pointer' }}>
@@ -262,7 +271,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
       </div>
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
-      <div style={{ maxWidth:1200, margin:'0 auto', padding: isMobile ? '16px 12px' : '24px 32px', display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap:20, alignItems:'start' }}>
+      <div style={{ maxWidth:1200, margin:'0 auto', padding: isMobile ? '16px 12px' : '24px 32px', display:'grid', gridTemplateColumns: isMobile ? '1fr' : canSeeActivity ? '1fr 340px' : '1fr', gap:20, alignItems:'start' }}>
 
         {/* LEFT COLUMN */}
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -364,8 +373,8 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
             </div>
           </div>
 
-          {/* ── ACTIVITY LOG (directors only) ───────────────────────────── */}
-          {isDirector && (
+          {/* ── ACTIVITY LOG (admin / Harshil / Benson only) ────────────── */}
+          {canSeeActivity && (
             <div style={card}>
               <div style={{ padding:'16px 20px', borderBottom:'1px solid #f3f4f6', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={sectionTitle}>📋 Activity Log</div>
@@ -457,10 +466,10 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
           )}
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+        {/* RIGHT COLUMN — only admin / Harshil / Benson */}
+        {canSeeActivity && <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
-          {/* ── FINANCE SNAPSHOT (admin/harshil/benson) — shown at top for these users ── */}
+          {/* ── FINANCE SNAPSHOT ────────────────────────────────────────── */}
           {dash?.financeStats ? (
             <div style={card}>
               <div style={{ padding:'16px 20px', borderBottom:'1px solid #f3f4f6' }}>
@@ -543,7 +552,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
             </div>
           </div>
 
-        </div>
+        </div>}
       </div>
     </div>
   )
