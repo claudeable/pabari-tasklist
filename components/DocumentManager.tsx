@@ -97,30 +97,15 @@ export default function DocumentManager({ currentUser }: Props) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Preview
-  const [previewDoc,  setPreviewDoc]  = useState<DocMeta | null>(null)
-  const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<DocMeta | null>(null)
 
-  async function openPreview(doc: DocMeta) {
-    setPreviewDoc(doc)
-    setPreviewUrl(null)
-    setPreviewLoading(true)
-    try {
-      const res = await fetch(`/api/documents/${doc.id}`, { credentials: 'include' })
-      if (!res.ok) throw new Error('Failed to load')
-      const blob = await res.blob()
-      setPreviewUrl(URL.createObjectURL(blob))
-    } catch {
-      setPreviewUrl(null)
-    } finally {
-      setPreviewLoading(false)
-    }
-  }
+  function openPreview(doc: DocMeta) { setPreviewDoc(doc) }
+  function closePreview() { setPreviewDoc(null) }
 
-  function closePreview() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setPreviewDoc(null)
-    setPreviewUrl(null)
+  function canPreviewInBrowser(mime: string, name: string) {
+    if (mime.startsWith('image/')) return true
+    if (mime === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) return true
+    return false
   }
 
   const isAdmin = currentUser.role === 'admin'
@@ -616,43 +601,27 @@ export default function DocumentManager({ currentUser }: Props) {
 
           {/* Content */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {previewLoading && (
-              <div style={{ color: 'white', fontSize: 14, textAlign: 'center' }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-                Loading document…
-              </div>
-            )}
-            {!previewLoading && !previewUrl && (
-              <div style={{ color: 'white', textAlign: 'center', padding: 32 }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>😞</div>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>Could not load preview</div>
-                <a href={`/api/documents/${previewDoc.id}?download=1`}
-                  style={{ background: '#b5833a', color: 'white', padding: '10px 20px', borderRadius: 6, textDecoration: 'none', fontWeight: 600 }}>
-                  Download instead
-                </a>
-              </div>
-            )}
-            {!previewLoading && previewUrl && (() => {
+            {(() => {
               const mime = previewDoc.mime_type || ''
+              const src  = `/api/documents/${previewDoc.id}`
               if (mime.startsWith('image/')) {
                 return (
-                  <img src={previewUrl} alt={previewDoc.name}
+                  <img src={src} alt={previewDoc.name}
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                 )
               }
-              if (mime === 'application/pdf' || previewDoc.name.toLowerCase().endsWith('.pdf')) {
+              if (canPreviewInBrowser(mime, previewDoc.name)) {
                 return (
-                  <iframe src={previewUrl} title={previewDoc.name}
+                  <iframe src={src} title={previewDoc.name}
                     style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} />
                 )
               }
-              // Office docs and others — no universal viewer
               return (
                 <div style={{ color: 'white', textAlign: 'center', padding: 32 }}>
                   <div style={{ fontSize: 64, marginBottom: 16 }}>{fileIcon(mime, previewDoc.name)}</div>
                   <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{previewDoc.name}</div>
                   <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 24 }}>
-                    This file type cannot be previewed in the browser.<br/>Download it to open with the appropriate app.
+                    This file type can&apos;t be previewed — open it with the appropriate app.
                   </div>
                   <a href={`/api/documents/${previewDoc.id}?download=1`}
                     style={{ background: '#b5833a', color: 'white', padding: '12px 24px', borderRadius: 6, textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
