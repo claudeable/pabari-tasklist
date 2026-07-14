@@ -4,7 +4,7 @@ const tokens = new Map<string, TokenEntry>()
 
 export function createViewToken(documentId: number): string {
   const now = Date.now()
-  for (const [k, v] of tokens) if (v.expiresAt < now) tokens.delete(k)
+  tokens.forEach((v, k) => { if (v.expiresAt < now) tokens.delete(k) })
   const token = crypto.randomUUID()
   tokens.set(token, { documentId, expiresAt: now + 24 * 60 * 60 * 1000 }) // 24 hours
   return token
