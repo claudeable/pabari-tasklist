@@ -77,7 +77,8 @@ export default function FormsLanding({ currentUser }: Props) {
           <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
           <a href="/forms/leave" style={{color:'rgba(255,255,255,0.75)',textDecoration:'none',fontSize:12}}>Leave Requests</a>
           <a href="/forms/petty-cash" style={{color:'rgba(255,255,255,0.75)',textDecoration:'none',fontSize:12}}>Petty Cash</a>
-          {currentUser.role !== 'staff' && <a href="/forms/reports" style={{color:'rgba(255,255,255,0.75)',textDecoration:'none',fontSize:12}}>Reports</a>}
+          <a href="/reports/petty-cash" style={{color:'rgba(255,255,255,0.75)',textDecoration:'none',fontSize:12}}>PCR Reports</a>
+          {currentUser.role !== 'staff' && <a href="/forms/reports" style={{color:'rgba(255,255,255,0.75)',textDecoration:'none',fontSize:12}}>Leave Reports</a>}
         </>}
         <div style={{flex:1}}/>
         {!isMobile && <>
@@ -101,7 +102,8 @@ export default function FormsLanding({ currentUser }: Props) {
               {label:'← Portal',href:'/'},
               {label:'Leave Requests',href:'/forms/leave'},
               {label:'Petty Cash',href:'/forms/petty-cash'},
-              ...(currentUser.role !== 'staff' ? [{label:'Reports',href:'/forms/reports'}] : []),
+              {label:'PCR Reports',href:'/reports/petty-cash'},
+              ...(currentUser.role !== 'staff' ? [{label:'Leave Reports',href:'/forms/reports'}] : []),
             ].map(item => (
               <a key={item.href} href={item.href} style={{display:'block',padding:'13px 16px',color:'rgba(255,255,255,0.85)',textDecoration:'none',fontSize:14,fontWeight:500,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 {item.label}
