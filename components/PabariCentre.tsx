@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { SessionUser } from '@/types'
 import { NotifItem } from './NotificationBell'
+import ChatPanel from './ChatPanel'
 
 type Tab = 'inbox' | 'chat' | 'ai'
 type Filter = 'all' | 'approval' | 'overdue' | 'task_assigned' | 'activity'
@@ -177,7 +178,7 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
         )}
 
         {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: tab === 'chat' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
 
           {/* Mobile tab bar */}
           {isMobile && (
@@ -275,47 +276,7 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
 
           {/* ── CHAT TAB ────────────────────────────────────────────────────── */}
           {tab === 'chat' && (
-            <div style={{ flex: 1, maxWidth: 700, padding: isMobile ? '12px' : '24px 32px' }}>
-              <div style={{ marginBottom: 20 }}>
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111827' }}>Chat</h2>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Internal messaging across departments and projects.</p>
-              </div>
-
-              <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-                <div style={{ padding: '28px 24px', borderBottom: '1px solid #f3f4f6', textAlign: 'center' }}>
-                  <div style={{ fontSize: 40, marginBottom: 10 }}>💬</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Chat is live</div>
-                  <div style={{ fontSize: 13, color: '#6b7280', maxWidth: 360, margin: '0 auto' }}>
-                    Use the chat bubble in the bottom-right corner to message colleagues, join department channels, and send direct messages.
-                  </div>
-                </div>
-                <div style={{ padding: '16px 24px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>AVAILABLE CHANNELS</div>
-                  {[
-                    { icon: '🌐', name: 'All Staff',     desc: 'Company-wide announcements' },
-                    { icon: '👔', name: 'HOD',           desc: 'Heads of department' },
-                    { icon: '💳', name: 'Finance',       desc: 'Finance team' },
-                    { icon: '💬', name: 'Direct Messages', desc: 'Private 1-on-1 conversations' },
-                  ].map(ch => (
-                    <div key={ch.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, background: '#f9fafb', marginBottom: 6 }}>
-                      <span style={{ fontSize: 18 }}>{ch.icon}</span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{ch.name}</div>
-                        <div style={{ fontSize: 11, color: '#6b7280' }}>{ch.desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                  <div style={{ marginTop: 16, textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>Click the 💬 bubble at the bottom-right to open chat</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 16, padding: '14px 18px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>Coming in Phase 2</div>
-                <div style={{ fontSize: 12, color: '#78350f' }}>Full chat panel inside Pabari Centre — threads, reactions, file sharing, department rooms, pinned messages, and smart ERP object linking.</div>
-              </div>
-            </div>
+            <ChatPanel currentUser={currentUser} />
           )}
 
           {/* ── AI TAB ──────────────────────────────────────────────────────── */}
