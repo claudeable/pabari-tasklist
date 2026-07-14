@@ -8,20 +8,26 @@ export const dynamic = 'force-dynamic'
 async function ensureTable() {
   await execute(`
     CREATE TABLE IF NOT EXISTS delivery_notes (
-      id            SERIAL PRIMARY KEY,
-      note_number   TEXT NOT NULL,
-      to_company    TEXT NOT NULL,
-      order_no      TEXT DEFAULT '',
-      delivery_date TEXT NOT NULL,
-      vehicle_no    TEXT DEFAULT '',
-      driver_name   TEXT DEFAULT '',
-      driver_id     TEXT DEFAULT '',
-      items         JSONB NOT NULL DEFAULT '[]',
-      remarks       TEXT DEFAULT '',
-      created_by    TEXT DEFAULT '',
-      created_at    TIMESTAMPTZ DEFAULT NOW()
+      id          SERIAL PRIMARY KEY,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  // Add columns individually so existing tables are upgraded safely
+  const cols: [string, string][] = [
+    ['note_number',   'TEXT NOT NULL DEFAULT \'\''],
+    ['to_company',    'TEXT NOT NULL DEFAULT \'\''],
+    ['order_no',      'TEXT DEFAULT \'\''],
+    ['delivery_date', 'TEXT NOT NULL DEFAULT \'\''],
+    ['vehicle_no',    'TEXT DEFAULT \'\''],
+    ['driver_name',   'TEXT DEFAULT \'\''],
+    ['driver_id',     'TEXT DEFAULT \'\''],
+    ['items',         'JSONB NOT NULL DEFAULT \'[]\''],
+    ['remarks',       'TEXT DEFAULT \'\''],
+    ['created_by',    'TEXT DEFAULT \'\''],
+  ]
+  for (const [col, def] of cols) {
+    await execute(`ALTER TABLE delivery_notes ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {})
+  }
 }
 
 export async function GET() {
