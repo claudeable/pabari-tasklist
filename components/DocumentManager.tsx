@@ -94,6 +94,8 @@ export default function DocumentManager({ currentUser }: Props) {
   const [delFolderName,  setDelFolderName]  = useState<string | null>(null)
   const [delFolderError, setDelFolderError] = useState('')
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
   // Preview
   const [previewDoc,  setPreviewDoc]  = useState<DocMeta | null>(null)
   const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
@@ -349,7 +351,7 @@ export default function DocumentManager({ currentUser }: Props) {
         {/* SIDEBAR (desktop) / TOP STRIP (mobile) */}
         <div style={isMobile
           ? { background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }
-          : { width: 240, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+          : { width: sidebarCollapsed ? 0 : 240, minWidth: sidebarCollapsed ? 0 : 240, background: 'white', borderRight: sidebarCollapsed ? 'none' : '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s ease, min-width 0.2s ease' }}>
 
           {/* Entity selector */}
           {!isMobile ? (
@@ -456,7 +458,13 @@ export default function DocumentManager({ currentUser }: Props) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
           {/* Search bar */}
-          <div style={{ padding: isMobile ? '10px 12px' : '14px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ padding: isMobile ? '10px 12px' : '14px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {!isMobile && (
+              <button onClick={() => setSidebarCollapsed(v => !v)} title={sidebarCollapsed ? 'Show folders' : 'Hide folders'}
+                style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: '#6b7280', fontSize: 14, flexShrink: 0, lineHeight: 1 }}>
+                {sidebarCollapsed ? '▶' : '◀'}
+              </button>
+            )}
             <div style={{ flex: 1, position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 15 }}>🔍</span>
               <input value={search} onChange={e => setSearch(e.target.value)}
