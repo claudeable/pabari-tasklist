@@ -264,11 +264,12 @@ function PrintPreview({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
 }
 
 // ─── create / edit form ───────────────────────────────────────────────────────
-function InvoiceForm({ initial, onSave, onCancel, saving }: {
+function InvoiceForm({ initial, onSave, onCancel, saving, projects }: {
   initial: ReturnType<typeof blankForm> & Partial<Invoice>
   onSave: (d: ReturnType<typeof blankForm>) => void
   onCancel: () => void
   saving: boolean
+  projects: {id:number,name:string}[]
 }) {
   const [form, setForm] = useState({ ...initial })
   function set<K extends keyof typeof form>(k: K, v: typeof form[K]) {
@@ -326,6 +327,18 @@ function InvoiceForm({ initial, onSave, onCancel, saving }: {
           <input type="email" value={form.client_email} onChange={e=>set('client_email',e.target.value)} style={inp} placeholder="client@example.com" />
         </div>
       </div>
+
+      {/* Project link — LPO only */}
+      {form.type === 'lpo' && (
+        <div style={{ marginBottom:14 }}>
+          {label('Link to project (optional)')}
+          <select value={form.project_id ?? ''} onChange={e=>set('project_id', e.target.value ? Number(e.target.value) : null)} style={inp}>
+            <option value="">— No project —</option>
+            {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {form.project_id && <div style={{fontSize:11,color:'#6b7280',marginTop:4}}>This LPO will count toward the selected project&apos;s budget spending when accepted/paid.</div>}
+        </div>
+      )}
 
       <div style={grid('1fr 1fr 1fr')}>
         <div>
@@ -421,6 +434,14 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
   const [filterType,  setFType]    = useState<DocType | 'all'>('all')
   const [filterStatus,setFStatus]  = useState<InvoiceStatus | 'all'>('all')
   const [filterCo,    setFCo]      = useState<string>('all')
+
+  const [projects,  setProjects] = useState<{id:number,name:string}[]>([])
+  useEffect(() => {
+    fetch('/api/projects', { credentials:'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: {id:number,name:string}[]) => setProjects(data))
+      .catch(() => {})
+  }, [])
 
   const [saving,    setSaving]  = useState(false)
   const [showPrint, setShowPrint] = useState(false)
@@ -673,8 +694,27 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
               </div>
             </div>
 
+            {/* Project link badge — LPO only */}
+            {active.type === 'lpo' && active.project_id && (() => {
+              const proj = projects.find(p => p.id === active.project_id)
+              return proj ? (
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#6b7280', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em' }}>Linked Project</div>
+                  <a href={`/projects`} style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'8px 14px', textDecoration:'none' }}>
+                    <span style={{ fontSize:14 }}>📋</span>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:13, color:'#1a3a2a' }}>{proj.name}</div>
+                      <div style={{ fontSize:11, color:'#6b7280' }}>
+                        {['accepted','paid'].includes(active.status) ? 'Counting toward project budget' : 'Will count toward budget when accepted/paid'}
+                      </div>
+                    </div>
+                  </a>
+                </div>
+              ) : null
+            })()}
+
             <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'#6b7280', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.05em' }}>Bill To</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'#6b7280', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.05em' }}>{active.type === 'lpo' ? 'Supplier' : 'Bill To'}</div>
               <div style={{ background:'#f9fafb', borderRadius:8, padding:'12px 16px' }}>
                 <div style={{ fontWeight:700 }}>{active.client_name}</div>
                 {active.client_address && <div style={{ fontSize:12, color:'#6b7280', marginTop:2, whiteSpace:'pre-line' }}>{active.client_address}</div>}
@@ -821,6 +861,7 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
               onSave={saveInvoice}
               onCancel={()=>setTab('list')}
               saving={saving}
+              projects={projects}
             />
           </div>
         )}
