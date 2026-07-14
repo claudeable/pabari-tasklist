@@ -23,7 +23,12 @@ export async function GET(
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const forceDownload = req.nextUrl.searchParams.get('download') === '1'
-  const disposition   = forceDownload
+  // Always use attachment on mobile — inline PDF rendering is unreliable on iOS/Android
+  const ua = req.headers.get('user-agent') || ''
+  const isMobile = /mobile|android|iphone|ipad|ipod/i.test(ua)
+  const useAttachment = forceDownload || isMobile
+
+  const disposition = useAttachment
     ? `attachment; filename*=UTF-8''${encodeURIComponent(doc.name)}`
     : `inline; filename*=UTF-8''${encodeURIComponent(doc.name)}`
 
@@ -31,10 +36,14 @@ export async function GET(
     logActivity(user!.email, user!.name, 'doc_downloaded', `Downloaded "${doc.name}"`).catch(() => {})
   }
 
-  return new NextResponse(new Uint8Array(doc.data), {
+  const buf = Buffer.isBuffer(doc.data) ? doc.data : Buffer.from(doc.data)
+
+  return new NextResponse(buf, {
     headers: {
       'Content-Type':        doc.mime_type || 'application/octet-stream',
       'Content-Disposition': disposition,
+      'Content-Length':      String(buf.length),
+      'Cache-Control':       'private, no-store',
     },
   })
 }

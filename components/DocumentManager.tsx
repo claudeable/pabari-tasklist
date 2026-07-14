@@ -95,6 +95,13 @@ export default function DocumentManager({ currentUser }: Props) {
   const [delFolderError, setDelFolderError] = useState('')
 
   const isAdmin = currentUser.role === 'admin'
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const loadFolders = useCallback(async (ent: string) => {
     const res = await fetch(`/api/documents?mode=folder-summaries&entity=${encodeURIComponent(ent)}`, { credentials: 'include' })
@@ -280,27 +287,33 @@ export default function DocumentManager({ currentUser }: Props) {
       <InactivityGuard />
 
       {/* ── TOP NAV ─────────────────────────────────────────────────────────── */}
-      <div style={{ background: '#1a3a2a', padding: '0 20px', display: 'flex', alignItems: 'center', gap: 12, height: 50, flexShrink: 0 }}>
+      <div style={{ background: '#1a3a2a', padding: '0 14px', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, height: 50, flexShrink: 0 }}>
         <span style={{ background: '#b5833a', color: 'white', fontWeight: 800, fontSize: 11, padding: '4px 9px', borderRadius: 4, letterSpacing: '1px' }}>PABARI</span>
-        <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>← Portal</a>
-        <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }}/>
-        <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>Document Management</span>
+        {!isMobile && <>
+          <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>← Portal</a>
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }}/>
+          <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>Document Management</span>
+        </>}
+        {isMobile && <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>Documents</span>}
         <div style={{ flex: 1 }}/>
         {expiringCount > 0 && (
           <button onClick={() => setShowExpiring(v => !v)}
             style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', color: '#fca5a5', borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            ⚠ Expiring
+            ⚠{!isMobile && ' Expiring'}
             <span style={{ background: '#dc2626', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{expiringCount}</span>
           </button>
         )}
         <button onClick={openUpload}
-          style={{ background: '#b5833a', color: 'white', border: 'none', borderRadius: 5, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          ↑ Upload
+          style={{ background: '#b5833a', color: 'white', border: 'none', borderRadius: 5, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          ↑ {isMobile ? '' : 'Upload'}
         </button>
-        <a href="/audit" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>Activity Log</a>
-        {isAdmin && <a href="/admin/users" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>Users</a>}
-        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{currentUser.name}</span>
-        <a href="/api/auth/logout" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: 12 }}>Sign out</a>
+        {!isMobile && <>
+          <a href="/audit" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>Activity Log</a>
+          {isAdmin && <a href="/admin/users" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>Users</a>}
+          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{currentUser.name}</span>
+          <a href="/api/auth/logout" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: 12 }}>Sign out</a>
+        </>}
+        {isMobile && <a href="/" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none', fontSize: 12 }}>← Portal</a>}
       </div>
 
       {/* ── MAIN LAYOUT ─────────────────────────────────────────────────────── */}
@@ -434,50 +447,69 @@ export default function DocumentManager({ currentUser }: Props) {
             ) : (
               <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                 {filtered.map((doc, i) => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: i < filtered.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-                    {/* Icon */}
-                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                      {fileIcon(doc.mime_type, doc.name)}
-                    </div>
+                  <div key={doc.id} style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 14, padding: isMobile ? '14px 14px' : '14px 18px', borderBottom: i < filtered.length - 1 ? '1px solid #f3f4f6' : 'none', flexDirection: isMobile ? 'column' : 'row' }}>
+                    {/* Top row on mobile: icon + name + download */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                      {/* Icon */}
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                        {fileIcon(doc.mime_type, doc.name)}
+                      </div>
 
-                    {/* Name + meta */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
-                          style={{ fontWeight: 600, fontSize: 14, color: '#111', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {doc.name}
-                        </a>
-                        {doc.reference_no && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            {doc.reference_no}
-                          </span>
+                      {/* Name + meta */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {/* On mobile use download link so it triggers save-to-phone; on desktop open inline */}
+                          <a href={isMobile ? `/api/documents/${doc.id}?download=1` : `/api/documents/${doc.id}`}
+                            target={isMobile ? '_self' : '_blank'} rel="noopener noreferrer"
+                            style={{ fontWeight: 600, fontSize: 14, color: '#111', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {doc.name}
+                          </a>
+                          {doc.reference_no && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              {doc.reference_no}
+                            </span>
+                          )}
+                          {!isMobile && <span style={{ fontSize: 10, color: '#d1d5db', flexShrink: 0 }}>{doc.year}</span>}
+                        </div>
+                        {doc.description && (
+                          <div style={{ fontSize: 12, color: '#4b5563', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.description}</div>
                         )}
-                        <span style={{ fontSize: 10, color: '#d1d5db', flexShrink: 0 }}>{doc.year}</span>
+                        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
+                          {[doc.doc_type, `${fmtDate(doc.created_at)} · ${doc.uploader_name || doc.uploaded_by}`].filter(Boolean).join(' · ')}
+                          {!activeFolder && <span style={{ marginLeft: 6, background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>📁 {doc.folder}</span>}
+                        </div>
                       </div>
-                      {doc.description && (
-                        <div style={{ fontSize: 12, color: '#4b5563', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.description}</div>
+
+                      {!isMobile && (
+                        /* Expiry (desktop only — shown in actions row on mobile) */
+                        <div style={{ flexShrink: 0, minWidth: 120, textAlign: 'right' }}>
+                          <ExpiryBadge expiry_date={doc.expiry_date} />
+                        </div>
                       )}
-                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
-                        {[doc.doc_type, `${fmtDate(doc.created_at)} · ${doc.uploader_name || doc.uploaded_by}`].filter(Boolean).join(' · ')}
-                        {!activeFolder && <span style={{ marginLeft: 6, background: '#f3f4f6', borderRadius: 4, padding: '1px 6px' }}>📁 {doc.folder}</span>}
-                      </div>
                     </div>
 
-                    {/* Expiry */}
-                    <div style={{ flexShrink: 0, minWidth: 120, textAlign: 'right' }}>
-                      <ExpiryBadge expiry_date={doc.expiry_date} />
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    {/* Actions row */}
+                    <div style={{ display: 'flex', gap: isMobile ? 8 : 4, flexShrink: 0, width: isMobile ? '100%' : undefined, alignItems: 'center' }}>
+                      {isMobile && <ExpiryBadge expiry_date={doc.expiry_date} />}
+                      {isMobile && <div style={{ flex: 1 }} />}
                       <a href={`/api/documents/${doc.id}?download=1`} title="Download"
-                        style={{ background: 'white', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 4, padding: '4px 9px', fontSize: 11, textDecoration: 'none' }}>↓</a>
-                      <button onClick={() => { setEditExpiry(doc); setEditExpiryVal(doc.expiry_date || '') }} title="Set expiry date"
-                        style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 9px', fontSize: 11, cursor: 'pointer' }}>📅</button>
-                      <button onClick={() => { setMoveDoc(doc); setMoveFolder(doc.folder) }} title="Move to folder"
-                        style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 9px', fontSize: 11, cursor: 'pointer' }}>Move</button>
-                      <button onClick={() => { setDelId(doc.id); setDelError('') }} title="Delete"
-                        style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 4, padding: '4px 9px', fontSize: 11, cursor: 'pointer' }}>🗑</button>
+                        style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 16px' : '4px 9px', fontSize: isMobile ? 13 : 11, textDecoration: 'none', fontWeight: isMobile ? 600 : 400, whiteSpace: 'nowrap' }}>
+                        {isMobile ? '↓ Download' : '↓'}
+                      </a>
+                      {!isMobile && (
+                        <>
+                          <button onClick={() => { setEditExpiry(doc); setEditExpiryVal(doc.expiry_date || '') }} title="Set expiry date"
+                            style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 9px', fontSize: 11, cursor: 'pointer' }}>📅</button>
+                          <button onClick={() => { setMoveDoc(doc); setMoveFolder(doc.folder) }} title="Move to folder"
+                            style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 9px', fontSize: 11, cursor: 'pointer' }}>Move</button>
+                          <button onClick={() => { setDelId(doc.id); setDelError('') }} title="Delete"
+                            style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 4, padding: '4px 9px', fontSize: 11, cursor: 'pointer' }}>🗑</button>
+                        </>
+                      )}
+                      {isMobile && (
+                        <button onClick={() => { setDelId(doc.id); setDelError('') }} title="Delete"
+                          style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 6, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}>🗑</button>
+                      )}
                     </div>
                   </div>
                 ))}
