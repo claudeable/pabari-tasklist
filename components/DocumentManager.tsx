@@ -107,29 +107,47 @@ export default function DocumentManager({ currentUser }: Props) {
   }
 
   async function openPreview(doc: DocMeta) {
-    setPreviewDoc(doc)
-    setPreviewSrc(null)
     const mime = doc.mime_type || ''
-    if (mime.startsWith('image/') || mime === 'application/pdf' || doc.name.toLowerCase().endsWith('.pdf')) {
-      // Direct URL — session cookie handles auth
+    const isPdf   = mime === 'application/pdf' || doc.name.toLowerCase().endsWith('.pdf')
+    const isImage = mime.startsWith('image/')
+    const isOffice = isOfficeFile(mime, doc.name)
+
+    if (isPdf || isImage) {
+      // Direct URL works for PDF/images on all devices
+      setPreviewDoc(doc)
       setPreviewSrc(`/api/documents/${doc.id}`)
       return
     }
-    if (isOfficeFile(mime, doc.name)) {
+
+    if (isOffice) {
       setPreviewLoading(true)
       try {
         const res = await fetch(`/api/documents/${doc.id}/viewtoken`, { method: 'POST', credentials: 'include' })
         const { token } = await res.json()
         const fileUrl = `${window.location.origin}/api/documents/view/${token}`
-        setPreviewSrc(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`)
+        const viewerUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`
+
+        if (isMobile) {
+          // Office Online iframe doesn't work in mobile browsers — open new tab
+          window.open(viewerUrl, '_blank')
+          setPreviewLoading(false)
+          return
+        }
+
+        setPreviewDoc(doc)
+        setPreviewSrc(viewerUrl)
       } catch {
+        setPreviewDoc(doc)
         setPreviewSrc(null)
       } finally {
         setPreviewLoading(false)
       }
       return
     }
-    // Unknown type — show download prompt (previewSrc stays null)
+
+    // Unknown type — show download prompt
+    setPreviewDoc(doc)
+    setPreviewSrc(null)
   }
 
   function closePreview() { setPreviewDoc(null); setPreviewSrc(null) }
@@ -574,9 +592,9 @@ export default function DocumentManager({ currentUser }: Props) {
                     <div style={{ display: 'flex', gap: isMobile ? 8 : 4, flexShrink: 0, width: isMobile ? '100%' : undefined, alignItems: 'center' }}>
                       {isMobile && <ExpiryBadge expiry_date={doc.expiry_date} />}
                       {isMobile && <div style={{ flex: 1 }} />}
-                      <button onClick={() => openPreview(doc)} title="View"
-                        style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 16px' : '4px 9px', fontSize: isMobile ? 13 : 11, fontWeight: isMobile ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                        {isMobile ? '👁 View' : '👁'}
+                      <button onClick={() => openPreview(doc)} title="View" disabled={previewLoading}
+                        style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 16px' : '4px 9px', fontSize: isMobile ? 13 : 11, fontWeight: isMobile ? 600 : 400, cursor: previewLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: previewLoading ? 0.7 : 1 }}>
+                        {isMobile ? (previewLoading ? '⏳ Opening…' : '👁 View') : '👁'}
                       </button>
                       <a href={`/api/documents/${doc.id}?download=1`} title="Download"
                         style={{ background: 'white', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: isMobile ? 6 : 4, padding: isMobile ? '8px 14px' : '4px 9px', fontSize: isMobile ? 13 : 11, textDecoration: 'none', fontWeight: isMobile ? 600 : 400, whiteSpace: 'nowrap' }}>
