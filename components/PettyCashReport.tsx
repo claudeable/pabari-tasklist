@@ -16,7 +16,9 @@ const STATUS_COLOR: Record<PettyCashStatus, { bg: string; color: string }> = {
   pending_hos:     { bg: '#fef9c3', color: '#92400e' },
   pending_hod:     { bg: '#dbeafe', color: '#1d4ed8' },
   pending_finance: { bg: '#ede9fe', color: '#6d28d9' },
-  approved:        { bg: '#dcfce7', color: '#15803d' },
+  approved:        { bg: '#fef9c3', color: '#854d0e' },
+  disbursed:       { bg: '#d1fae5', color: '#065f46' },
+  received:        { bg: '#bbf7d0', color: '#14532d' },
   rejected:        { bg: '#fee2e2', color: '#dc2626' },
 }
 

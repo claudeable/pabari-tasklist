@@ -191,8 +191,8 @@ function printLeaveRecord(r: LeaveRequest) {
 
 function printPCRRecord(r: PettyCashRequest) {
   const safe = (s: unknown) => String(s ?? '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-  const statusBg:    Record<PettyCashStatus,string> = { pending_hos:'#fef3c7', pending_hod:'#ede9fe', pending_finance:'#dbeafe', approved:'#d1fae5', rejected:'#fee2e2' }
-  const statusColor: Record<PettyCashStatus,string> = { pending_hos:'#92400e', pending_hod:'#5b21b6', pending_finance:'#1e40af', approved:'#065f46', rejected:'#991b1b' }
+  const statusBg:    Record<PettyCashStatus,string> = { pending_hos:'#fef3c7', pending_hod:'#ede9fe', pending_finance:'#dbeafe', approved:'#fef9c3', disbursed:'#d1fae5', received:'#bbf7d0', rejected:'#fee2e2' }
+  const statusColor: Record<PettyCashStatus,string> = { pending_hos:'#92400e', pending_hod:'#5b21b6', pending_finance:'#1e40af', approved:'#854d0e', disbursed:'#065f46', received:'#14532d', rejected:'#991b1b' }
   const w = window.open('', '_blank', 'width=900,height=720')
   if (!w) { alert('Please allow popups for PDF export.'); return }
   const itemRows = r.items.map(i => `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${safe(i.description)}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${safe(i.account_no)}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${i.amount.toLocaleString('en-KE',{minimumFractionDigits:2})}</td></tr>`).join('')
@@ -605,7 +605,9 @@ function PCRTable({ rows, onDelete, onPrint }: { rows: PettyCashRequest[]; onDel
     pending_hos:     {bg:'#fef3c7',color:'#92400e'},
     pending_hod:     {bg:'#ede9fe',color:'#5b21b6'},
     pending_finance: {bg:'#dbeafe',color:'#1e40af'},
-    approved:        {bg:'#d1fae5',color:'#065f46'},
+    approved:        {bg:'#fef9c3',color:'#854d0e'},
+    disbursed:       {bg:'#d1fae5',color:'#065f46'},
+    received:        {bg:'#bbf7d0',color:'#14532d'},
     rejected:        {bg:'#fee2e2',color:'#991b1b'},
   }
   const th: React.CSSProperties = {
