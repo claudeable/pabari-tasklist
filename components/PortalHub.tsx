@@ -13,16 +13,18 @@ interface ActivityEntry {
 }
 
 interface DashboardData {
-  myTasks:          number
-  overdueTasks:     number
-  dueToday:         number
-  completedToday:   number
-  approvalsWaiting: number
-  approvalItems:    { label: string; href: string; type: string }[]
-  highPriorityTasks:{ id: string; description: string; company: string; due_date: string }[]
-  recentActivity:   { user_name: string; action: string; details: string; created_at: string }[]
-  financeStats:     { draft: number; sent: number; overdue: number } | null
-  today:            string
+  myTasks:            number
+  overdueTasks:       number
+  dueToday:           number
+  completedToday:     number
+  needsHkComment:     number
+  awaitingHkApproval: number
+  approvalsWaiting:   number
+  approvalItems:      { label: string; href: string; type: string }[]
+  highPriorityTasks:  { id: string; description: string; company: string; due_date: string }[]
+  recentActivity:     { user_name: string; action: string; details: string; created_at: string }[]
+  financeStats:       { draft: number; sent: number; overdue: number } | null
+  today:              string
 }
 
 interface Session {
@@ -181,7 +183,8 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
     return true
   })
 
-  const hasAttention = (dash?.approvalsWaiting ?? 0) > 0 || (dash?.overdueTasks ?? 0) > 0 || (dash?.highPriorityTasks?.length ?? 0) > 0
+  const isHK = currentUser.role === 'admin' || (currentUser.role === 'director' && firstName.toLowerCase() === 'harshil')
+  const hasAttention = (dash?.approvalsWaiting ?? 0) > 0 || (dash?.overdueTasks ?? 0) > 0 || (dash?.highPriorityTasks?.length ?? 0) > 0 || (isHK && (dash?.needsHkComment ?? 0) > 0)
 
   // ── Styles ───────────────────────────────────────────────────────────────────
   const card = { background:'white', borderRadius:12, border:'1px solid #e5e7eb', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }
@@ -232,13 +235,14 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
           </div>
 
           {/* ── WORK TODAY STATS ──────────────────────────────────────────── */}
-          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap:10, marginTop:24 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${isHK ? 6 : 5},1fr)`, gap:10, marginTop:24 }}>
             {[
               { label:'My Tasks',        value: dash?.myTasks,          color:'#60a5fa', href:'/tasks',  icon:'📋' },
               { label:'Approvals',        value: dash?.approvalsWaiting, color:'#fbbf24', href:'/forms',  icon:'✅', alert: (dash?.approvalsWaiting ?? 0) > 0 },
               { label:'Overdue',          value: dash?.overdueTasks,     color:'#f87171', href:'/tasks',  icon:'⚠️', alert: (dash?.overdueTasks ?? 0) > 0 },
               { label:'Due Today',        value: dash?.dueToday,         color:'#a78bfa', href:'/tasks',  icon:'📅' },
               { label:'Completed Today',  value: dash?.completedToday,   color:'#34d399', href:'/tasks',  icon:'✓' },
+              ...(isHK ? [{ label:'Needs Comment', value: dash?.needsHkComment, color:'#c084fc', href:'/tasks', icon:'💬', alert: (dash?.needsHkComment ?? 0) > 0 }] : []),
             ].map(stat => (
               <div key={stat.label} onClick={() => window.location.href = stat.href}
                 style={{ background: stat.alert ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.08)', borderRadius:10, padding:'14px 16px', cursor:'pointer', border: stat.alert ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.1)', transition:'background 0.15s' }}
@@ -282,6 +286,30 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
                     <span style={{ fontSize:12, color:'#b45309', fontWeight:600 }}>Review →</span>
                   </a>
                 ))}
+                {isHK && (dash?.needsHkComment ?? 0) > 0 && (
+                  <a href="/tasks" style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px', borderBottom:'1px solid #f9fafb', textDecoration:'none', background:'white' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background='#fafafa'}
+                    onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background='white'}>
+                    <div style={{ width:36, height:36, borderRadius:8, background:'#ede9fe', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>💬</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#111827' }}>{dash?.needsHkComment} task{(dash?.needsHkComment??0)>1?'s':''} need{(dash?.needsHkComment??0)===1?'s':''} your comment</div>
+                      <div style={{ fontSize:11, color:'#6b7280', marginTop:1 }}>No HK comment added yet — pending your review</div>
+                    </div>
+                    <span style={{ fontSize:12, color:'#7c3aed', fontWeight:600 }}>Review →</span>
+                  </a>
+                )}
+                {isHK && (dash?.awaitingHkApproval ?? 0) > 0 && (
+                  <a href="/tasks" style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px', borderBottom:'1px solid #f9fafb', textDecoration:'none', background:'white' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background='#fafafa'}
+                    onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background='white'}>
+                    <div style={{ width:36, height:36, borderRadius:8, background:'#fef3c7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>⏳</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#111827' }}>{dash?.awaitingHkApproval} task{(dash?.awaitingHkApproval??0)>1?'s':''} awaiting your approval</div>
+                      <div style={{ fontSize:11, color:'#6b7280', marginTop:1 }}>Status: awaiting-hk-approval</div>
+                    </div>
+                    <span style={{ fontSize:12, color:'#b45309', fontWeight:600 }}>Approve →</span>
+                  </a>
+                )}
                 {(dash?.overdueTasks ?? 0) > 0 && (
                   <a href="/tasks" style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px', borderBottom:'1px solid #f9fafb', textDecoration:'none', background:'white' }}
                     onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background='#fafafa'}
@@ -432,46 +460,8 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
         {/* RIGHT COLUMN */}
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
-          {/* ── RECENT ACTIVITY FEED ────────────────────────────────────── */}
-          <div style={card}>
-            <div style={{ padding:'16px 20px', borderBottom:'1px solid #f3f4f6' }}>
-              <div style={sectionTitle}>🕐 Recent Activity</div>
-            </div>
-            <div style={{ padding:'4px 0' }}>
-              {dashLoading ? (
-                <div style={{ padding:'20px', textAlign:'center', color:'#9ca3af', fontSize:13 }}>Loading…</div>
-              ) : (dash?.recentActivity?.length ?? 0) === 0 ? (
-                <div style={{ padding:'20px', textAlign:'center', color:'#9ca3af', fontSize:13 }}>No recent activity</div>
-              ) : dash?.recentActivity.map((entry, i) => {
-                const meta = ACTION_LABELS[entry.action] ?? { dot:'#9ca3af', label:entry.action }
-                const feedLabel = ACTION_FEED[entry.action] ?? entry.action
-                return (
-                  <div key={i} style={{ display:'flex', gap:10, padding:'10px 16px', borderBottom: i < (dash.recentActivity.length-1) ? '1px solid #f9fafb' : 'none' }}>
-                    <div style={{ width:28, height:28, borderRadius:'50%', background:'#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#374151', flexShrink:0 }}>
-                      {entry.user_name.split(' ').map((w:string)=>w[0]).join('').toUpperCase().slice(0,2)}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:12, color:'#111827', lineHeight:1.4 }}>
-                        <span style={{ fontWeight:600 }}>{entry.user_name.split(' ')[0]}</span>
-                        {' '}<span style={{ color:'#6b7280' }}>{feedLabel}</span>
-                      </div>
-                      {entry.details && <div style={{ fontSize:11, color:'#9ca3af', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{entry.details}</div>}
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
-                        <span style={{ width:5, height:5, borderRadius:'50%', background:meta.dot, display:'inline-block' }}/>
-                        <span style={{ fontSize:10, color:'#9ca3af' }}>{timeAgo(entry.created_at)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{ padding:'10px 16px', borderTop:'1px solid #f3f4f6' }}>
-              <a href="/audit" style={{ fontSize:12, color:'#1a3a2a', fontWeight:600, textDecoration:'none' }}>View full activity log →</a>
-            </div>
-          </div>
-
-          {/* ── FINANCE SNAPSHOT (admin/harshil/benson) ─────────────────── */}
-          {dash?.financeStats && (
+          {/* ── FINANCE SNAPSHOT (admin/harshil/benson) — shown at top for these users ── */}
+          {dash?.financeStats ? (
             <div style={card}>
               <div style={{ padding:'16px 20px', borderBottom:'1px solid #f3f4f6' }}>
                 <div style={sectionTitle}>💳 Finance Snapshot</div>
@@ -488,6 +478,44 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
                   </a>
                 ))}
                 <a href="/finance" style={{ fontSize:12, color:'#1a3a2a', fontWeight:600, textDecoration:'none', textAlign:'right', marginTop:4 }}>Open Finance →</a>
+              </div>
+            </div>
+          ) : (
+            /* ── RECENT ACTIVITY FEED (everyone else) ────────────────────── */
+            <div style={card}>
+              <div style={{ padding:'16px 20px', borderBottom:'1px solid #f3f4f6' }}>
+                <div style={sectionTitle}>🕐 Recent Activity</div>
+              </div>
+              <div style={{ padding:'4px 0' }}>
+                {dashLoading ? (
+                  <div style={{ padding:'20px', textAlign:'center', color:'#9ca3af', fontSize:13 }}>Loading…</div>
+                ) : (dash?.recentActivity?.length ?? 0) === 0 ? (
+                  <div style={{ padding:'20px', textAlign:'center', color:'#9ca3af', fontSize:13 }}>No recent activity</div>
+                ) : dash?.recentActivity.map((entry, i) => {
+                  const meta = ACTION_LABELS[entry.action] ?? { dot:'#9ca3af', label:entry.action }
+                  const feedLabel = ACTION_FEED[entry.action] ?? entry.action
+                  return (
+                    <div key={i} style={{ display:'flex', gap:10, padding:'10px 16px', borderBottom: i < (dash.recentActivity.length-1) ? '1px solid #f9fafb' : 'none' }}>
+                      <div style={{ width:28, height:28, borderRadius:'50%', background:'#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#374151', flexShrink:0 }}>
+                        {entry.user_name.split(' ').map((w:string)=>w[0]).join('').toUpperCase().slice(0,2)}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, color:'#111827', lineHeight:1.4 }}>
+                          <span style={{ fontWeight:600 }}>{entry.user_name.split(' ')[0]}</span>
+                          {' '}<span style={{ color:'#6b7280' }}>{feedLabel}</span>
+                        </div>
+                        {entry.details && <div style={{ fontSize:11, color:'#9ca3af', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{entry.details}</div>}
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
+                          <span style={{ width:5, height:5, borderRadius:'50%', background:meta.dot, display:'inline-block' }}/>
+                          <span style={{ fontSize:10, color:'#9ca3af' }}>{timeAgo(entry.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ padding:'10px 16px', borderTop:'1px solid #f3f4f6' }}>
+                <a href="/audit" style={{ fontSize:12, color:'#1a3a2a', fontWeight:600, textDecoration:'none' }}>View full activity log →</a>
               </div>
             </div>
           )}

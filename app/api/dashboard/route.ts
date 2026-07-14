@@ -28,56 +28,87 @@ export async function GET() {
   const isAdmin   = user.role === 'admin'
 
   // ── Tasks ───────────────────────────────────────────────────────────────────
+  // statuses: pending-discussion | action-required | in-review |
+  //           awaiting-hod-approval | awaiting-hk-approval | resolved | expired
+  // completed = 'resolved', field = 'responsible', particulars = description
+  const DONE_STATUSES = `'resolved','expired'`
+  const isHK = isAdmin || (user.role === 'director' && firstName === 'harshil')
+
   let myTasks       = 0
   let overdueTasks  = 0
   let dueToday      = 0
   let completedToday = 0
+  let needsHkComment = 0
+  let awaitingHkApproval = 0
   let highPriorityTasks: { id: string; description: string; company: string; due_date: string }[] = []
 
   try {
-    const [mine, overdue, todayDue, completedT, highP] = await Promise.all([
+    const queries: Promise<{ count: string }[]>[] = [
+      // My open tasks
       query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status NOT IN ('completed','cancelled')
-         AND LOWER(assigned_to) = LOWER($1)`,
+         WHERE status NOT IN (${DONE_STATUSES})
+         AND LOWER(responsible) = LOWER($1)`,
         [user.name]
       ),
+      // My overdue tasks
       query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status NOT IN ('completed','cancelled')
-         AND due_date < $1 AND due_date != ''
-         AND LOWER(assigned_to) = LOWER($2)`,
+         WHERE status NOT IN (${DONE_STATUSES})
+         AND due_date IS NOT NULL AND due_date != '' AND due_date < $1
+         AND LOWER(responsible) = LOWER($2)`,
         [today, user.name]
       ),
+      // My tasks due today
       query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status NOT IN ('completed','cancelled')
+         WHERE status NOT IN (${DONE_STATUSES})
          AND due_date = $1
-         AND LOWER(assigned_to) = LOWER($2)`,
+         AND LOWER(responsible) = LOWER($2)`,
         [today, user.name]
       ),
+      // My tasks resolved today
       query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM tasks
-         WHERE status = 'completed'
+         WHERE status = 'resolved'
          AND DATE(updated_at) = $1
-         AND LOWER(assigned_to) = LOWER($2)`,
+         AND LOWER(responsible) = LOWER($2)`,
         [today, user.name]
       ),
-      query<{ id: string; description: string; company: string; due_date: string }>(
-        `SELECT id, description, company, due_date FROM tasks
-         WHERE status NOT IN ('completed','cancelled')
-         AND priority IN ('high','critical')
-         AND LOWER(assigned_to) = LOWER($1)
-         ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 END, due_date
-         LIMIT 5`,
-        [user.name]
-      ),
-    ])
+    ]
+
+    const [mine, overdue, todayDue, completedT] = await Promise.all(queries)
     myTasks        = cnt(mine)
     overdueTasks   = cnt(overdue)
     dueToday       = cnt(todayDue)
     completedToday = cnt(completedT)
-    highPriorityTasks = highP
+
+    // High priority tasks assigned to me
+    highPriorityTasks = await query<{ id: string; description: string; company: string; due_date: string }>(
+      `SELECT id::text, particulars AS description, company, COALESCE(due_date,'') AS due_date FROM tasks
+       WHERE status NOT IN (${DONE_STATUSES})
+       AND priority IN ('high','critical')
+       AND LOWER(responsible) = LOWER($1)
+       ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, due_date NULLS LAST
+       LIMIT 5`,
+      [user.name]
+    )
+
+    // HK-specific counts (Harshil / admin)
+    if (isHK) {
+      const [commentNeeded, awaitingHK] = await Promise.all([
+        query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM tasks
+           WHERE status NOT IN (${DONE_STATUSES})
+           AND (hk_comment IS NULL OR TRIM(hk_comment) = '')`
+        ),
+        query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM tasks WHERE status = 'awaiting-hk-approval'`
+        ),
+      ])
+      needsHkComment     = cnt(commentNeeded)
+      awaitingHkApproval = cnt(awaitingHK)
+    }
   } catch { /* tasks table may not exist */ }
 
   // ── Approvals ───────────────────────────────────────────────────────────────
@@ -160,6 +191,8 @@ export async function GET() {
     overdueTasks,
     dueToday,
     completedToday,
+    needsHkComment,
+    awaitingHkApproval,
     approvalsWaiting,
     approvalItems,
     highPriorityTasks,
