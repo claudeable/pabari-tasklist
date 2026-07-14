@@ -136,6 +136,12 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
           </a>
           <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
           <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Delivery Notes</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '3px 10px' }}>
+            <div style={{ width: 14, height: 14, background: '#8B0000', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="10" height="8" viewBox="0 0 10 8"><polygon points="0,8 3,1 5,4.5 7,1 10,8" fill="white"/></svg>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#8B0000' }}>MERCURY AGENCIES LIMITED</span>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <a href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>← Portal</a>
@@ -206,7 +212,15 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
             <button onClick={() => setShowForm(false)}
               style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>✕</button>
 
-            <h2 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 800, color: '#111827' }}>New Delivery Note — Mercury Agencies Limited</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <div style={{ width: 40, height: 36, background: '#8B0000', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="28" height="22" viewBox="0 0 28 22"><polygon points="0,22 8,2 14,12 20,2 28,22" fill="white"/></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>New Delivery Note</div>
+                <div style={{ fontSize: 11, color: '#8B0000', fontWeight: 700 }}>MERCURY AGENCIES LIMITED</div>
+              </div>
+            </div>
 
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626', marginBottom: 16 }}>{error}</div>}
 

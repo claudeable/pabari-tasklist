@@ -90,16 +90,23 @@ function DeliveryNoteDocument({ note, items, tableRows }: {
     <div style={{ padding: '28px 32px 36px', fontFamily: '"Times New Roman", Times, serif', fontSize: 12, color: '#000', lineHeight: 1.4 }}>
 
       {/* ── COMPANY HEADER ── */}
-      <div style={{ textAlign: 'center', marginBottom: 12 }}>
-        {/* Logo placeholder — M chevron like in the image */}
-        <div style={{ marginBottom: 6 }}>
-          <svg width="48" height="36" viewBox="0 0 48 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="48" height="36" rx="3" fill="#8B0000"/>
-            <path d="M6 28 L16 10 L24 22 L32 10 L42 28" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        {/* Mercury Agencies Limited logo — dark red square with M peaks */}
+        <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+          <svg width="64" height="56" viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="56" rx="4" fill="#8B0000"/>
+            {/* Left outer triangle */}
+            <polygon points="4,46 18,14 26,32" fill="white"/>
+            {/* Right outer triangle */}
+            <polygon points="60,46 46,14 38,32" fill="white"/>
+            {/* Center valley — dark red cutout to create the M dip */}
+            <polygon points="26,32 32,20 38,32 32,44" fill="#8B0000"/>
+            {/* Bottom baseline */}
+            <rect x="4" y="44" width="56" height="2" fill="white" opacity="0.15"/>
           </svg>
         </div>
-        <div style={{ fontWeight: 900, fontSize: 15, letterSpacing: '0.08em', textTransform: 'uppercase' }}>MERCURY AGENCIES LIMITED</div>
-        <div style={{ fontSize: 11, marginTop: 2 }}>P.O BOX 11250 - 00400</div>
+        <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: '0.1em', textTransform: 'uppercase' }}>MERCURY AGENCIES LIMITED</div>
+        <div style={{ fontSize: 11, marginTop: 3 }}>P.O BOX 11250 - 00400</div>
         <div style={{ fontSize: 11 }}>NAIROBI.</div>
         <div style={{ fontSize: 11 }}>TEL: 0722 456 548</div>
       </div>
