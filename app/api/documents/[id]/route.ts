@@ -38,7 +38,7 @@ export async function GET(
 
   const buf = Buffer.isBuffer(doc.data) ? doc.data : Buffer.from(doc.data)
 
-  return new NextResponse(buf, {
+  return new NextResponse(new Uint8Array(buf), {
     headers: {
       'Content-Type':        doc.mime_type || 'application/octet-stream',
       'Content-Disposition': disposition,
