@@ -54,7 +54,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/forms')              ||
     pathname.startsWith('/api/forms')          ||
     pathname.startsWith('/documents')          ||
-    pathname.startsWith('/api/documents')      ||
+    // /api/documents/view/* is public (token-gated, for Office Online viewer)
+    (pathname.startsWith('/api/documents') && !pathname.startsWith('/api/documents/view/')) ||
     pathname.startsWith('/audit')              ||
     pathname.startsWith('/security')           ||
     pathname.startsWith('/api/security')       ||
