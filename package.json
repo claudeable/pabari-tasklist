@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",
