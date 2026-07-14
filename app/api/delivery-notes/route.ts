@@ -59,18 +59,22 @@ export async function POST(req: NextRequest) {
     await ensureTable()
 
     const body = await req.json()
-    const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks } = body
+    const { to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks } = body
 
-    if (!note_number || !to_company || !delivery_date) {
-      return NextResponse.json({ error: 'Delivery Note No, To Company and Date are required' }, { status: 400 })
+    if (!to_company || !delivery_date) {
+      return NextResponse.json({ error: 'To Company and Date are required' }, { status: 400 })
     }
 
     const rows = await query<{ id: number }>(
       `INSERT INTO delivery_notes (note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [note_number, to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', user.name]
+      ['', to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', user.name]
     )
-    return NextResponse.json({ id: rows[0].id })
+    const id = rows[0].id
+    const year = new Date().getFullYear()
+    const generatedNo = `${year}-${String(id).padStart(4, '0')}`
+    await execute(`UPDATE delivery_notes SET note_number=$1 WHERE id=$2`, [generatedNo, id])
+    return NextResponse.json({ id, note_number: generatedNo })
   } catch (e) {
     console.error('[delivery-notes POST]', e)
     return NextResponse.json({ error: String(e) }, { status: 500 })

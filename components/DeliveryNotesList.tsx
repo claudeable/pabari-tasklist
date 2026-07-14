@@ -24,7 +24,6 @@ const TODAY = new Date().toISOString().slice(0, 10)
 
 function emptyForm() {
   return {
-    note_number: '',
     to_company: '',
     order_no: '',
     delivery_date: TODAY,
@@ -80,7 +79,6 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
   async function save() {
     setError('')
-    if (!form.note_number.trim()) { setError('Delivery Note No is required'); return }
     if (!form.to_company.trim())  { setError('M/S (To Company) is required'); return }
     if (!form.delivery_date)      { setError('Date is required'); return }
     const filledItems = form.items.filter(it => it.qty.trim() || it.description.trim())
@@ -231,7 +229,10 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
             {/* Row 1 */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-              <Field label="Delivery Note No *" value={form.note_number} onChange={v => setForm(f => ({ ...f, note_number: v }))} placeholder="e.g. 001" />
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Delivery Note No</div>
+                <div style={{ padding: '9px 12px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>Auto-generated on save</div>
+              </div>
               <Field label="Date *" type="date" value={form.delivery_date} onChange={v => setForm(f => ({ ...f, delivery_date: v }))} />
             </div>
 

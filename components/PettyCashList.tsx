@@ -76,6 +76,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
   }
 
   const needsMyAction = requests.filter(r => {
+    if (r.status === 'approved')    return isAdmin || isYalelet
     if (r.form_type === 'kiscol') {
       if (r.status === 'pending_hos') return isAdmin || isSuresh
       if (r.status === 'pending_hod') return isAdmin || isAhmad
@@ -88,7 +89,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
     }
   })
 
-  const canApproveAnything = isAdmin || isHOS || isFinance || isSuresh || isAhmad
+  const canApproveAnything = isAdmin || isHOS || isFinance || isSuresh || isAhmad || isYalelet
     || requests.some(r => r.status === 'pending_hod' && isMyHOD(r))
 
   const tabs: { key: Tab; label: string; count: number; visible: boolean }[] = [

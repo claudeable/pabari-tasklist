@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
 const SABINA_EMAIL  = 'smutua@kwale-group.com'
+const YALELET_EMAIL = 'yaynalem@usm.co.ke'
 
 export default async function PettyCashPage() {
   const cookieStore = cookies()
@@ -19,7 +20,7 @@ export default async function PettyCashPage() {
 
   const canSeeAll = user.role === 'admin' || user.role === 'director'
     || user.email === HOS_EMAIL || user.email === FINANCE_EMAIL
-    || user.email === SABINA_EMAIL
+    || user.email === SABINA_EMAIL || user.email === YALELET_EMAIL
 
   const uid = parseInt(String(user.id ?? ''), 10) || 0
 
