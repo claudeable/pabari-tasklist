@@ -50,6 +50,12 @@ async function _initTable(): Promise<void> {
   `)
   await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash'`)
   await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS project_id INTEGER`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS disbursed_by TEXT NOT NULL DEFAULT ''`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS disbursed_at TIMESTAMPTZ`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS disbursement_method TEXT`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS disbursement_reference TEXT NOT NULL DEFAULT ''`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ`)
+  await execute(`ALTER TABLE petty_cash_requests ADD COLUMN IF NOT EXISTS received_confirmed_by TEXT NOT NULL DEFAULT ''`)
 }
 
 function parseItems(val: unknown): PettyCashItem[] {
@@ -91,10 +97,16 @@ function rowToPettyCash(row: Record<string, unknown>): PettyCashRequest {
     hod_approved_at:  row.hod_approved_at ? String(row.hod_approved_at) : null,
     finance_approved_by: row.finance_approved_by ? Number(row.finance_approved_by) : null,
     finance_approved_at: row.finance_approved_at ? String(row.finance_approved_at) : null,
-    rejection_reason: String(row.rejection_reason || ''),
-    submitted_at:     String(row.submitted_at || ''),
-    year:             Number(row.year),
-    project_id:       row.project_id ? Number(row.project_id) : null,
+    rejection_reason:       String(row.rejection_reason || ''),
+    submitted_at:           String(row.submitted_at || ''),
+    year:                   Number(row.year),
+    project_id:             row.project_id ? Number(row.project_id) : null,
+    disbursed_by:           String(row.disbursed_by || ''),
+    disbursed_at:           row.disbursed_at ? String(row.disbursed_at) : null,
+    disbursement_method:    (row.disbursement_method as 'cash' | 'mpesa' | 'bank_transfer' | null) ?? null,
+    disbursement_reference: String(row.disbursement_reference || ''),
+    received_at:            row.received_at ? String(row.received_at) : null,
+    received_confirmed_by:  String(row.received_confirmed_by || ''),
   }
 }
 
@@ -200,6 +212,30 @@ export async function rejectPettyCash(id: number, reason: string): Promise<void>
   await execute(
     `UPDATE petty_cash_requests SET status='rejected', rejection_reason=$1 WHERE id=$2`,
     [reason, id]
+  )
+}
+
+export async function disbursePettyCash(
+  id: number,
+  disbursed_by: string,
+  disbursement_method: 'cash' | 'mpesa' | 'bank_transfer',
+  disbursement_reference: string
+): Promise<void> {
+  await execute(
+    `UPDATE petty_cash_requests
+     SET status='disbursed', disbursed_by=$1, disbursed_at=NOW(),
+         disbursement_method=$2, disbursement_reference=$3
+     WHERE id=$4`,
+    [disbursed_by, disbursement_method, disbursement_reference, id]
+  )
+}
+
+export async function confirmPettyCashReceipt(id: number, confirmed_by: string): Promise<void> {
+  await execute(
+    `UPDATE petty_cash_requests
+     SET status='received', received_at=NOW(), received_confirmed_by=$1
+     WHERE id=$2`,
+    [confirmed_by, id]
   )
 }
 

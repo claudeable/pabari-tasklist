@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { approveHOS, approveHOD, approveHODFinal, approveFinance, rejectPettyCash, deletePettyCashRequest, getAllPettyCashRequests } from '@/lib/pettyCash'
+import { approveHOS, approveHOD, approveHODFinal, approveFinance, rejectPettyCash, disbursePettyCash, confirmPettyCashReceipt, deletePettyCashRequest, getAllPettyCashRequests } from '@/lib/pettyCash'
 import { logActivity } from '@/lib/activityLog'
 
-const HOS_EMAIL     = 'rkrishnan@usm.co.ke'   // General HOS
-const FINANCE_EMAIL = 'ateferi@kwale-group.com' // General Finance
-const SURESH_EMAIL  = 'ssuresh@kwale-group.com' // KISCOL step 1
-const AHMAD_EMAIL   = 'ahmad@usm.co.ke'         // KISCOL step 2 (final)
-const SABINA_EMAIL  = 'smutua@kwale-group.com'  // Deputy HOD for Paul (Operations)
+const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
+const FINANCE_EMAIL = 'ateferi@kwale-group.com'
+const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
+const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
+const SABINA_EMAIL  = 'smutua@kwale-group.com'
+const YALELET_EMAIL = 'yaynalem@usm.co.ke'      // Disburses cash after approval
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = cookies()
@@ -19,7 +20,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const safeInt = (v: unknown) => { const n = parseInt(String(v ?? ''), 10); return isNaN(n) ? 0 : n }
   const id      = safeInt(params.id)
   const uid     = safeInt(user.id)
-  const { action, notes } = await req.json()
+  const body = await req.json()
+  const { action, notes, disbursement_method, disbursement_reference } = body
   const isAdmin = user.role === 'admin'
 
   const all = await getAllPettyCashRequests()
@@ -57,6 +59,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!isAdmin && user.email !== FINANCE_EMAIL) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     await approveFinance(id, uid)
     logActivity(user.email, user.name, 'petty_cash_finance_approved', `Finance approved ${pcrDesc}`).catch(() => {})
+
+  } else if (action === 'disburse') {
+    // Only Yalelet or admin can disburse
+    if (!isAdmin && user.email !== YALELET_EMAIL) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (pcr.status !== 'approved') return NextResponse.json({ error: 'Request must be fully approved before disbursement' }, { status: 400 })
+    if (!disbursement_method) return NextResponse.json({ error: 'disbursement_method is required' }, { status: 400 })
+    await disbursePettyCash(id, user.name, disbursement_method as 'cash' | 'mpesa' | 'bank_transfer', disbursement_reference ?? '')
+    logActivity(user.email, user.name, 'petty_cash_disbursed', `Disbursed ${pcrDesc} via ${disbursement_method}${disbursement_reference ? ` (ref: ${disbursement_reference})` : ''}`).catch(() => {})
+
+  } else if (action === 'confirm_receipt') {
+    // Only the requester (or admin) can confirm they received the funds
+    const isRequester = pcr.employee_id === uid ||
+      (pcr.employee_name || '').toLowerCase() === (user.name || '').toLowerCase()
+    if (!isAdmin && !isRequester) return NextResponse.json({ error: 'Only the requester can confirm receipt' }, { status: 403 })
+    if (pcr.status !== 'disbursed') return NextResponse.json({ error: 'Funds must be marked as disbursed first' }, { status: 400 })
+    await confirmPettyCashReceipt(id, user.name)
+    logActivity(user.email, user.name, 'petty_cash_received', `${user.name} confirmed receipt of ${pcrDesc}`).catch(() => {})
 
   } else if (action === 'reject') {
     const hosEmail  = isKiscol ? SURESH_EMAIL : HOS_EMAIL

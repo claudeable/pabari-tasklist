@@ -1,10 +1,12 @@
-export type PettyCashStatus = 'pending_hos' | 'pending_hod' | 'pending_finance' | 'approved' | 'rejected'
+export type PettyCashStatus = 'pending_hos' | 'pending_hod' | 'pending_finance' | 'approved' | 'disbursed' | 'received' | 'rejected'
 
 export const PETTY_CASH_STATUS_LABELS: Record<PettyCashStatus, string> = {
   pending_hos:     'Pending HOS (Krishna)',
   pending_hod:     'Pending HOD Approval',
   pending_finance: 'Pending Finance (Andu)',
-  approved:        'Approved',
+  approved:        'Approved — Awaiting Disbursement',
+  disbursed:       'Disbursed — Awaiting Confirmation',
+  received:        'Received ✓',
   rejected:        'Rejected',
 }
 
@@ -40,8 +42,14 @@ export interface PettyCashRequest {
   hod_approved_at:  string | null
   finance_approved_by: number | null
   finance_approved_at: string | null
-  rejection_reason: string
-  submitted_at:     string
-  year:             number
-  project_id:       number | null
+  rejection_reason:       string
+  submitted_at:           string
+  year:                   number
+  project_id:             number | null
+  disbursed_by:           string
+  disbursed_at:           string | null
+  disbursement_method:    'cash' | 'mpesa' | 'bank_transfer' | null
+  disbursement_reference: string
+  received_at:            string | null
+  received_confirmed_by:  string
 }

@@ -20,6 +20,7 @@ const FINANCE_EMAIL = 'ateferi@kwale-group.com'
 const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
 const SABINA_EMAIL  = 'smutua@kwale-group.com'
+const YALELET_EMAIL = 'yaynalem@usm.co.ke'
 
 const ACTIVITY_MAP: Record<string, { label: string; icon: string }> = {
   task_created:        { label: 'Task created',            icon: '✓'  },
@@ -79,20 +80,43 @@ export async function GET() {
     if (email === SURESH_EMAIL)  pcrChecks.push({ sql: `status='pending_hos' AND form_type='kiscol'`, params: [] })
     if (email === AHMAD_EMAIL)   pcrChecks.push({ sql: `status='pending_hod' AND form_type='kiscol'`, params: [] })
     if (email === FINANCE_EMAIL) pcrChecks.push({ sql: `status='pending_finance' AND form_type='general'`, params: [] })
-    if (email === SABINA_EMAIL)  pcrChecks.push({ sql: `status='pending_hod' AND form_type='general' AND LOWER(SPLIT_PART(hod_name,' ',1))='paul'`, params: [] })
-    if (uid > 0 || firstName)    pcrChecks.push({ sql: `status='pending_hod' AND form_type='general' AND (hod_id=$1 OR LOWER(SPLIT_PART(hod_name,' ',1))=LOWER($2))`, params: [uid, firstName] })
+    if (email === SABINA_EMAIL)   pcrChecks.push({ sql: `status='pending_hod' AND form_type='general' AND LOWER(SPLIT_PART(hod_name,' ',1))='paul'`, params: [] })
+    if (uid > 0 || firstName)     pcrChecks.push({ sql: `status='pending_hod' AND form_type='general' AND (hod_id=$1 OR LOWER(SPLIT_PART(hod_name,' ',1))=LOWER($2))`, params: [uid, firstName] })
+    // Yalelet: approved requests waiting for disbursement
+    if (isAdmin || email === YALELET_EMAIL) pcrChecks.push({ sql: `status='approved'`, params: [] })
     for (const c of pcrChecks) {
       const rows = await query<{ id: string; employee_name: string; amount: string; created_at: string }>(
         `SELECT id::text, employee_name, amount::text, created_at FROM petty_cash_requests WHERE ${c.sql} ORDER BY created_at DESC LIMIT 3`,
         c.params
       )
-      rows.forEach(r => push({
-        id: `pcr-${r.id}`, type: 'approval', icon: '💵',
-        title: `Petty cash: ${r.employee_name}`,
-        detail: `KES ${Number(r.amount).toLocaleString()} · Awaiting your approval`,
-        href: '/forms/petty-cash', time: r.created_at,
-      }))
+      rows.forEach(r => {
+        const needsDisburse = c.sql.includes(`status='approved'`)
+        push({
+          id: `pcr-${r.id}`, type: 'approval', icon: needsDisburse ? '💸' : '💵',
+          title: needsDisburse ? `Disburse cash to ${r.employee_name}` : `Petty cash: ${r.employee_name}`,
+          detail: `KES ${Number(r.amount).toLocaleString()} · ${needsDisburse ? 'Approved — ready to send' : 'Awaiting your approval'}`,
+          href: '/forms/petty-cash', time: r.created_at,
+        })
+      })
     }
+  } catch { /* */ }
+
+  // ── Disbursed requests waiting for the requester to confirm receipt ───────
+  try {
+    const rows = await query<{ id: string; employee_name: string; total_amount: string; disbursement_method: string; disbursement_reference: string; disbursed_at: string }>(
+      `SELECT id::text, employee_name, total_amount::text, disbursement_method, disbursement_reference, disbursed_at
+       FROM petty_cash_requests
+       WHERE status='disbursed'
+       AND (employee_id=$1 OR LOWER(employee_name)=LOWER($2))
+       ORDER BY disbursed_at DESC LIMIT 5`,
+      [uid, user.name]
+    )
+    rows.forEach(r => push({
+      id: `pcr-disburse-${r.id}`, type: 'approval', icon: '✅',
+      title: `Confirm receipt of KES ${Number(r.total_amount).toLocaleString()}`,
+      detail: `Sent via ${r.disbursement_method}${r.disbursement_reference ? ` (${r.disbursement_reference})` : ''} · Tap to confirm`,
+      href: '/forms/petty-cash', time: r.disbursed_at,
+    }))
   } catch { /* */ }
 
   // ── My overdue tasks ──────────────────────────────────────────────────────

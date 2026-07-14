@@ -17,11 +17,15 @@ const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
 const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
 const SABINA_EMAIL  = 'smutua@kwale-group.com'  // Paul's deputy HOD for Operations
 
+const YALELET_EMAIL = 'yaynalem@usm.co.ke'
+
 const STATUS_STYLE: Record<PettyCashStatus, { bg: string; color: string }> = {
   pending_hos:     { bg: '#fef3c7', color: '#92400e' },
   pending_hod:     { bg: '#ede9fe', color: '#5b21b6' },
   pending_finance: { bg: '#dbeafe', color: '#1e40af' },
-  approved:        { bg: '#d1fae5', color: '#065f46' },
+  approved:        { bg: '#fef9c3', color: '#854d0e' },
+  disbursed:       { bg: '#d1fae5', color: '#065f46' },
+  received:        { bg: '#bbf7d0', color: '#14532d' },
   rejected:        { bg: '#fee2e2', color: '#991b1b' },
 }
 
@@ -34,15 +38,18 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
   const [modal,          setModal]          = useState<{id:number;action:string}|null>(null)
   const [modalNotes,     setModalNotes]     = useState('')
   const [saving,         setSaving]         = useState(false)
+  const [disburseMethod, setDisburseMethod] = useState<'cash'|'mpesa'|'bank_transfer'>('mpesa')
+  const [disburseRef,    setDisburseRef]    = useState('')
 
-  const uid       = Number(currentUser.id)
-  const isAdmin   = currentUser.role === 'admin'
-  const isHOS     = currentUser.email === HOS_EMAIL
-  const isFinance = currentUser.email === FINANCE_EMAIL
-  const isSuresh  = currentUser.email === SURESH_EMAIL
-  const isAhmad   = currentUser.email === AHMAD_EMAIL
-  const isSabina  = currentUser.email === SABINA_EMAIL
-  const canSeeAll = isAdmin || currentUser.role === 'director' || isHOS || isFinance || isSuresh || isAhmad || isSabina
+  const uid        = Number(currentUser.id)
+  const isAdmin    = currentUser.role === 'admin'
+  const isHOS      = currentUser.email === HOS_EMAIL
+  const isFinance  = currentUser.email === FINANCE_EMAIL
+  const isSuresh   = currentUser.email === SURESH_EMAIL
+  const isAhmad    = currentUser.email === AHMAD_EMAIL
+  const isSabina   = currentUser.email === SABINA_EMAIL
+  const isYalelet  = currentUser.email === YALELET_EMAIL
+  const canSeeAll  = isAdmin || currentUser.role === 'director' || isHOS || isFinance || isSuresh || isAhmad || isSabina || isYalelet
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -99,18 +106,38 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
     if (!modal) return
     setSaving(true)
     try {
+      const body: Record<string, string> = { action: modal.action, notes: modalNotes }
+      if (modal.action === 'disburse') {
+        body.disbursement_method    = disburseMethod
+        body.disbursement_reference = disburseRef
+      }
       const res = await fetch(`/api/forms/petty-cash/${modal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: modal.action, notes: modalNotes }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return }
       const nextStatus: PettyCashStatus =
-        modal.action === 'hos_approve'     ? 'pending_hod' :
-        modal.action === 'hod_approve'     ? 'pending_finance' :
-        modal.action === 'finance_approve' ? 'approved' : 'rejected'
-      setRequests(prev => prev.map(r => r.id === modal.id ? { ...r, status: nextStatus } : r))
-      setModal(null); setModalNotes(''); setExpandedId(null)
+        modal.action === 'hos_approve'     ? 'pending_hod'      :
+        modal.action === 'hod_approve'     ? 'pending_finance'  :
+        modal.action === 'finance_approve' ? 'approved'         :
+        modal.action === 'disburse'        ? 'disbursed'        :
+        modal.action === 'confirm_receipt' ? 'received'         : 'rejected'
+      setRequests(prev => prev.map(r =>
+        r.id === modal.id ? {
+          ...r,
+          status: nextStatus,
+          ...(modal.action === 'disburse' ? {
+            disbursed_by: currentUser.name,
+            disbursement_method: disburseMethod,
+            disbursement_reference: disburseRef,
+          } : {}),
+          ...(modal.action === 'confirm_receipt' ? {
+            received_confirmed_by: currentUser.name,
+          } : {}),
+        } : r
+      ))
+      setModal(null); setModalNotes(''); setDisburseRef(''); setExpandedId(null)
     } catch { alert('Network error.') }
     finally  { setSaving(false) }
   }
@@ -214,13 +241,17 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {displayed.map(req => {
               const isExpanded = expandedId === req.id
-              const st = STATUS_STYLE[req.status]
+              const st = STATUS_STYLE[req.status] ?? { bg: '#f3f4f6', color: '#374151' }
               const isKiscol = req.form_type === 'kiscol'
-              const canHOS     = req.status === 'pending_hos' && (isAdmin || (isKiscol ? isSuresh : isHOS))
-              const canHOD     = req.status === 'pending_hod' && (isAdmin || (isKiscol ? isAhmad : isMyHOD(req)))
-              const canFinance = !isKiscol && req.status === 'pending_finance' && (isAdmin || isFinance)
-              const canAct     = canHOS || canHOD || canFinance
-              const approveAction = canHOS ? 'hos_approve' : canHOD ? 'hod_approve' : 'finance_approve'
+              const isRequester = req.employee_id === uid ||
+                (req.employee_name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
+              const canHOS          = req.status === 'pending_hos' && (isAdmin || (isKiscol ? isSuresh : isHOS))
+              const canHOD          = req.status === 'pending_hod' && (isAdmin || (isKiscol ? isAhmad : isMyHOD(req)))
+              const canFinance      = !isKiscol && req.status === 'pending_finance' && (isAdmin || isFinance)
+              const canDisburse     = req.status === 'approved' && (isAdmin || isYalelet)
+              const canConfirmReceipt = req.status === 'disbursed' && (isAdmin || isRequester)
+              const canAct          = canHOS || canHOD || canFinance
+              const approveAction   = canHOS ? 'hos_approve' : canHOD ? 'hod_approve' : 'finance_approve'
 
               return (
                 <div key={req.id} style={{background:'white',borderRadius:8,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden',border:'1px solid #f0f0f0'}}>
@@ -300,13 +331,17 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                           {(isKiscol
                             ? [
-                                { label:'Suresh',  done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
-                                { label:'Ahmad',   done: !!req.hod_approved_at,     pending: req.status === 'pending_hod' },
+                                { label:'Suresh',           done: !!req.hos_approved_at,  pending: req.status === 'pending_hos' },
+                                { label:'Ahmad',            done: !!req.hod_approved_at,  pending: req.status === 'pending_hod' },
+                                { label:'Yalelet (Cash)',   done: !!req.disbursed_at,     pending: req.status === 'approved' },
+                                { label:'Requester',        done: !!req.received_at,      pending: req.status === 'disbursed' },
                               ]
                             : [
-                                { label:'Krishna (HOS)',              done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
-                                { label: req.hod_name || 'HOD',      done: !!req.hod_approved_at,     pending: req.status === 'pending_hod' },
-                                { label:'Andu (Finance)',             done: !!req.finance_approved_at, pending: req.status === 'pending_finance' },
+                                { label:'Krishna (HOS)',    done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
+                                { label: req.hod_name || 'HOD', done: !!req.hod_approved_at, pending: req.status === 'pending_hod' },
+                                { label:'Andu (Finance)',   done: !!req.finance_approved_at, pending: req.status === 'pending_finance' },
+                                { label:'Yalelet (Cash)',   done: !!req.disbursed_at,        pending: req.status === 'approved' },
+                                { label:'Requester',        done: !!req.received_at,         pending: req.status === 'disbursed' },
                               ]
                           ).map(step => (
                             <div key={step.label} style={{padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:600,
@@ -325,9 +360,41 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                         </div>
                       )}
 
+                      {/* Disbursement info (shown after Yalelet has sent) */}
+                      {req.disbursed_at && (
+                        <div style={{marginBottom:14,padding:'12px 16px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8}}>
+                          <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>
+                            💸 Cash Disbursed by {req.disbursed_by}
+                          </div>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+                            <div>
+                              <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',marginBottom:2}}>Method</div>
+                              <div style={{fontSize:13,color:'#111827',fontWeight:600,textTransform:'capitalize'}}>
+                                {req.disbursement_method === 'bank_transfer' ? 'Bank Transfer' : req.disbursement_method}
+                              </div>
+                            </div>
+                            {req.disbursement_reference && (
+                              <div>
+                                <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',marginBottom:2}}>Reference</div>
+                                <div style={{fontSize:13,color:'#111827',fontWeight:600}}>{req.disbursement_reference}</div>
+                              </div>
+                            )}
+                            <div>
+                              <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',marginBottom:2}}>Sent At</div>
+                              <div style={{fontSize:13,color:'#111827'}}>{fmtDate(req.disbursed_at)}</div>
+                            </div>
+                          </div>
+                          {req.received_at && (
+                            <div style={{marginTop:10,padding:'8px 12px',background:'#dcfce7',borderRadius:6,fontSize:12,color:'#15803d',fontWeight:600}}>
+                              ✅ Receipt confirmed by {req.received_confirmed_by} on {fmtDate(req.received_at)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Action buttons */}
-                      {canAct && (
-                        <div style={{display:'flex',gap:8,marginTop:4}}>
+                      <div style={{display:'flex',gap:8,marginTop:4,flexWrap:'wrap'}}>
+                        {canAct && (<>
                           <button onClick={()=>{setModal({id:req.id,action:approveAction});setModalNotes('')}}
                             style={{background:'#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
                             Approve
@@ -336,8 +403,20 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                             style={{background:'#dc2626',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
                             Reject
                           </button>
-                        </div>
-                      )}
+                        </>)}
+                        {canDisburse && (
+                          <button onClick={()=>{setModal({id:req.id,action:'disburse'});setDisburseMethod('mpesa');setDisburseRef('')}}
+                            style={{background:'#d97706',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                            💸 Mark as Disbursed
+                          </button>
+                        )}
+                        {canConfirmReceipt && (
+                          <button onClick={()=>setModal({id:req.id,action:'confirm_receipt'})}
+                            style={{background:'#16a34a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                            ✅ Confirm I Received Funds
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -350,23 +429,77 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
       {/* MODAL */}
       {modal && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:800,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
-          onClick={e=>{if(e.target===e.currentTarget){setModal(null);setModalNotes('')}}}>
-          <div style={{background:'white',borderRadius:10,padding:'28px 32px',width:'100%',maxWidth:420,boxShadow:'0 8px 32px rgba(0,0,0,0.2)'}}>
-            <div style={{fontSize:16,fontWeight:700,color: modal.action==='reject'?'#dc2626':'#1a3a2a',marginBottom:8}}>
-              {modal.action === 'reject' ? 'Reject Request' : 'Approve Request'}
-            </div>
-            <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>
-              {modal.action === 'reject' ? 'Provide a reason for rejection (required).' : 'Confirm approval of this petty cash request.'}
-            </div>
-            <textarea placeholder={modal.action==='reject'?'Reason for rejection…':'Notes (optional)…'}
-              value={modalNotes} onChange={e=>setModalNotes(e.target.value)}
-              style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13,minHeight:80,resize:'vertical',boxSizing:'border-box',marginBottom:16}}/>
+          onClick={e=>{if(e.target===e.currentTarget){setModal(null);setModalNotes('');setDisburseRef('')}}}>
+          <div style={{background:'white',borderRadius:10,padding:'28px 32px',width:'100%',maxWidth:460,boxShadow:'0 8px 32px rgba(0,0,0,0.2)'}}>
+
+            {/* ── DISBURSE MODAL ── */}
+            {modal.action === 'disburse' && (<>
+              <div style={{fontSize:16,fontWeight:700,color:'#d97706',marginBottom:6}}>💸 Mark as Disbursed</div>
+              <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>Record how the funds were sent. This notifies the requester to confirm receipt.</div>
+              <div style={{marginBottom:14}}>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:6}}>Payment Method *</label>
+                <div style={{display:'flex',gap:8}}>
+                  {(['mpesa','cash','bank_transfer'] as const).map(m => (
+                    <button key={m} onClick={()=>setDisburseMethod(m)}
+                      style={{flex:1,padding:'9px 6px',borderRadius:7,border:`2px solid ${disburseMethod===m?'#d97706':'#e5e7eb'}`,background:disburseMethod===m?'#fffbeb':'white',fontSize:12,fontWeight:disburseMethod===m?700:400,color:disburseMethod===m?'#92400e':'#374151',cursor:'pointer'}}>
+                      {m === 'mpesa' ? '📱 MPesa' : m === 'cash' ? '💵 Cash' : '🏦 Bank Transfer'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>
+                  Reference / Transaction Code {disburseMethod !== 'cash' && '*'}
+                </label>
+                <input
+                  value={disburseRef} onChange={e=>setDisburseRef(e.target.value)}
+                  placeholder={disburseMethod==='mpesa'?'MPesa confirmation code…':disburseMethod==='bank_transfer'?'Bank transaction reference…':'Leave blank for cash'}
+                  style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'9px 12px',fontSize:13,boxSizing:'border-box',outline:'none'}}
+                />
+              </div>
+            </>)}
+
+            {/* ── CONFIRM RECEIPT MODAL ── */}
+            {modal.action === 'confirm_receipt' && (<>
+              <div style={{fontSize:16,fontWeight:700,color:'#16a34a',marginBottom:6}}>✅ Confirm Receipt of Funds</div>
+              <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>
+                By confirming, you are stating that you have received the disbursed funds. This is recorded for reconciliation.
+              </div>
+            </>)}
+
+            {/* ── APPROVE / REJECT MODAL ── */}
+            {modal.action !== 'disburse' && modal.action !== 'confirm_receipt' && (<>
+              <div style={{fontSize:16,fontWeight:700,color: modal.action==='reject'?'#dc2626':'#1a3a2a',marginBottom:8}}>
+                {modal.action === 'reject' ? 'Reject Request' : 'Approve Request'}
+              </div>
+              <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>
+                {modal.action === 'reject' ? 'Provide a reason for rejection (required).' : 'Confirm approval of this petty cash request.'}
+              </div>
+              <textarea placeholder={modal.action==='reject'?'Reason for rejection…':'Notes (optional)…'}
+                value={modalNotes} onChange={e=>setModalNotes(e.target.value)}
+                style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:13,minHeight:80,resize:'vertical',boxSizing:'border-box',marginBottom:16}}/>
+            </>)}
+
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-              <button onClick={()=>{setModal(null);setModalNotes('')}}
+              <button onClick={()=>{setModal(null);setModalNotes('');setDisburseRef('')}}
                 style={{background:'#f3f4f6',color:'#374151',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel</button>
-              <button onClick={handleAction} disabled={saving||(modal.action==='reject'&&!modalNotes.trim())}
-                style={{background: modal.action==='reject'?'#dc2626':'#1a3a2a',color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,cursor: saving?'not-allowed':'pointer',opacity:(modal.action==='reject'&&!modalNotes.trim())?0.5:1}}>
-                {saving ? 'Processing…' : modal.action==='reject' ? 'Confirm Reject' : 'Confirm Approve'}
+              <button onClick={handleAction}
+                disabled={
+                  saving ||
+                  (modal.action==='reject' && !modalNotes.trim()) ||
+                  (modal.action==='disburse' && disburseMethod !== 'cash' && !disburseRef.trim())
+                }
+                style={{
+                  background: modal.action==='reject' ? '#dc2626' : modal.action==='disburse' ? '#d97706' : modal.action==='confirm_receipt' ? '#16a34a' : '#1a3a2a',
+                  color:'white',border:'none',padding:'8px 18px',borderRadius:5,fontSize:13,fontWeight:600,
+                  cursor: saving?'not-allowed':'pointer',
+                  opacity: (modal.action==='reject'&&!modalNotes.trim()) || (modal.action==='disburse'&&disburseMethod!=='cash'&&!disburseRef.trim()) ? 0.5 : 1
+                }}>
+                {saving ? 'Processing…' :
+                  modal.action==='reject'          ? 'Confirm Reject'    :
+                  modal.action==='disburse'        ? 'Confirm Disbursed' :
+                  modal.action==='confirm_receipt' ? 'Yes, I Received It' :
+                  'Confirm Approve'}
               </button>
             </div>
           </div>
