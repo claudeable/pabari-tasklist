@@ -17,7 +17,7 @@ const DOC_COLOR: Record<DocType, { bg: string; color: string }> = {
 const BLANK_ITEM: InvoiceItem = { description: '', qty: 1, unit_price: 0, amount: 0 }
 const TAX_RATE_DEFAULT = 16
 
-function blankForm(type: DocType = 'invoice') {
+function blankForm(type: DocType = 'quotation') {
   return {
     type,
     issuing_company: '',
@@ -293,7 +293,7 @@ function InvoiceForm({ initial, onSave, onCancel, saving, projects }: {
       <div style={{ marginBottom:14 }}>
         {label('Document type')}
         <div style={{ display:'flex', gap:8 }}>
-          {(['invoice','quotation','lpo'] as DocType[]).map(t => (
+          {(['quotation','lpo'] as DocType[]).map(t => (
             <button key={t} onClick={()=>set('type',t)}
               style={{ border:`2px solid ${form.type===t?'#1a3a2a':'#e5e7eb'}`, borderRadius:8, padding:'6px 18px', fontSize:12, fontWeight:600, cursor:'pointer', background:form.type===t?'#1a3a2a':'white', color:form.type===t?'white':'#374151' }}>
               {DOC_LABEL[t]}
@@ -559,7 +559,6 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
           <select value={filterType} onChange={e=>setFType(e.target.value as DocType|'all')}
             style={{ border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', fontSize:11, background:'white' }}>
             <option value="all">All types</option>
-            <option value="invoice">Invoice</option>
             <option value="quotation">Quotation</option>
             <option value="lpo">LPO</option>
           </select>
@@ -840,7 +839,8 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
         <a href="/"         style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>← Portal</a>
         <a href="/tasks"    style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>Task Board</a>
         <a href="/projects" style={{ color:'rgba(255,255,255,0.6)', textDecoration:'none', fontSize:12 }}>Projects</a>
-        <a href="/finance"  style={{ color:'white', textDecoration:'none', fontSize:12, fontWeight:600, borderBottom:'2px solid #b5833a', paddingBottom:2 }}>Finance</a>
+        <a href="/finance"          style={{ color:'white', textDecoration:'none', fontSize:12, fontWeight:600, borderBottom:'2px solid #b5833a', paddingBottom:2 }}>Finance</a>
+        <a href="/delivery-notes"   style={{ color:'rgba(255,255,255,0.75)', textDecoration:'none', fontSize:12 }}>📦 Delivery Notes</a>
         <div style={{ flex:1 }}/>
         <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{currentUser.name}</span>
       </div>
