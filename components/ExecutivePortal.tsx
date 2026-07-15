@@ -73,16 +73,16 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
 
   // ── Health status ──────────────────────────────────────────────────────
   function taskHealth() {
-    if (!data) return { color: '#6b7280', label: 'Loading', dot: '#9ca3af' }
-    if (data.actionRequired > 5)  return { color: '#dc2626', label: 'Critical', dot: '#dc2626' }
-    if (data.actionRequired > 0)  return { color: '#f59e0b', label: 'Needs Attention', dot: '#f59e0b' }
-    return { color: '#16a34a', label: 'On Track', dot: '#16a34a' }
+    if (!data) return { color: '#6b7280', status: 'Loading', dot: '#9ca3af' }
+    if (data.actionRequired > 5)  return { color: '#dc2626', status: 'Critical', dot: '#dc2626' }
+    if (data.actionRequired > 0)  return { color: '#f59e0b', status: 'Needs Attention', dot: '#f59e0b' }
+    return { color: '#16a34a', status: 'On Track', dot: '#16a34a' }
   }
   function formsHealth() {
-    if (!data) return { color: '#6b7280', label: 'Loading', dot: '#9ca3af' }
-    if (data.pcrHighValue > 0 || data.leavePending > 2) return { color: '#f59e0b', label: 'Pending', dot: '#f59e0b' }
-    if (data.pcrActive === 0 && data.leavePending === 0) return { color: '#16a34a', label: 'All Clear', dot: '#16a34a' }
-    return { color: '#16a34a', label: 'Normal', dot: '#16a34a' }
+    if (!data) return { color: '#6b7280', status: 'Loading', dot: '#9ca3af' }
+    if (data.pcrHighValue > 0 || data.leavePending > 2) return { color: '#f59e0b', status: 'Pending', dot: '#f59e0b' }
+    if (data.pcrActive === 0 && data.leavePending === 0) return { color: '#16a34a', status: 'All Clear', dot: '#16a34a' }
+    return { color: '#16a34a', status: 'Normal', dot: '#16a34a' }
   }
 
   const th = taskHealth()
@@ -132,14 +132,14 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
           {/* ── Health strip ── */}
           <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
             {[
-              { label: 'Tasks', ...th },
-              { label: 'Forms', ...fh },
-              { label: 'Documents', color: '#16a34a', dot: '#16a34a', label2: 'Live' },
+              { label: 'Tasks',     ...th },
+              { label: 'Forms',     ...fh },
+              { label: 'Documents', color: '#16a34a', dot: '#16a34a', status: 'Live' },
             ].map(s => (
               <div key={s.label} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, boxShadow: `0 0 6px ${s.dot}` }} />
                 <span style={{ fontSize: 13, color: '#e5e7eb', fontWeight: 600 }}>{s.label}</span>
-                <span style={{ fontSize: 12, color: s.color, fontWeight: 700 }}>{(s as {label2?: string}).label2 ?? (s as {label?: string}).label ?? ''}</span>
+                <span style={{ fontSize: 12, color: s.color, fontWeight: 700 }}>{s.status}</span>
               </div>
             ))}
           </div>
