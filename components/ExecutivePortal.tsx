@@ -321,18 +321,6 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                 </div>
               )}
 
-              {/* Domain health chips */}
-              {!loading && health.length > 0 && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
-                  {health.map(h => (
-                    <div key={h.name} style={{ display: 'flex', alignItems: 'center', gap: 6, background: h.bg, border: `1px solid ${h.color}33`, borderRadius: 20, padding: '4px 12px' }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: h.color, boxShadow: `0 0 5px ${h.color}88` }} />
-                      <span style={{ fontSize: 11, color: T.text2, fontWeight: 600 }}>{h.name}</span>
-                      <span style={{ fontSize: 11, color: h.color, fontWeight: 800 }}>{h.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Right: PI button + quick stats */}
