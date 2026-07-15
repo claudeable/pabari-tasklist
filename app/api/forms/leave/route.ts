@@ -8,6 +8,7 @@ import {
 import { logActivity } from '@/lib/activityLog'
 import { getUserByEmail } from '@/lib/users'
 import { notifyByEmail } from '@/lib/whatsapp'
+import { pushToEmail } from '@/lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,12 +102,12 @@ export async function POST(req: NextRequest) {
     logActivity(user.email, user.name, 'leave_submitted',
       `${user.name} submitted ${leave_type} leave request: ${date_from} – ${date_to} (${days_requested} day${Number(days_requested) !== 1 ? 's' : ''})`).catch(() => {})
 
-    // WhatsApp: notify first approver
+    // Push + WhatsApp: notify first approver
     const firstApprover = supervisorEmail || hodEmail
     if (firstApprover) {
-      notifyByEmail(firstApprover,
-        `Pabari ERP: ${user.name} submitted a ${leave_type} leave request for ${date_from} to ${date_to} (${days_requested} day${Number(days_requested) !== 1 ? 's' : ''}). Please log in to approve.`
-      ).catch(() => {})
+      const leaveMsg = `${user.name} — ${leave_type} leave ${date_from} to ${date_to} (${days_requested} day${Number(days_requested) !== 1 ? 's' : ''})`
+      pushToEmail(firstApprover, { title: 'Leave Request — Approval Needed', body: leaveMsg, url: '/forms/leave', tag: 'leave' }).catch(() => {})
+      notifyByEmail(firstApprover, `Pabari ERP: ${leaveMsg}. Please log in to approve.`).catch(() => {})
     }
 
     return NextResponse.json({ leave })

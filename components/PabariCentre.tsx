@@ -260,6 +260,13 @@ function timeAgo(ts: string) {
   return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short' })
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = window.atob(base64)
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
+
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -284,6 +291,7 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
   const [waMsg,      setWaMsg]      = useState('')
   const [waLogs,     setWaLogs]     = useState<{id:number;to_phone:string;status:string;error_msg:string;created_at:string}[]>([])
   const [waTab,      setWaTab]      = useState<'number'|'log'>('number')
+  const [pushStatus, setPushStatus] = useState<'unknown'|'granted'|'denied'|'loading'>('unknown')
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -309,6 +317,62 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
   useEffect(() => { loadInbox() }, [loadInbox])
 
   const isAdmin = currentUser.role === 'admin'
+
+  // Check push permission on mount and register service worker
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return
+    setPushStatus(Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'unknown')
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  }, [])
+
+  async function enablePushNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push notifications are not supported in this browser.')
+      return
+    }
+    setPushStatus('loading')
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') { setPushStatus('denied'); return }
+
+      // Get VAPID public key from server
+      const keyRes = await fetch('/api/push/vapid-key', { credentials: 'include' })
+      if (!keyRes.ok) { setPushStatus('unknown'); return }
+      const { publicKey } = await keyRes.json()
+
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      })
+
+      await fetch('/api/push/subscribe', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      })
+      setPushStatus('granted')
+    } catch (e) {
+      console.error('Push subscribe error:', e)
+      setPushStatus('unknown')
+    }
+  }
+
+  async function disablePushNotifications() {
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        await fetch('/api/push/unsubscribe', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        })
+        await sub.unsubscribe()
+      }
+      setPushStatus('unknown')
+    } catch { setPushStatus('unknown') }
+  }
 
   // Load saved WhatsApp number and delivery log when modal opens
   useEffect(() => {
@@ -368,6 +432,13 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
           <a href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>Portal</a>
           {!isMobile && <span style={{ fontSize: 13, color: '#374151' }}>{currentUser.name}</span>}
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a3a2a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{initials}</div>
+          <button
+            onClick={pushStatus === 'granted' ? disablePushNotifications : enablePushNotifications}
+            disabled={pushStatus === 'loading' || pushStatus === 'denied'}
+            title={pushStatus === 'granted' ? 'Push notifications ON — click to disable' : pushStatus === 'denied' ? 'Notifications blocked in browser settings' : 'Enable push notifications'}
+            style={{ background: pushStatus === 'granted' ? '#1a3a2a' : pushStatus === 'denied' ? '#e5e7eb' : 'white', color: pushStatus === 'granted' ? 'white' : pushStatus === 'denied' ? '#9ca3af' : '#374151', border: `1px solid ${pushStatus === 'granted' ? '#1a3a2a' : '#d1d5db'}`, borderRadius: 6, padding: '5px 10px', fontSize: 16, cursor: pushStatus === 'denied' ? 'not-allowed' : 'pointer', lineHeight: 1 }}>
+            {pushStatus === 'loading' ? '…' : '🔔'}
+          </button>
           <button onClick={() => setShowWA(true)} title="Set WhatsApp notification number"
             style={{ background: '#25D366', color: 'white', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>
             📱

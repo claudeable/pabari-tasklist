@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth'
 import { approveHOS, approveHOD, approveHODFinal, approveFinance, rejectPettyCash, disbursePettyCash, confirmPettyCashReceipt, deletePettyCashRequest, getAllPettyCashRequests } from '@/lib/pettyCash'
 import { logActivity } from '@/lib/activityLog'
 import { notifyByEmail, getPhoneByEmail, sendWhatsApp } from '@/lib/whatsapp'
+import { pushToEmail } from '@/lib/webpush'
 
 const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
 const FINANCE_EMAIL = 'ateferi@kwale-group.com'
@@ -56,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await approveHODFinal(id, uid)
       logActivity(user.email, user.name, 'petty_cash_approved', `Final approval for ${pcrDesc}`).catch(() => {})
       // KISCOL: notify Yalelet to disburse
+      pushToEmail(YALELET_EMAIL, { title: 'Cash Disbursement Needed', body: `${pcr.employee_name} — KES ${Number(pcr.total_amount).toLocaleString()} [${pcr.company}] approved`, url: '/forms/petty-cash', tag: 'disburse' }).catch(() => {})
       notifyByEmail(YALELET_EMAIL, `Pabari ERP: ${pcr.employee_name}'s petty cash KES ${Number(pcr.total_amount).toLocaleString()} [${pcr.company}] is fully approved. Please disburse.`).catch(() => {})
     } else {
       const nameMatch   = !!pcr.hod_name && !!user.name &&
@@ -67,6 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await approveHOD(id, uid)
       logActivity(user.email, user.name, 'petty_cash_hod_approved', `HOD approved ${pcrDesc}`).catch(() => {})
       // Notify Finance for final approval
+      pushToEmail(FINANCE_EMAIL, { title: 'Petty Cash — Finance Approval', body: `${pcr.employee_name} — KES ${Number(pcr.total_amount).toLocaleString()} [${pcr.company}]`, url: '/forms/petty-cash', tag: 'pcr' }).catch(() => {})
       notifyByEmail(FINANCE_EMAIL, `Pabari ERP: ${pcr.employee_name}'s petty cash KES ${Number(pcr.total_amount).toLocaleString()} [${pcr.company}] needs finance approval.`).catch(() => {})
     }
 
@@ -76,6 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await approveFinance(id, uid)
     logActivity(user.email, user.name, 'petty_cash_finance_approved', `Finance approved ${pcrDesc}`).catch(() => {})
     // Notify Yalelet to disburse
+    pushToEmail(YALELET_EMAIL, { title: 'Cash Disbursement Needed', body: `${pcr.employee_name} — KES ${Number(pcr.total_amount).toLocaleString()} [${pcr.company}] approved`, url: '/forms/petty-cash', tag: 'disburse' }).catch(() => {})
     notifyByEmail(YALELET_EMAIL, `Pabari ERP: ${pcr.employee_name}'s petty cash KES ${Number(pcr.total_amount).toLocaleString()} [${pcr.company}] is fully approved. Please disburse.`).catch(() => {})
 
   } else if (action === 'disburse') {

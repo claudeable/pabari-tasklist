@@ -5,6 +5,7 @@ import { getAllPettyCashRequests, getMyPettyCashRequests, createPettyCashRequest
 import { query } from '@/lib/database'
 import { logActivity } from '@/lib/activityLog'
 import { notifyByEmail } from '@/lib/whatsapp'
+import { pushToEmail } from '@/lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,11 +104,11 @@ export async function POST(req: NextRequest) {
     logActivity(user.email, user.name, 'petty_cash_submitted',
       `${user.name} submitted petty cash request — KES ${pcr.total_amount ?? ''} [${pcr.company}]`).catch(() => {})
 
-    // WhatsApp: notify first approver (HOS for general, Suresh for KISCOL)
+    // Notify first approver via push + WhatsApp
     const approverEmail = form_type === 'kiscol' ? SURESH_EMAIL : HOS_EMAIL
-    notifyByEmail(approverEmail,
-      `Pabari ERP: ${user.name} submitted a petty cash request for KES ${Number(total_amount).toLocaleString()} [${company}]. Please log in to approve.`
-    ).catch(() => {})
+    const pcrMsg = `${user.name} submitted a petty cash request for KES ${Number(total_amount).toLocaleString()} [${company}]`
+    pushToEmail(approverEmail, { title: 'Petty Cash — Approval Needed', body: pcrMsg, url: '/forms/petty-cash', tag: 'pcr' }).catch(() => {})
+    notifyByEmail(approverEmail, `Pabari ERP: ${pcrMsg}. Please log in to approve.`).catch(() => {})
 
     return NextResponse.json({ pcr })
   } catch (err) {

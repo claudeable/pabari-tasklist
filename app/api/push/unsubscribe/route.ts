@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { saveSubscription } from '@/lib/webpush'
+import { removeSubscription } from '@/lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,11 +11,7 @@ export async function POST(req: NextRequest) {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const sub = await req.json()
-  if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
-    return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 })
-  }
-
-  await saveSubscription(user.email, user.name, sub)
+  const { endpoint } = await req.json()
+  if (endpoint) await removeSubscription(endpoint)
   return NextResponse.json({ ok: true })
 }
