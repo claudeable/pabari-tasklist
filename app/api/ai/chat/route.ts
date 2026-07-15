@@ -225,41 +225,46 @@ ${context}
 - Address the user as ${firstName}
 - Today is ${today()}, good ${getGreeting()}`
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    systemInstruction: systemPrompt,
-  })
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash-latest',
+      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+    })
 
-  // Split history from the last message
-  const history = messages.slice(0, -1).map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
-  const lastMessage = messages[messages.length - 1].content
+    const history = messages.slice(0, -1).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }))
+    const lastMessage = messages[messages.length - 1].content
 
-  const chat = model.startChat({ history })
-  const result = await chat.sendMessageStream(lastMessage)
+    const chat = model.startChat({ history })
+    const result = await chat.sendMessageStream(lastMessage)
 
-  const encoder = new TextEncoder()
-  const readable = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of result.stream) {
-          const text = chunk.text()
-          if (text) controller.enqueue(encoder.encode(text))
+    const encoder = new TextEncoder()
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const text = chunk.text()
+            if (text) controller.enqueue(encoder.encode(text))
+          }
+        } finally {
+          controller.close()
         }
-      } finally {
-        controller.close()
-      }
-    },
-  })
+      },
+    })
 
-  return new NextResponse(readable, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'no-cache',
-      'X-Accel-Buffering': 'no',
-    },
-  })
+    return new NextResponse(readable, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+      },
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[AI chat]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
