@@ -21,7 +21,7 @@ const AI_SUGGESTIONS = [
   'What needs my approval today?',
   'Show high-value pending requests',
   'What are the biggest risks right now?',
-  'Which projects are behind schedule?',
+  'Show all overdue tasks',
   'Summarise this week\'s activity',
 ]
 

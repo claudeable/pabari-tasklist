@@ -50,31 +50,36 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     const byCompany = await query<{ company: string; count: string }>(
       `SELECT company, COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') GROUP BY company ORDER BY count::int DESC LIMIT 10`
     )
-    const awaitingHK = await query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM tasks WHERE status='awaiting-hk-approval'`
-    )
-    const needComment = await query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') AND (hk_comment IS NULL OR TRIM(hk_comment)='')`
-    )
-
     const total = byStatus.reduce((s, r) => s + parseInt(r.count, 10), 0)
     lines.push(`## Task Overview`)
     lines.push(`Total open tasks: ${total}`)
     lines.push(`Overdue: ${parseInt(overdue[0]?.count ?? '0', 10)}`)
     lines.push(`Due today: ${parseInt(dueToday[0]?.count ?? '0', 10)}`)
-    lines.push(`Awaiting director approval: ${parseInt(awaitingHK[0]?.count ?? '0', 10)}`)
-    lines.push(`Needing director comment: ${parseInt(needComment[0]?.count ?? '0', 10)}`)
     lines.push('')
     byStatus.forEach(r => lines.push(`- ${r.status}: ${r.count} tasks`))
     lines.push('')
-    lines.push(`Tasks by company:`)
-    byCompany.forEach(r => lines.push(`- ${r.company}: ${r.count}`))
-    lines.push('')
+    if (byCompany.length > 0) {
+      lines.push(`Tasks by company:`)
+      byCompany.forEach(r => lines.push(`- ${r.company}: ${r.count}`))
+      lines.push('')
+    }
+  } catch { /**/ }
 
-    // Top overdue tasks
+  try {
+    const awaitingHK = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM tasks WHERE status='awaiting-hk-approval'`
+    )
+    const cnt = parseInt(awaitingHK[0]?.count ?? '0', 10)
+    if (cnt > 0) {
+      lines.push(`Tasks awaiting director approval: ${cnt}`)
+      lines.push('')
+    }
+  } catch { /**/ }
+
+  try {
     const overdueTasks = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string }>(
       `SELECT particulars, company, responsible, due_date, priority FROM tasks
-       WHERE status NOT IN ('resolved','expired') AND due_date IS NOT NULL AND due_date < $1
+       WHERE status NOT IN ('resolved','expired') AND due_date IS NOT NULL AND due_date != '' AND due_date < $1
        ORDER BY due_date ASC LIMIT 10`,
       [now]
     )
