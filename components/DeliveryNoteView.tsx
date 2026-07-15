@@ -15,6 +15,8 @@ interface DeliveryNote {
   driver_id: string
   items: DeliveryNoteItem[]
   remarks: string
+  status: string
+  cancel_reason: string
   created_by: string
   created_at: string
 }
@@ -52,6 +54,11 @@ export default function DeliveryNoteView({ id, currentUser }: { id: string; curr
       <div className="no-print" style={{ background: '#1a3a2a', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'system-ui' }}>
         <a href="/delivery-notes" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13 }}>← Back to Delivery Notes</a>
         <div style={{ flex: 1 }} />
+        {note.status === 'cancelled' && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#fca5a5', background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: 6, padding: '4px 12px' }}>
+            CANCELLED{note.cancel_reason ? ` · ${note.cancel_reason}` : ''}
+          </span>
+        )}
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>DN-{note.note_number} · {note.to_company}</span>
         <button onClick={() => window.print()}
           style={{ background: '#b5833a', color: 'white', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -61,7 +68,14 @@ export default function DeliveryNoteView({ id, currentUser }: { id: string; curr
 
       {/* ── PRINT PREVIEW WRAPPER ── */}
       <div style={{ background: '#e5e7eb', minHeight: 'calc(100vh - 46px)', padding: '32px 24px', fontFamily: 'system-ui' }} className="no-print-bg">
-        <div style={{ maxWidth: 700, margin: '0 auto', background: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto', background: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', position: 'relative', overflow: 'hidden' }}>
+          {note.status === 'cancelled' && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10 }}>
+              <div style={{ transform: 'rotate(-30deg)', fontSize: 72, fontWeight: 900, color: 'rgba(220,38,38,0.12)', letterSpacing: '0.05em', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                CANCELLED
+              </div>
+            </div>
+          )}
           <DeliveryNoteDocument note={note} items={items} tableRows={tableRows} />
         </div>
       </div>

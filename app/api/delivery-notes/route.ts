@@ -24,6 +24,8 @@ async function ensureTable() {
     ['items',         'JSONB NOT NULL DEFAULT \'[]\''],
     ['remarks',       'TEXT DEFAULT \'\''],
     ['created_by',    'TEXT DEFAULT \'\''],
+    ['status',        'TEXT NOT NULL DEFAULT \'active\''],
+    ['cancel_reason', 'TEXT DEFAULT \'\''],
   ]
   for (const [col, def] of cols) {
     await execute(`ALTER TABLE delivery_notes ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {})

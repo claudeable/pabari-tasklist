@@ -42,6 +42,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const cookieStore = cookies()
+  const session = cookieStore.get('pabari-session')
+  const user = session?.value ? await verifyToken(session.value) : null
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  try {
+    const { cancel_reason } = await req.json()
+    await execute(
+      `UPDATE delivery_notes SET status='cancelled', cancel_reason=$1 WHERE id=$2`,
+      [cancel_reason ?? '', params.id]
+    )
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error('[delivery-notes PATCH]', e)
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = cookies()
   const session = cookieStore.get('pabari-session')

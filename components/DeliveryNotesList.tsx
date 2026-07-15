@@ -15,6 +15,8 @@ interface DeliveryNote {
   driver_id: string
   items: DeliveryNoteItem[]
   remarks: string
+  status: string
+  cancel_reason: string
   created_by: string
   created_at: string
 }
@@ -35,15 +37,19 @@ function emptyForm() {
 }
 
 export default function DeliveryNotesList({ currentUser }: { currentUser: SessionUser }) {
-  const [notes,     setNotes]     = useState<DeliveryNote[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [showForm,  setShowForm]  = useState(false)
-  const [form,      setForm]      = useState(emptyForm())
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [saving,    setSaving]    = useState(false)
-  const [error,     setError]     = useState('')
-  const [search,    setSearch]    = useState('')
-  const [deleting,  setDeleting]  = useState<number | null>(null)
+  const [notes,        setNotes]        = useState<DeliveryNote[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [showForm,     setShowForm]     = useState(false)
+  const [form,         setForm]         = useState(emptyForm())
+  const [editingId,    setEditingId]    = useState<number | null>(null)
+  const [saving,       setSaving]       = useState(false)
+  const [error,        setError]        = useState('')
+  const [search,       setSearch]       = useState('')
+  const [deleting,     setDeleting]     = useState<number | null>(null)
+  const [cancelId,     setCancelId]     = useState<number | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling,   setCancelling]   = useState(false)
+  const [showCancelled, setShowCancelled] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -156,12 +162,28 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
     await load()
   }
 
-  const filtered = notes.filter(n =>
-    !search ||
-    n.note_number.toLowerCase().includes(search.toLowerCase()) ||
-    n.to_company.toLowerCase().includes(search.toLowerCase()) ||
-    n.driver_name?.toLowerCase().includes(search.toLowerCase())
-  )
+  async function confirmCancel() {
+    if (!cancelId) return
+    setCancelling(true)
+    await fetch(`/api/delivery-notes/${cancelId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ cancel_reason: cancelReason }),
+    })
+    setCancelling(false)
+    setCancelId(null)
+    setCancelReason('')
+    await load()
+  }
+
+  const filtered = notes.filter(n => {
+    if (!showCancelled && n.status === 'cancelled') return false
+    return !search ||
+      n.note_number.toLowerCase().includes(search.toLowerCase()) ||
+      n.to_company.toLowerCase().includes(search.toLowerCase()) ||
+      n.driver_name?.toLowerCase().includes(search.toLowerCase())
+  })
 
   const fmtDate = (d: string) => {
     if (!d) return ''
@@ -202,14 +224,18 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
 
-        {/* Search */}
-        <div style={{ marginBottom: 20 }}>
+        {/* Search + filter */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by note no, company or driver…"
-            style={{ width: '100%', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: 'white', boxSizing: 'border-box' }}
+            style={{ flex: 1, padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: 'white', boxSizing: 'border-box' }}
           />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={showCancelled} onChange={e => setShowCancelled(e.target.checked)} />
+            Show cancelled
+          </label>
         </div>
 
         {/* List */}
@@ -223,39 +249,87 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map(n => (
-              <div key={n.id} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: '#f0fdf4', border: '1px solid #86efac', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d' }}>DN</span>
-                  <span style={{ fontSize: 10, color: '#15803d' }}>{n.note_number}</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>M/S {n.to_company}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                    {fmtDate(n.delivery_date)}
-                    {n.vehicle_no && ` · ${n.vehicle_no}`}
-                    {n.driver_name && ` · ${n.driver_name}`}
+            {filtered.map(n => {
+              const isCancelled = n.status === 'cancelled'
+              return (
+                <div key={n.id} style={{ background: isCancelled ? '#fafafa' : 'white', border: `1px solid ${isCancelled ? '#fecaca' : '#e5e7eb'}`, borderRadius: 10, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16, opacity: isCancelled ? 0.75 : 1 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: isCancelled ? '#fee2e2' : '#f0fdf4', border: `1px solid ${isCancelled ? '#fca5a5' : '#86efac'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: isCancelled ? '#dc2626' : '#15803d' }}>DN</span>
+                    <span style={{ fontSize: 10, color: isCancelled ? '#dc2626' : '#15803d' }}>{n.note_number}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: isCancelled ? '#6b7280' : '#111827', textDecoration: isCancelled ? 'line-through' : 'none' }}>M/S {n.to_company}</span>
+                      {isCancelled && <span style={{ fontSize: 10, fontWeight: 800, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 4, padding: '1px 7px', letterSpacing: '0.04em' }}>CANCELLED</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                      {fmtDate(n.delivery_date)}
+                      {n.vehicle_no && ` · ${n.vehicle_no}`}
+                      {n.driver_name && ` · ${n.driver_name}`}
+                      {isCancelled && n.cancel_reason && <span style={{ marginLeft: 8, fontStyle: 'italic' }}>· {n.cancel_reason}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <a href={`/delivery-notes/${n.id}`}
+                      style={{ background: '#1a3a2a', color: 'white', borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                      View / Print
+                    </a>
+                    {!isCancelled && (
+                      <button onClick={() => openEdit(n)}
+                        style={{ background: 'transparent', border: '1px solid #d1d5db', color: '#374151', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                        Edit
+                      </button>
+                    )}
+                    {!isCancelled && (
+                      <button onClick={() => { setCancelId(n.id); setCancelReason('') }}
+                        style={{ background: 'transparent', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                        Cancel DN
+                      </button>
+                    )}
+                    <button onClick={() => deleteNote(n.id)} disabled={deleting === n.id}
+                      style={{ background: 'transparent', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer' }}>
+                      {deleting === n.id ? '…' : 'Delete'}
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <a href={`/delivery-notes/${n.id}`}
-                    style={{ background: '#1a3a2a', color: 'white', borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                    View / Print
-                  </a>
-                  <button onClick={() => openEdit(n)}
-                    style={{ background: 'transparent', border: '1px solid #d1d5db', color: '#374151', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
-                    Edit
-                  </button>
-                  <button onClick={() => deleteNote(n.id)} disabled={deleting === n.id}
-                    style={{ background: 'transparent', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer' }}>
-                    {deleting === n.id ? '…' : 'Delete'}
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
+
+      {/* ── CANCEL MODAL ─────────────────────────────────────────────────────── */}
+      {cancelId !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 440, padding: 32, position: 'relative' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Cancel Delivery Note</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
+              This note will be marked as cancelled. The record is kept for audit purposes.
+            </div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Reason for cancellation <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              placeholder="e.g. Goods returned, Wrong address, Customer declined…"
+              rows={3}
+              autoFocus
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 20 }}
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setCancelId(null); setCancelReason('') }}
+                style={{ background: 'transparent', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 20px', fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+                Keep Active
+              </button>
+              <button onClick={confirmCancel} disabled={cancelling}
+                style={{ background: cancelling ? '#9ca3af' : '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: cancelling ? 'default' : 'pointer' }}>
+                {cancelling ? 'Cancelling…' : 'Confirm Cancellation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── NEW NOTE FORM MODAL ───────────────────────────────────────────────── */}
       {showForm && (
