@@ -419,7 +419,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                         )}
                         {isAdmin && (
                           <button onClick={async()=>{
-                            if(!confirm(`Delete ${req.ref_number}? This cannot be undone.`)) return
+                            if(!confirm(`Delete ${req.req_no}? This cannot be undone.`)) return
                             const r = await fetch(`/api/forms/petty-cash/${req.id}`,{method:'DELETE',credentials:'include'})
                             if(r.ok) setRequests(prev=>prev.filter(x=>x.id!==req.id))
                             else alert('Delete failed')
