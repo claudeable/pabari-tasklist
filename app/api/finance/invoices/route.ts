@@ -4,17 +4,19 @@ import { verifyToken } from '@/lib/auth'
 import { getInvoices, createInvoice } from '@/lib/finance'
 import type { DocType, InvoiceStatus } from '@/types'
 
-const ALLOWED = ['harshil', 'benson']
-function isAllowed(name: string, role: string) {
+const ALLOWED_NAMES  = ['harshil', 'benson']
+const ALLOWED_EMAILS = ['rkrishnan@usm.co.ke', 'yaynalem@usm.co.ke']
+function isAllowed(name: string, role: string, email: string) {
   if (role === 'admin') return true
-  return ALLOWED.includes(name.toLowerCase().split(' ')[0])
+  if (ALLOWED_EMAILS.includes(email)) return true
+  return ALLOWED_NAMES.includes(name.toLowerCase().split(' ')[0])
 }
 
 export async function GET(req: NextRequest) {
   const session     = cookies().get('pabari-session')
   const currentUser = session?.value ? await verifyToken(session.value) : null
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!isAllowed(currentUser.name, currentUser.role))
+  if (!isAllowed(currentUser.name, currentUser.role, currentUser.email))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const sp      = req.nextUrl.searchParams
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
   const session     = cookies().get('pabari-session')
   const currentUser = session?.value ? await verifyToken(session.value) : null
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!isAllowed(currentUser.name, currentUser.role))
+  if (!isAllowed(currentUser.name, currentUser.role, currentUser.email))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
