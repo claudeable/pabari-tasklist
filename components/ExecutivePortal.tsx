@@ -143,8 +143,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
     const topAction = data.actionTasks.slice(0, 2)
     topAction.forEach(t => recommendations.push({
       text: `Review: ${t.particulars.length > 45 ? t.particulars.slice(0, 45) + '…' : t.particulars}`,
-      tag: t.priority === 'critical' ? 'Critical' : 'High impact',
-      href: '/tasks',
+      tag: t.priority === 'critical' ? 'Critical' : 'High risk',
+      href: `/tasks?id=${t.id}`,
       color: t.priority === 'critical' ? '#dc2626' : '#f59e0b',
     }))
     if (data.awaitingApproval > 0) recommendations.push({

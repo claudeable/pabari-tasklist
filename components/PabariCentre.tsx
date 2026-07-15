@@ -435,37 +435,37 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
     <div style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'system-ui,-apple-system,sans-serif', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── TOP NAV ──────────────────────────────────────────────────────────── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: isMobile ? '0 16px' : '0 32px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 20, flexShrink: 0 }}>
+      <div style={{ background: '#1a3a2a', padding: isMobile ? '0 16px' : '0 32px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 20, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <div style={{ background: '#b5833a', color: 'white', fontWeight: 800, fontSize: 11, padding: '5px 10px', borderRadius: 4, letterSpacing: '1px' }}>PABARI</div>
           </a>
-          <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Centre</span>
+          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Centre</span>
           {!isMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '2px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 6, padding: '2px 8px' }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#15803d' }}>Live</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#4ade80' }}>Live</span>
             </div>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a href="/tasks" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>Tasks</a>
-          <a href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>Portal</a>
-          {!isMobile && <span style={{ fontSize: 13, color: '#374151' }}>{currentUser.name}</span>}
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a3a2a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{initials}</div>
+          <a href="/tasks" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>Tasks</a>
+          <a href="/" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>Portal</a>
+          {!isMobile && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>{currentUser.name}</span>}
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{initials}</div>
           <button
             onClick={pushStatus === 'granted' ? disablePushNotifications : enablePushNotifications}
             disabled={pushStatus === 'loading' || pushStatus === 'denied'}
             title={pushStatus === 'granted' ? 'Push notifications ON — click to disable' : pushStatus === 'denied' ? 'Notifications blocked in browser settings' : 'Enable push notifications'}
-            style={{ background: pushStatus === 'granted' ? '#1a3a2a' : pushStatus === 'denied' ? '#e5e7eb' : 'white', color: pushStatus === 'granted' ? 'white' : pushStatus === 'denied' ? '#9ca3af' : '#374151', border: `1px solid ${pushStatus === 'granted' ? '#1a3a2a' : '#d1d5db'}`, borderRadius: 6, padding: '5px 10px', fontSize: 16, cursor: pushStatus === 'denied' ? 'not-allowed' : 'pointer', lineHeight: 1 }}>
+            style={{ background: pushStatus === 'granted' ? 'rgba(255,255,255,0.2)' : pushStatus === 'denied' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)', color: pushStatus === 'denied' ? 'rgba(255,255,255,0.3)' : 'white', border: `1px solid ${pushStatus === 'granted' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)'}`, borderRadius: 6, padding: '5px 10px', fontSize: 16, cursor: pushStatus === 'denied' ? 'not-allowed' : 'pointer', lineHeight: 1 }}>
             {pushStatus === 'loading' ? '…' : '🔔'}
           </button>
           <button onClick={() => setShowWA(true)} title="Set WhatsApp notification number"
             style={{ background: '#25D366', color: 'white', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>
             📱
           </button>
-          <button onClick={signOut} style={{ background: 'transparent', border: '1px solid #d1d5db', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+          <button onClick={signOut} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: 'rgba(255,255,255,0.75)', cursor: 'pointer' }}>
             {isMobile ? 'Out' : 'Sign out'}
           </button>
         </div>

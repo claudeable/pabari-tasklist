@@ -129,12 +129,8 @@ function DeliveryNoteDocument({ note, items, tableRows }: {
         <span style={{ flex: 1, borderBottom: '1px solid #000', paddingBottom: 1, paddingLeft: 4, minHeight: 18 }}>{note.to_company}</span>
       </div>
 
-      {/* ── ORDER NO + DATE ── */}
-      <div style={{ border: '1px solid #000', borderBottom: 'none', padding: '7px 12px', display: 'flex', gap: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flex: 1 }}>
-          <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>ORDER NO.</span>
-          <span style={{ flex: 1, borderBottom: '1px solid #000', minHeight: 18, paddingLeft: 4 }}>{note.order_no}</span>
-        </div>
+      {/* ── DATE ROW ── */}
+      <div style={{ border: '1px solid #000', borderBottom: 'none', padding: '7px 12px', display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           <span style={{ fontWeight: 700 }}>Date</span>
           <span style={{ borderBottom: '1px solid #000', minWidth: 80, textAlign: 'center', minHeight: 18, paddingLeft: 4 }}>{fmtDate(note.delivery_date)}</span>

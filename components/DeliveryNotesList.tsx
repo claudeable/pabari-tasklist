@@ -25,7 +25,6 @@ const TODAY = new Date().toISOString().slice(0, 10)
 function emptyForm() {
   return {
     to_company: '',
-    order_no: '',
     delivery_date: TODAY,
     vehicle_no: '',
     driver_name: '',
@@ -40,6 +39,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
   const [loading,   setLoading]   = useState(true)
   const [showForm,  setShowForm]  = useState(false)
   const [form,      setForm]      = useState(emptyForm())
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
   const [search,    setSearch]    = useState('')
@@ -77,6 +77,22 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
     setForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
   }
 
+  function openEdit(n: DeliveryNote) {
+    const items = Array.isArray(n.items) ? n.items : JSON.parse(n.items as unknown as string ?? '[]')
+    setForm({
+      to_company:    n.to_company,
+      delivery_date: n.delivery_date?.slice(0, 10) || TODAY,
+      vehicle_no:    n.vehicle_no  || '',
+      driver_name:   n.driver_name || '',
+      driver_id:     n.driver_id   || '',
+      items:         items.length ? items : [{ ...EMPTY_ITEM }, { ...EMPTY_ITEM }, { ...EMPTY_ITEM }],
+      remarks:       n.remarks     || '',
+    })
+    setEditingId(n.id)
+    setError('')
+    setShowForm(true)
+  }
+
   async function save() {
     setError('')
     if (!form.to_company.trim())  { setError('M/S (To Company) is required'); return }
@@ -86,24 +102,46 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
     setSaving(true)
     try {
-      // Ensure table exists first
-      await fetch('/api/delivery-notes/migrate', { method: 'POST' }).catch(() => {})
-
-      const r = await fetch('/api/delivery-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ...form, items: filledItems }),
-      })
-      const j = await r.json()
-      if (!r.ok) {
-        setError(j.error ?? `Save failed (${r.status})`)
-        setSaving(false)
-        return
+      if (editingId) {
+        // ── Edit existing ──
+        const existing = notes.find(n => n.id === editingId)
+        const r = await fetch(`/api/delivery-notes/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            note_number:   existing?.note_number ?? '',
+            to_company:    form.to_company,
+            order_no:      '',
+            delivery_date: form.delivery_date,
+            vehicle_no:    form.vehicle_no,
+            driver_name:   form.driver_name,
+            driver_id:     form.driver_id,
+            items:         filledItems,
+            remarks:       form.remarks,
+          }),
+        })
+        const j = await r.json()
+        if (!r.ok) { setError(j.error ?? `Save failed (${r.status})`); setSaving(false); return }
+        setShowForm(false)
+        setEditingId(null)
+        setForm(emptyForm())
+        await load()
+      } else {
+        // ── Create new ──
+        await fetch('/api/delivery-notes/migrate', { method: 'POST' }).catch(() => {})
+        const r = await fetch('/api/delivery-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...form, items: filledItems }),
+        })
+        const j = await r.json()
+        if (!r.ok) { setError(j.error ?? `Save failed (${r.status})`); setSaving(false); return }
+        const id = j.id
+        if (!id) { setError('No ID returned from server'); setSaving(false); return }
+        window.location.href = `/delivery-notes/${id}`
       }
-      const id = j.id
-      if (!id) { setError('No ID returned from server'); setSaving(false); return }
-      window.location.href = `/delivery-notes/${id}`
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Network error — please try again')
       setSaving(false)
@@ -135,14 +173,14 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
       {/* Header */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '0 32px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{ background: '#1a3a2a', padding: '0 32px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <div style={{ background: '#b5833a', color: 'white', fontWeight: 800, fontSize: 11, padding: '5px 10px', borderRadius: 4, letterSpacing: '1px' }}>PABARI</div>
           </a>
-          <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Delivery Notes</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fdf6ee', border: '1px solid #e8d5b7', borderRadius: 6, padding: '3px 10px' }}>
+          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Delivery Notes</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '3px 10px' }}>
             <svg width="14" height="14" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
               <rect width="64" height="64" rx="4" fill="#3D2314"/>
               <polygon points="4,54 18,12 27,36" fill="white"/>
@@ -150,13 +188,13 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
               <polygon points="27,36 32,18 37,36 32,48" fill="white"/>
               <polygon points="32,44 28,52 32,56 36,52" fill="#C9A84C"/>
             </svg>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#3D2314' }}>MERCURY AGENCIES LIMITED</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>MERCURY AGENCIES LIMITED</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <a href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>← Portal</a>
-          <button onClick={() => { setShowForm(true); setError('') }}
-            style={{ background: '#1a3a2a', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <a href="/" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>← Portal</a>
+          <button onClick={() => { setEditingId(null); setForm(emptyForm()); setError(''); setShowForm(true) }}
+            style={{ background: '#b5833a', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + New Delivery Note
           </button>
         </div>
@@ -204,6 +242,10 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                     style={{ background: '#1a3a2a', color: 'white', borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                     View / Print
                   </a>
+                  <button onClick={() => openEdit(n)}
+                    style={{ background: 'transparent', border: '1px solid #d1d5db', color: '#374151', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                    Edit
+                  </button>
                   <button onClick={() => deleteNote(n.id)} disabled={deleting === n.id}
                     style={{ background: 'transparent', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer' }}>
                     {deleting === n.id ? '…' : 'Delete'}
@@ -219,7 +261,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 50, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
           <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 700, padding: 32, position: 'relative' }}>
-            <button onClick={() => setShowForm(false)}
+            <button onClick={() => { setShowForm(false); setEditingId(null); setForm(emptyForm()) }}
               style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>✕</button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -231,7 +273,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                 <polygon points="32,44 28,52 32,56 36,52" fill="#C9A84C"/>
               </svg>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>New Delivery Note</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>{editingId ? 'Edit Delivery Note' : 'New Delivery Note'}</div>
                 <div style={{ fontSize: 11, color: '#3D2314', fontWeight: 700 }}>MERCURY AGENCIES LIMITED</div>
               </div>
             </div>
@@ -248,11 +290,6 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
             {/* Row 2 */}
             <div style={{ marginBottom: 14 }}>
               <Field label="M/S (To Company) *" value={form.to_company} onChange={v => setForm(f => ({ ...f, to_company: v }))} placeholder="e.g. Salim Khan Trading Ltd" />
-            </div>
-
-            {/* Row 3 */}
-            <div style={{ marginBottom: 14 }}>
-              <Field label="Order No" value={form.order_no} onChange={v => setForm(f => ({ ...f, order_no: v }))} placeholder="Optional" />
             </div>
 
             {/* Driver/Vehicle row */}
@@ -314,13 +351,13 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
             )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowForm(false)}
+              <button onClick={() => { setShowForm(false); setEditingId(null); setForm(emptyForm()) }}
                 style={{ background: 'transparent', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 20px', fontSize: 13, color: '#374151', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button onClick={save} disabled={saving}
                 style={{ background: saving ? '#9ca3af' : '#1a3a2a', color: 'white', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: saving ? 'default' : 'pointer' }}>
-                {saving ? 'Saving…' : 'Save & Preview'}
+                {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save & Preview'}
               </button>
             </div>
           </div>

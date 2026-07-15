@@ -202,21 +202,21 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
     <div style={{ minHeight:'100vh', background:'#f3f4f6', fontFamily:'system-ui,-apple-system,sans-serif' }}>
 
       {/* ── TOP NAV ─────────────────────────────────────────────────────────── */}
-      <div style={{ background:'white', borderBottom:'1px solid #e5e7eb', padding: isMobile ? '0 16px' : '0 32px', height:52, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:20 }}>
+      <div style={{ background:'#1a3a2a', padding: isMobile ? '0 16px' : '0 32px', height:52, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:20 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ background:'#b5833a', color:'white', fontWeight:800, fontSize:11, padding:'5px 10px', borderRadius:4, letterSpacing:'1px' }}>PABARI</div>
-          {!isMobile && <span style={{ fontSize:13, color:'#6b7280', fontWeight:500 }}>Work Hub</span>}
+          {!isMobile && <span style={{ fontSize:13, color:'rgba(255,255,255,0.55)', fontWeight:500 }}>Work Hub</span>}
           {!isMobile && (
-            <a href="/centre" style={{ fontSize:12, fontWeight:600, color:'#1a3a2a', textDecoration:'none', background:'#f0fdf4', border:'1px solid #86efac', padding:'4px 10px', borderRadius:6, display:'flex', alignItems:'center', gap:5 }}>
+            <a href="/centre" style={{ fontSize:12, fontWeight:600, color:'white', textDecoration:'none', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', padding:'4px 10px', borderRadius:6, display:'flex', alignItems:'center', gap:5 }}>
               <span>📥</span> Centre
             </a>
           )}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <NotificationBell userEmail={currentUser.email} />
-          {!isMobile && <span style={{ fontSize:13, color:'#374151' }}>{currentUser.name}</span>}
-          <div style={{ width:32, height:32, borderRadius:'50%', background:'#1a3a2a', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>{initials}</div>
-          <button onClick={signOut} style={{ background:'transparent', border:'1px solid #d1d5db', borderRadius:6, padding:'5px 12px', fontSize:12, color:'#374151', cursor:'pointer' }}>
+          {!isMobile && <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)' }}>{currentUser.name}</span>}
+          <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>{initials}</div>
+          <button onClick={signOut} style={{ background:'transparent', border:'1px solid rgba(255,255,255,0.3)', borderRadius:6, padding:'5px 12px', fontSize:12, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
             {isMobile ? 'Out' : 'Sign out'}
           </button>
         </div>

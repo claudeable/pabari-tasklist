@@ -72,7 +72,12 @@ export async function POST(req: NextRequest) {
     )
     const id = rows[0].id
     const year = new Date().getFullYear()
-    const generatedNo = `${year}-${String(id).padStart(4, '0')}`
+    const maxRows = await query<{ max_num: string }>(
+      `SELECT COALESCE(MAX(CAST(SPLIT_PART(note_number, '-', 2) AS INTEGER)), 6) AS max_num
+       FROM delivery_notes WHERE note_number != '' AND id != $1`, [id]
+    )
+    const nextNum = parseInt(maxRows[0]?.max_num ?? '6', 10) + 1
+    const generatedNo = `${year}-${String(nextNum).padStart(4, '0')}`
     await execute(`UPDATE delivery_notes SET note_number=$1 WHERE id=$2`, [generatedNo, id])
     return NextResponse.json({ id, note_number: generatedNo })
   } catch (e) {
