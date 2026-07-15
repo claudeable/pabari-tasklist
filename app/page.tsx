@@ -2,8 +2,11 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import PortalHub from '@/components/PortalHub'
+import ExecutivePortal from '@/components/ExecutivePortal'
 
 export const dynamic = 'force-dynamic'
+
+const EXEC_NAMES = ['harshil', 'benson', 'pedro']
 
 export default async function Home() {
   const cookieStore = cookies()
@@ -12,5 +15,10 @@ export default async function Home() {
 
   if (!currentUser) redirect('/login')
 
-  return <PortalHub currentUser={currentUser} />
+  const firstName = (currentUser.name?.split(' ')[0] ?? '').toLowerCase()
+  const isExec = currentUser.role === 'admin' || EXEC_NAMES.includes(firstName)
+
+  return isExec
+    ? <ExecutivePortal currentUser={currentUser} />
+    : <PortalHub currentUser={currentUser} />
 }
