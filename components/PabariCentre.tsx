@@ -140,7 +140,7 @@ function AiTab({ currentUser }: { currentUser: SessionUser }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', gap: 24 }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 10 }}>⚡</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Executive AI</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Command AI</div>
           <div style={{ fontSize: 13, color: '#6b7280', maxWidth: 360, lineHeight: 1.6 }}>
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {firstName}. Preparing your executive briefing…
           </div>
@@ -487,7 +487,7 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
                 { key: 'inbox', icon: '📥', label: 'Inbox', badge: counts.all },
                 { key: 'chat',  icon: '💬', label: 'Chat',  badge: 0 },
                 ...(isExecUser(currentUser.name, currentUser.role)
-                  ? [{ key: 'ai' as Tab, icon: '⚡', label: 'Executive AI', badge: 0 }]
+                  ? [{ key: 'ai' as Tab, icon: '⚡', label: 'Command AI', badge: 0 }]
                   : []),
               ] as { key: Tab; icon: string; label: string; badge: number }[]
             ).map(item => (

@@ -53,23 +53,62 @@ export async function GET() {
     ))
   } catch { /**/ }
 
-  // ── Action-required tasks (priority queue) ──────────────────────────────
-  let actionTasks: { id: string; particulars: string; company: string; responsible: string; priority: string }[] = []
+  // ── Action-required tasks — with age ───────────────────────────────────
+  let actionTasks: {
+    id: string; particulars: string; company: string
+    responsible: string; priority: string; created_at: string; days_waiting: string
+  }[] = []
   try {
-    actionTasks = await query<{ id: string; particulars: string; company: string; responsible: string; priority: string }>(
-      `SELECT id::text, particulars, company, responsible, priority FROM tasks
-       WHERE status = 'action-required'
-       ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END LIMIT 10`
+    actionTasks = await query<{
+      id: string; particulars: string; company: string
+      responsible: string; priority: string; created_at: string; days_waiting: string
+    }>(
+      `SELECT id::text, particulars, company, responsible, priority,
+              created_at::text,
+              GREATEST(0, EXTRACT(DAY FROM NOW() - created_at))::int::text AS days_waiting
+       FROM tasks WHERE status = 'action-required'
+       ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,
+                created_at ASC
+       LIMIT 15`
     )
   } catch { /**/ }
 
-  // ── Awaiting HK approval tasks ──────────────────────────────────────────
-  let approvalTasks: { id: string; particulars: string; company: string; responsible: string }[] = []
+  // ── Awaiting HK approval — with age ────────────────────────────────────
+  let approvalTasks: {
+    id: string; particulars: string; company: string
+    responsible: string; days_waiting: string
+  }[] = []
   try {
-    approvalTasks = await query<{ id: string; particulars: string; company: string; responsible: string }>(
-      `SELECT id::text, particulars, company, responsible FROM tasks
-       WHERE status = 'awaiting-hk-approval' LIMIT 5`
+    approvalTasks = await query<{
+      id: string; particulars: string; company: string
+      responsible: string; days_waiting: string
+    }>(
+      `SELECT id::text, particulars, company, responsible,
+              GREATEST(0, EXTRACT(DAY FROM NOW() - created_at))::int::text AS days_waiting
+       FROM tasks WHERE status = 'awaiting-hk-approval'
+       ORDER BY created_at ASC LIMIT 8`
     )
+  } catch { /**/ }
+
+  // ── Oldest open task ────────────────────────────────────────────────────
+  let oldestDays = 0
+  try {
+    const oldest = await query<{ days: string }>(
+      `SELECT GREATEST(0, EXTRACT(DAY FROM NOW() - created_at))::int::text AS days
+       FROM tasks WHERE status NOT IN ('resolved','expired')
+       ORDER BY created_at ASC LIMIT 1`
+    )
+    oldestDays = parseInt(oldest[0]?.days ?? '0', 10)
+  } catch { /**/ }
+
+  // ── Avg wait days for action-required ──────────────────────────────────
+  let avgWaitDays = 0
+  try {
+    const avgRow = await query<{ avg: string }>(
+      `SELECT ROUND(AVG(EXTRACT(DAY FROM NOW() - created_at)))::int::text AS avg
+       FROM tasks WHERE status = 'action-required'`
+    )
+    avgWaitDays = parseInt(avgRow[0]?.avg ?? '0', 10)
   } catch { /**/ }
 
   // ── PCR active ──────────────────────────────────────────────────────────
@@ -94,29 +133,29 @@ export async function GET() {
     ))
   } catch { /**/ }
 
-  // ── Today's activity ────────────────────────────────────────────────────
-  let todayActivity: { user_name: string; action: string; details: string; created_at: string }[] = []
+  // ── Full activity history ────────────────────────────────────────────────
+  let activityFeed: { user_name: string; action: string; details: string; created_at: string }[] = []
   try {
-    todayActivity = await query<{ user_name: string; action: string; details: string; created_at: string }>(
+    activityFeed = await query<{ user_name: string; action: string; details: string; created_at: string }>(
       `SELECT user_name, action, details, created_at FROM activity_log
-       WHERE created_at >= $1::date ORDER BY created_at DESC LIMIT 30`, [today]
+       ORDER BY created_at DESC LIMIT 100`
     )
   } catch { /**/ }
 
-  // ── Weekly resolved per person ──────────────────────────────────────────
-  let weeklyPerf: { responsible: string; resolved: string; open: string }[] = []
+  // ── Workload per person (all open, not just this week) ──────────────────
+  let workload: { responsible: string; open: string; resolved_week: string }[] = []
   try {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    weeklyPerf = await query<{ responsible: string; resolved: string; open: string }>(
+    workload = await query<{ responsible: string; open: string; resolved_week: string }>(
       `SELECT
-         t.responsible,
-         COUNT(CASE WHEN t.status='resolved' AND LEFT(t.updated_at::text,10) >= $1 THEN 1 END)::text AS resolved,
-         COUNT(CASE WHEN t.status NOT IN ('resolved','expired') THEN 1 END)::text AS open
-       FROM tasks t
-       WHERE t.responsible IS NOT NULL AND t.responsible != ''
-       GROUP BY t.responsible
-       HAVING COUNT(*) > 0
-       ORDER BY resolved::int DESC, open::int ASC LIMIT 12`, [weekAgo]
+         responsible,
+         COUNT(CASE WHEN status NOT IN ('resolved','expired') THEN 1 END)::text AS open,
+         COUNT(CASE WHEN status='resolved' AND LEFT(updated_at::text,10) >= $1 THEN 1 END)::text AS resolved_week
+       FROM tasks
+       WHERE responsible IS NOT NULL AND responsible != ''
+       GROUP BY responsible
+       HAVING COUNT(CASE WHEN status NOT IN ('resolved','expired') THEN 1 END) > 0
+       ORDER BY open::int DESC LIMIT 12`, [weekAgo]
     )
   } catch { /**/ }
 
@@ -140,12 +179,11 @@ export async function GET() {
 
   return NextResponse.json({
     today,
-    // Counts
     totalOpen, actionRequired, needsHkComment,
     awaitingApproval, resolvedToday,
+    oldestDays, avgWaitDays,
     pcrActive, pcrHighValue, leavePending, docCount,
-    // Lists
     actionTasks, approvalTasks, pcrItems,
-    todayActivity, weeklyPerf, byCompany,
+    activityFeed, workload, byCompany,
   })
 }
