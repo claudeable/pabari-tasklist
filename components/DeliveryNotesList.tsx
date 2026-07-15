@@ -26,6 +26,7 @@ const TODAY = new Date().toISOString().slice(0, 10)
 
 function emptyForm() {
   return {
+    note_number: '',
     to_company: '',
     delivery_date: TODAY,
     vehicle_no: '',
@@ -86,6 +87,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
   function openEdit(n: DeliveryNote) {
     const items = Array.isArray(n.items) ? n.items : JSON.parse(n.items as unknown as string ?? '[]')
     setForm({
+      note_number:   n.note_number || '',
       to_company:    n.to_company,
       delivery_date: n.delivery_date?.slice(0, 10) || TODAY,
       vehicle_no:    n.vehicle_no  || '',
@@ -354,10 +356,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
             {/* Row 1 */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Delivery Note No</div>
-                <div style={{ padding: '9px 12px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>Auto-generated on save</div>
-              </div>
+              <Field label="Delivery Note No *" value={form.note_number} onChange={v => setForm(f => ({ ...f, note_number: v }))} placeholder="e.g. 007" />
               <Field label="Date *" type="date" value={form.delivery_date} onChange={v => setForm(f => ({ ...f, delivery_date: v }))} />
             </div>
 

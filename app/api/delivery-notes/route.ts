@@ -41,7 +41,7 @@ export async function GET() {
   try {
     await ensureTable()
     const rows = await query(
-      `SELECT id, note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, created_by, created_at
+      `SELECT id, note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, status, cancel_reason, created_by, created_at
        FROM delivery_notes ORDER BY created_at DESC LIMIT 200`
     )
     return NextResponse.json({ notes: rows })
@@ -61,27 +61,22 @@ export async function POST(req: NextRequest) {
     await ensureTable()
 
     const body = await req.json()
-    const { to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks } = body
+    const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks } = body
 
     if (!to_company || !delivery_date) {
       return NextResponse.json({ error: 'To Company and Date are required' }, { status: 400 })
+    }
+    if (!note_number?.trim()) {
+      return NextResponse.json({ error: 'Delivery Note No is required' }, { status: 400 })
     }
 
     const rows = await query<{ id: number }>(
       `INSERT INTO delivery_notes (note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      ['', to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', user.name]
+      [note_number.trim(), to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', user.name]
     )
     const id = rows[0].id
-    const year = new Date().getFullYear()
-    const maxRows = await query<{ max_num: string }>(
-      `SELECT COALESCE(MAX(CAST(SPLIT_PART(note_number, '-', 2) AS INTEGER)), 6) AS max_num
-       FROM delivery_notes WHERE note_number != '' AND id != $1`, [id]
-    )
-    const nextNum = parseInt(maxRows[0]?.max_num ?? '6', 10) + 1
-    const generatedNo = `${year}-${String(nextNum).padStart(4, '0')}`
-    await execute(`UPDATE delivery_notes SET note_number=$1 WHERE id=$2`, [generatedNo, id])
-    return NextResponse.json({ id, note_number: generatedNo })
+    return NextResponse.json({ id, note_number: note_number.trim() })
   } catch (e) {
     console.error('[delivery-notes POST]', e)
     return NextResponse.json({ error: String(e) }, { status: 500 })
