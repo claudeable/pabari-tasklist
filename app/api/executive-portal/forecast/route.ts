@@ -144,9 +144,31 @@ export async function GET() {
 
   // ── 9. Leave pending ─────────────────────────────────────────────────────
   let leavePending = 0
+  let leaveByStatus: { status: string; count: string }[] = []
   try {
     const rows = await query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM leave_requests WHERE status NOT IN ('approved','rejected')`)
     leavePending = parseInt(rows[0]?.count ?? '0', 10)
+  } catch { /**/ }
+  try {
+    leaveByStatus = await query<{ status: string; count: string }>(`
+      SELECT status, COUNT(*)::text AS count FROM leave_requests
+      GROUP BY status ORDER BY count::int DESC`)
+  } catch { /**/ }
+
+  // ── 10. Delivery notes ───────────────────────────────────────────────────
+  let dnStats: { total: string; active: string; cancelled: string; this_week: string; top_recipient: string } | null = null
+  try {
+    const rows = await query<{ total: string; active: string; cancelled: string; this_week: string }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(CASE WHEN status='active' THEN 1 END)::text AS active,
+        COUNT(CASE WHEN status='cancelled' THEN 1 END)::text AS cancelled,
+        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text AS this_week
+      FROM delivery_notes`)
+    const topRec = await query<{ to_company: string; c: string }>(`
+      SELECT to_company, COUNT(*)::text AS c FROM delivery_notes
+      WHERE status='active' GROUP BY to_company ORDER BY c::int DESC LIMIT 1`)
+    dnStats = { ...rows[0], top_recipient: topRec[0]?.to_company ?? 'N/A' }
   } catch { /**/ }
 
   // ── Build context ─────────────────────────────────────────────────────────
@@ -155,43 +177,55 @@ export async function GET() {
   const context = `
 Today: ${today}
 Organisation: Pabari Group
+ACTIVE MODULES: Tasks, Petty Cash Requests, Leave Requests, Delivery Notes
+(Finance, Projects, Documents are NOT yet live — do not reference them)
 
-BACKLOG OVERVIEW
-Total open: ${overview?.total ?? '?'} | Action required: ${overview?.action_req ?? '?'} | Needs HK comment: ${overview?.hk_queue ?? '?'}
+═══ TASKS MODULE ═══
+Backlog: ${overview?.total ?? '?'} open | ${overview?.action_req ?? '?'} action required | ${overview?.hk_queue ?? '?'} need HK comment
+Velocity this week: ${velocity?.created_this_week ?? '?'} created / ${velocity?.resolved_this_week ?? '?'} resolved (last week: ${velocity?.created_last_week ?? '?'} / ${velocity?.resolved_last_week ?? '?'})
 
-TASK VELOCITY (this week vs last week)
-Created: ${velocity?.created_this_week ?? '?'} this week / ${velocity?.created_last_week ?? '?'} last week
-Resolved: ${velocity?.resolved_this_week ?? '?'} this week / ${velocity?.resolved_last_week ?? '?'} last week
+Deadline risk this week (per person):
+${deadlineRisk.length ? deadlineRisk.map(r => `  ${r.responsible}: ${r.due_this_week} due, ${r.blocked} blocked`).join('\n') : '  No tasks with due dates this week'}
 
-DEADLINE RISK (tasks due within 7 days, per person)
-${deadlineRisk.length ? deadlineRisk.map(r => `${r.responsible}: ${r.due_this_week} tasks due, ${r.blocked} blocked on approval`).join('\n') : 'No tasks have due dates set this week'}
+Top bottleneck sections:
+${approvalBottleneck.length ? approvalBottleneck.map(r => `  ${r.section}: ${r.total} pending (${r.added_this_week} added this week)`).join('\n') : '  No section bottlenecks'}
 
-APPROVAL BOTTLENECK BY SECTION (action-required or awaiting approval)
-${approvalBottleneck.length ? approvalBottleneck.map(r => `${r.section}: ${r.total} pending (${r.added_this_week} added this week)`).join('\n') : 'None'}
+Oldest unresolved tasks (age is NOT priority — check actual_priority field):
+${oldestTasks.map(r => `  "${r.particulars.slice(0, 55)}" · ${r.responsible} · ${r.company} · ${r.days_open} days open · priority: ${r.actual_priority}`).join('\n')}
 
-OLDEST UNRESOLVED TASKS BY AGE (sorted by age, NOT priority — see actual_priority field)
-${oldestTasks.map(r => `"${r.particulars.slice(0, 55)}" — owner: ${r.responsible}, company: ${r.company}, open: ${r.days_open} days, actual priority: ${r.actual_priority}`).join('\n')}
+High/critical priority tasks per person:
+${highPriorityByPerson.length ? highPriorityByPerson.map(r => `  ${r.responsible}: ${r.critical_count} critical, ${r.high_count} high, ${r.medium_count} medium`).join('\n') : '  No high or critical priority tasks'}
 
-ACTUAL HIGH/CRITICAL PRIORITY TASKS PER PERSON
-${highPriorityByPerson.length ? highPriorityByPerson.map(r => `${r.responsible}: ${r.critical_count} critical, ${r.high_count} high, ${r.medium_count} medium priority open tasks`).join('\n') : 'No high or critical priority tasks currently'}
+Team workload:
+${workload.map(r => `  ${r.responsible}: ${r.open} open`).join('\n')}
 
-TEAM WORKLOAD (total open tasks per person)
-${workload.map(r => `${r.responsible}: ${r.open} open`).join(' | ')}
+═══ PETTY CASH REQUESTS (PCR) MODULE ═══
+Processing time avg: this month ${pcrProcessing?.this_month ?? 'N/A'} days | last month ${pcrProcessing?.last_month ?? 'N/A'} days
 
-PCR PROCESSING TIME (submission to disbursement)
-This month avg: ${pcrProcessing?.this_month ?? 'N/A'} days | Last month avg: ${pcrProcessing?.last_month ?? 'N/A'} days
+═══ LEAVE REQUESTS MODULE ═══
+Pending approval: ${leavePending}
+By status: ${leaveByStatus.length ? leaveByStatus.map(r => `${r.status}: ${r.count}`).join(' | ') : 'no data'}
 
-LEAVE REQUESTS PENDING APPROVAL: ${leavePending}
+═══ DELIVERY NOTES MODULE ═══
+Total: ${dnStats?.total ?? 'N/A'} | Active: ${dnStats?.active ?? 'N/A'} | Cancelled: ${dnStats?.cancelled ?? 'N/A'} | Created this week: ${dnStats?.this_week ?? 'N/A'}
+Top recipient: ${dnStats?.top_recipient ?? 'N/A'}
 `.trim()
 
   const systemPrompt = `You are Pabari Intelligence — the executive AI decision engine for Pabari Group.
 Analyze the operational data and produce exactly 5 forward-looking intelligence predictions.
 
+IMPORTANT: Only the following modules are live and should be used as data sources:
+- Tasks (task management and approval workflow)
+- Petty Cash Requests / PCR (employee expense and cash requests)
+- Leave Requests (staff leave applications)
+- Delivery Notes (logistics/dispatch notes)
+Do NOT generate predictions for Finance, Projects, or Documents — those modules are not yet active.
+
 Return a JSON array ONLY. No markdown, no explanation, no text outside the array.
 Each object must have these exact fields:
 {
-  "category": one of "Operations" | "Finance" | "Compliance" | "People" | "Projects",
-  "observation": "What the data shows right now — include specific numbers, names, or dates from the data. 1-2 sentences.",
+  "category": one of "Tasks" | "Petty Cash" | "Leave" | "Logistics" | "People",
+  "observation": "What the data shows right now — must include at least one specific number, name, or date from the data. 1-2 sentences.",
   "impact": "Business consequence if not addressed — concrete and specific. 1 sentence.",
   "recommendation": "Single best action the executive should take today — specific and actionable. 1 sentence.",
   "confidence": integer 70-97 based on how complete and unambiguous the underlying data is
@@ -199,10 +233,10 @@ Each object must have these exact fields:
 
 ACCURACY RULES (non-negotiable):
 - Every observation MUST include at least one specific number, name, or date from the provided data
-- NEVER label a task high-risk based on age alone — only if actual_priority says "high" or "critical"
-- confidence above 90 only when data is complete and unambiguous
-- Never invent numbers, names, or events not present in the data
-- If a data section is empty or N/A, use a different category for that prediction
+- NEVER label a task as high risk based on age alone — only if actual_priority says "high" or "critical"
+- confidence above 90 only when the data is complete and unambiguous
+- If a module has no data or N/A values, lower confidence accordingly and use what IS available
+- Never invent numbers, names, or events not in the data
 - Each category should appear at most once across the 5 predictions`
 
   try {

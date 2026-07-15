@@ -42,6 +42,7 @@ interface ExecData {
   awaitingApproval: number; resolvedToday: number
   oldestDays: number; avgWaitDays: number
   pcrActive: number; pcrHighValue: number; leavePending: number; docCount: number
+  dnTotal: number; dnThisWeek: number; dnCancelled: number
   actionTasks: ActionTask[]; approvalTasks: ApprovalTask[]
   pcrItems: PcrItem[]; activityFeed: Activity[]
   workload: WorkloadRow[]; byCompany: CompanyRow[]
@@ -161,34 +162,45 @@ function genRecommendations(data: ExecData): Rec[] {
 }
 
 function computeHealth(data: ExecData) {
-  const totalOpen = data.totalOpen || 1
-  const opScore   = Math.round(Math.max(0, ((totalOpen - data.actionRequired) / totalOpen) * 100))
-  const finScore  = data.pcrHighValue === 0 ? 88 : data.pcrHighValue > 3 ? 48 : 65
-  const compScore = data.leavePending === 0 ? 92 : data.leavePending > 5 ? 52 : 72
-  const avgWait   = data.avgWaitDays || 0
-  const projScore = avgWait > 7 ? 48 : avgWait > 3 ? 68 : 86
+  const totalOpen  = data.totalOpen || 1
   const overloaded = data.workload.filter(p => parseInt(p.open) > 25).length
-  const peopleScore = overloaded === 0 ? 90 : overloaded > 2 ? 52 : 70
 
-  const col = (s: number) => s >= 80 ? T.green  : s >= 60 ? T.amber : T.red
+  // Tasks: % not action-required
+  const taskScore = Math.round(Math.max(0, ((totalOpen - data.actionRequired) / totalOpen) * 100))
+
+  // Petty Cash: high-value PCR queue
+  const pcrScore = data.pcrHighValue === 0 ? 90 : data.pcrHighValue > 4 ? 45 : 65
+
+  // Leave: pending leave approval
+  const leaveScore = data.leavePending === 0 ? 95 : data.leavePending > 5 ? 50 : 70
+
+  // Logistics: delivery note cancellation rate
+  const dnTotal = data.dnTotal || 0
+  const dnCancelRate = dnTotal > 0 ? (data.dnCancelled / dnTotal) : 0
+  const logScore = dnTotal === 0 ? 80 : dnCancelRate > 0.3 ? 45 : dnCancelRate > 0.1 ? 68 : 90
+
+  // People: team overload
+  const peopleScore = overloaded === 0 ? 92 : overloaded > 2 ? 50 : 70
+
+  const col = (s: number) => s >= 80 ? T.green : s >= 60 ? T.amber : T.red
   const lbl = (s: number) => s >= 80 ? 'Healthy' : s >= 60 ? 'At Risk' : 'Critical'
   const bg  = (s: number) => s >= 80 ? 'rgba(34,197,94,0.08)' : s >= 60 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)'
 
   return [
-    { name: 'Operations', score: opScore,    color: col(opScore),    label: lbl(opScore),    bg: bg(opScore),    detail: `${data.actionRequired} tasks need action` },
-    { name: 'Finance',    score: finScore,   color: col(finScore),   label: lbl(finScore),   bg: bg(finScore),   detail: `${data.pcrHighValue} PCR approvals pending` },
-    { name: 'Compliance', score: compScore,  color: col(compScore),  label: lbl(compScore),  bg: bg(compScore),  detail: `${data.leavePending} leave requests open` },
-    { name: 'Projects',   score: projScore,  color: col(projScore),  label: lbl(projScore),  bg: bg(projScore),  detail: `${avgWait}d avg approval delay` },
-    { name: 'People',     score: peopleScore,color: col(peopleScore),label: lbl(peopleScore),bg: bg(peopleScore),detail: `${overloaded} team member${overloaded !== 1 ? 's' : ''} overloaded` },
+    { name: 'Tasks',       score: taskScore,   color: col(taskScore),   label: lbl(taskScore),   bg: bg(taskScore),   detail: `${data.actionRequired} tasks need action` },
+    { name: 'Petty Cash',  score: pcrScore,    color: col(pcrScore),    label: lbl(pcrScore),    bg: bg(pcrScore),    detail: `${data.pcrHighValue} high-value PCR pending` },
+    { name: 'Leave',       score: leaveScore,  color: col(leaveScore),  label: lbl(leaveScore),  bg: bg(leaveScore),  detail: `${data.leavePending} requests pending` },
+    { name: 'Logistics',   score: logScore,    color: col(logScore),    label: lbl(logScore),    bg: bg(logScore),    detail: `${data.dnTotal} total · ${data.dnCancelled} cancelled` },
+    { name: 'People',      score: peopleScore, color: col(peopleScore), label: lbl(peopleScore), bg: bg(peopleScore), detail: `${overloaded} team member${overloaded !== 1 ? 's' : ''} overloaded` },
   ]
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Operations: T.blue,
-  Finance:    T.green,
-  Compliance: T.amber,
+  Tasks:      T.blue,
+  'Petty Cash': T.green,
+  Leave:      T.amber,
+  Logistics:  '#fb923c',
   People:     '#a78bfa',
-  Projects:   '#fb923c',
 }
 
 async function signOut() {

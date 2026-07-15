@@ -165,6 +165,21 @@ export async function GET() {
     docCount = cnt(await query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM documents`))
   } catch { /**/ }
 
+  // ── Delivery notes ───────────────────────────────────────────────────────
+  let dnTotal = 0, dnThisWeek = 0, dnCancelled = 0
+  try {
+    const rows = await query<{ total: string; this_week: string; cancelled: string }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text AS this_week,
+        COUNT(CASE WHEN status='cancelled' THEN 1 END)::text AS cancelled
+      FROM delivery_notes
+    `)
+    dnTotal     = parseInt(rows[0]?.total     ?? '0', 10)
+    dnThisWeek  = parseInt(rows[0]?.this_week ?? '0', 10)
+    dnCancelled = parseInt(rows[0]?.cancelled ?? '0', 10)
+  } catch { /**/ }
+
   // ── By-company breakdown ────────────────────────────────────────────────
   let byCompany: { company: string; total: string; action_req: string }[] = []
   try {
@@ -183,6 +198,7 @@ export async function GET() {
     awaitingApproval, resolvedToday,
     oldestDays, avgWaitDays,
     pcrActive, pcrHighValue, leavePending, docCount,
+    dnTotal, dnThisWeek, dnCancelled,
     actionTasks, approvalTasks, pcrItems,
     activityFeed, workload, byCompany,
   })
