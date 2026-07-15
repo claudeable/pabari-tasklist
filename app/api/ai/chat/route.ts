@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { query } from '@/lib/database'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export const dynamic = 'force-dynamic'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const today = () => new Date().toISOString().slice(0, 10)
 const fmt   = (n: number) => n.toLocaleString()
@@ -37,7 +35,6 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     '',
   ]
 
-  // My tasks
   try {
     const myOpen = await query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') AND LOWER(responsible)=LOWER($1)`,
@@ -62,7 +59,6 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     lines.push(`Action required: ${parseInt(myActionRequired[0]?.count ?? '0', 10)}`)
     lines.push('')
 
-    // Top 10 open tasks
     const tasks = await query<{ id: string; particulars: string; company: string; status: string; due_date: string; priority: string }>(
       `SELECT id::text, particulars, company, status, COALESCE(due_date,'') AS due_date, priority FROM tasks
        WHERE status NOT IN ('resolved','expired') AND LOWER(responsible)=LOWER($1)
@@ -80,7 +76,6 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     }
   } catch { /**/ }
 
-  // HK-specific context
   if (isHK) {
     try {
       const needComment = await query<{ count: string }>(
@@ -94,7 +89,6 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
       lines.push(`Tasks awaiting your approval: ${parseInt(awaitingApproval[0]?.count ?? '0', 10)}`)
       lines.push('')
 
-      // Company task breakdown
       const byCompany = await query<{ company: string; count: string }>(
         `SELECT company, COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') GROUP BY company ORDER BY count::int DESC LIMIT 10`
       )
@@ -106,12 +100,11 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     } catch { /**/ }
   }
 
-  // Pending approvals
   try {
-    const uid       = parseInt(String(user.id ?? ''), 10) || 0
+    const uid        = parseInt(String(user.id ?? ''), 10) || 0
     const firstName2 = (user.name?.split(' ')[0] ?? '').toLowerCase()
-    const email     = user.email?.toLowerCase() ?? ''
-    const isHR      = user.department === 'HR' || isAdmin
+    const email      = user.email?.toLowerCase() ?? ''
+    const isHR       = user.department === 'HR' || isAdmin
 
     let leaveCount = 0; let pcrCount = 0
     if (isHR) {
@@ -147,7 +140,6 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     }
   } catch { /**/ }
 
-  // Finance snapshot
   if (canSeeFinance) {
     try {
       const rows = await query<{ status: string; count: string; total: string }>(
@@ -161,7 +153,6 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     } catch { /**/ }
   }
 
-  // Recent activity
   try {
     const activity = await query<{ user_name: string; action: string; details: string; created_at: string }>(
       `SELECT user_name, action, details, created_at FROM activity_log ORDER BY created_at DESC LIMIT 15`
@@ -190,8 +181,8 @@ export async function POST(req: NextRequest) {
   }
   if (!messages?.length) return NextResponse.json({ error: 'No messages' }, { status: 400 })
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'AI not configured — add ANTHROPIC_API_KEY to Railway environment variables.' }, { status: 503 })
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'AI not configured — add GEMINI_API_KEY to Railway environment variables.' }, { status: 503 })
   }
 
   const context = await buildContext(user)
@@ -234,21 +225,29 @@ ${context}
 - Address the user as ${firstName}
 - Today is ${today()}, good ${getGreeting()}`
 
-  const stream = await client.messages.stream({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
-    system:     systemPrompt,
-    messages:   messages.map(m => ({ role: m.role, content: m.content })),
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    systemInstruction: systemPrompt,
   })
+
+  // Split history from the last message
+  const history = messages.slice(0, -1).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+  const lastMessage = messages[messages.length - 1].content
+
+  const chat = model.startChat({ history })
+  const result = await chat.sendMessageStream(lastMessage)
 
   const encoder = new TextEncoder()
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(chunk.delta.text))
-          }
+        for await (const chunk of result.stream) {
+          const text = chunk.text()
+          if (text) controller.enqueue(encoder.encode(text))
         }
       } finally {
         controller.close()
