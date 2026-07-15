@@ -105,7 +105,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
             onMouseEnter={e => (e.currentTarget.style.color = 'white')}
             onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}>{l}</a>
         ))}
-        <NotificationBell currentUser={currentUser} />
+        <NotificationBell userEmail={currentUser.email} />
         <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a3a2a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
           onClick={signOut} title="Sign out">{initials}</div>
       </nav>
