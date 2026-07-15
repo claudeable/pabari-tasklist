@@ -196,8 +196,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
             </div>
             <a href="/centre"
               style={{ background: '#16a34a', color: 'white', padding: '12px 22px', borderRadius: 10, textDecoration: 'none', fontWeight: 700, fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, border: '1px solid #22c55e', boxShadow: '0 0 20px rgba(34,197,94,0.3)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>⚡ Command AI</span>
-              <span style={{ fontSize: 10, color: '#bbf7d0', fontWeight: 500 }}>Today's briefing ready →</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Pabari Intelligence</span>
+              <span style={{ fontSize: 10, color: '#bbf7d0', fontWeight: 500 }}>Your briefing is ready →</span>
             </a>
           </div>
 
@@ -207,7 +207,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               { label: 'Tasks', color: risk.color, dot: risk.color, status: risk.label },
               { label: 'Forms', color: (data?.pcrHighValue ?? 0) > 0 || (data?.leavePending ?? 0) > 2 ? '#f59e0b' : '#16a34a', dot: (data?.pcrHighValue ?? 0) > 0 ? '#f59e0b' : '#16a34a', status: (data?.pcrHighValue ?? 0) > 0 ? 'Needs Review' : 'All Clear' },
               { label: 'Documents', color: '#16a34a', dot: '#16a34a', status: 'Live' },
-              { label: 'Finance', color: '#6b7280', dot: '#6b7280', status: 'Beta' },
+              { label: 'Finance', color: '#16a34a', dot: '#16a34a', status: 'Live' },
             ].map(s => (
               <div key={s.label} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 7 }}>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, boxShadow: `0 0 6px ${s.dot}88` }} />
@@ -223,7 +223,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
       {!loading && recommendations.length > 0 && (
         <div style={{ background: '#0f172a', borderBottom: '1px solid #1e293b', padding: '12px 32px' }}>
           <div style={{ maxWidth: 1240, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#4ade80', letterSpacing: '0.1em', flexShrink: 0 }}>AI RECOMMENDED</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#4ade80', letterSpacing: '0.1em', flexShrink: 0 }}>PABARI INTELLIGENCE</span>
             {recommendations.map((r, i) => (
               <a key={i} href={r.href}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: `1px solid ${r.color}44`, borderRadius: 20, padding: '5px 12px', textDecoration: 'none', flexShrink: 0 }}>
@@ -441,7 +441,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
           {/* ── AI Insights ── */}
           <div style={{ ...card, background: '#0f172a', border: '1px solid #1e293b' }}>
             <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #1e293b' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>⚡ AI Insights</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Pabari Intelligence</div>
               <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Computed from live system data</div>
             </div>
             <div style={{ padding: '12px 0' }}>
@@ -462,7 +462,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               ))}
               <div style={{ padding: '12px 18px' }}>
                 <a href="/centre" style={{ display: 'block', background: '#16a34a', color: 'white', borderRadius: 8, padding: '9px', textAlign: 'center', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
-                  ⚡ Open Command AI →
+                  Open Pabari Intelligence →
                 </a>
               </div>
             </div>
