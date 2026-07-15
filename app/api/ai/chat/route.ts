@@ -196,6 +196,112 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     lines.push('')
   } catch (e) { console.error('[AI] docs', e) }
 
+  // ── WEEKLY SUMMARY: PCR activity this week ─────────────────────────────
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const recentPCR = await query<{
+      req_no: string; employee_name: string; company: string;
+      total_amount: string; status: string; created_at: string
+      hos_approved_at: string | null; hod_approved_at: string | null
+      finance_approved_at: string | null; disbursed_at: string | null
+      disbursed_by: string | null; disbursement_method: string | null
+    }>(`SELECT req_no, employee_name, company, total_amount::text, status, created_at,
+               hos_approved_at, hod_approved_at, finance_approved_at,
+               disbursed_at, disbursed_by, disbursement_method
+        FROM petty_cash_requests
+        WHERE created_at >= $1::date
+           OR hos_approved_at >= $1::date
+           OR hod_approved_at >= $1::date
+           OR finance_approved_at >= $1::date
+           OR disbursed_at >= $1::date
+        ORDER BY created_at DESC`,
+      [weekAgo]
+    )
+    if (recentPCR.length > 0) {
+      lines.push(`## PCR Activity This Week`)
+      recentPCR.forEach(r => {
+        const amt = Number(r.total_amount)
+        let activity = `${r.status}`
+        if (r.disbursed_at) activity = `DISBURSED via ${r.disbursement_method ?? 'cash'} by ${r.disbursed_by ?? 'unknown'}`
+        else if (r.finance_approved_at) activity = `Finance approved — awaiting disbursement`
+        else if (r.hod_approved_at) activity = `HOD approved`
+        else if (r.hos_approved_at) activity = `HOS approved`
+        lines.push(`- ${r.req_no} | ${r.employee_name} | KES ${amt.toLocaleString()} [${r.company}] | ${activity}`)
+      })
+      lines.push('')
+    }
+  } catch (e) { console.error('[AI] weekly pcr', e) }
+
+  // ── WEEKLY SUMMARY: task performance per person ─────────────────────────
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    // Tasks resolved this week per person
+    const resolved = await query<{ responsible: string; resolved_count: string }>(
+      `SELECT responsible, COUNT(*)::text AS resolved_count
+       FROM tasks
+       WHERE status = 'resolved'
+         AND updated_at >= $1::date
+         AND responsible IS NOT NULL AND responsible != ''
+       GROUP BY responsible ORDER BY resolved_count::int DESC LIMIT 15`,
+      [weekAgo]
+    )
+
+    // Current open + action-required per person
+    const openPerPerson = await query<{ responsible: string; open: string; action_req: string }>(
+      `SELECT responsible,
+              COUNT(*)::text AS open,
+              COUNT(CASE WHEN status = 'action-required' THEN 1 END)::text AS action_req
+       FROM tasks
+       WHERE status NOT IN ('resolved','expired')
+         AND responsible IS NOT NULL AND responsible != ''
+       GROUP BY responsible ORDER BY open::int DESC LIMIT 20`
+    )
+
+    if (resolved.length > 0 || openPerPerson.length > 0) {
+      lines.push(`## Weekly Team Performance`)
+      lines.push(`Tasks resolved this week:`)
+      if (resolved.length > 0) {
+        resolved.forEach(r => lines.push(`- ${r.responsible}: ${r.resolved_count} resolved`))
+      } else {
+        lines.push(`- No tasks resolved this week`)
+      }
+      lines.push('')
+      lines.push(`Current open tasks per person (open | action-required):`)
+      openPerPerson.forEach(r => {
+        const ar = parseInt(r.action_req, 10)
+        lines.push(`- ${r.responsible}: ${r.open} open${ar > 0 ? ` | ${ar} action-required` : ''}`)
+      })
+      lines.push('')
+    }
+  } catch (e) { console.error('[AI] weekly performance', e) }
+
+  // ── WEEKLY SUMMARY: activity log ───────────────────────────────────────
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const activitySummary = await query<{ user_name: string; action: string; count: string }>(
+      `SELECT user_name, action, COUNT(*)::text AS count
+       FROM activity_log
+       WHERE created_at >= $1::date
+       GROUP BY user_name, action
+       ORDER BY count::int DESC LIMIT 30`,
+      [weekAgo]
+    )
+    if (activitySummary.length > 0) {
+      lines.push(`## System Activity This Week (by person)`)
+      // Group by user
+      const byUser: Record<string, string[]> = {}
+      activitySummary.forEach(a => {
+        if (!byUser[a.user_name]) byUser[a.user_name] = []
+        byUser[a.user_name].push(`${a.action}(${a.count})`)
+      })
+      Object.entries(byUser).forEach(([name, actions]) => {
+        lines.push(`- ${name}: ${actions.join(', ')}`)
+      })
+      lines.push('')
+    }
+  } catch (e) { console.error('[AI] weekly activity', e) }
+
   return lines.join('\n')
 }
 
@@ -250,6 +356,7 @@ The most important items are:
 - Give recommendations: which tasks to address first and why
 - Be direct. No filler. Use the actual data provided.
 - Structure briefings as: HK Attention → Action Required → Approvals → PCR → Leave → Documents
+- For weekly summaries: include PCR approvals/disbursements, team task resolution rates, who is performing well, who has a backlog, and system activity per person
 
 Today is ${today()}, good ${getGreeting()}, ${firstName}.`
 
