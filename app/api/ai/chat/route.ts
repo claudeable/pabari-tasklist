@@ -34,132 +34,139 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     '',
   ]
 
-  // ── TASKS: counts & status breakdown ───────────────────────────────────
+  // ── TASKS: top-level counts ─────────────────────────────────────────────
   try {
-    const byStatus = await query<{ status: string; count: string }>(
+    const counts = await query<{ status: string; count: string }>(
       `SELECT status, COUNT(*)::text AS count FROM tasks
        WHERE status NOT IN ('resolved','expired')
        GROUP BY status ORDER BY count::int DESC`
     )
-    const total = byStatus.reduce((s, r) => s + parseInt(r.count, 10), 0)
-    lines.push(`## Task Overview`)
-    lines.push(`Total open tasks: ${total}`)
-    byStatus.forEach(r => lines.push(`- ${r.status}: ${r.count}`))
+    const total = counts.reduce((s, r) => s + parseInt(r.count, 10), 0)
+    lines.push(`## Task Overview (${total} total open tasks)`)
+    counts.forEach(r => lines.push(`- ${r.status}: ${r.count}`))
     lines.push('')
-  } catch (e) { console.error('[AI tasks byStatus]', e) }
+  } catch (e) { console.error('[AI] task counts', e) }
 
-  // ── TASKS: overdue ──────────────────────────────────────────────────────
+  // ── TASKS: needing HK comment (Harshil's main attention list) ───────────
   try {
-    const overdueTasks = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string; status: string }>(
-      `SELECT particulars, company, responsible, due_date::text, priority, status
-       FROM tasks
+    const needComment = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM tasks
        WHERE status NOT IN ('resolved','expired')
-         AND due_date IS NOT NULL
-         AND due_date < $1::date
-       ORDER BY due_date ASC LIMIT 15`,
-      [now]
+         AND (hk_comment IS NULL OR TRIM(hk_comment) = '')`
     )
-    if (overdueTasks.length > 0) {
-      lines.push(`Overdue tasks (${overdueTasks.length}):`)
-      overdueTasks.forEach(t => {
-        lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | owner: ${t.responsible} | due: ${t.due_date} | ${t.priority} priority | ${t.status}`)
+    const cnt = parseInt(needComment[0]?.count ?? '0', 10)
+    if (cnt > 0) {
+      lines.push(`Tasks needing your HK comment: ${cnt}`)
+      // Show a sample of the most urgent ones (action-required first)
+      const sample = await query<{ particulars: string; company: string; responsible: string; status: string; priority: string }>(
+        `SELECT particulars, company, responsible, status, priority FROM tasks
+         WHERE status NOT IN ('resolved','expired')
+           AND (hk_comment IS NULL OR TRIM(hk_comment) = '')
+         ORDER BY CASE status WHEN 'action-required' THEN 0 WHEN 'in-review' THEN 1 ELSE 2 END,
+                  CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
+         LIMIT 15`
+      )
+      sample.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | ${t.status} | ${t.priority}`))
+      lines.push('')
+    }
+  } catch (e) { console.error('[AI] hk_comment', e) }
+
+  // ── TASKS: action-required ──────────────────────────────────────────────
+  try {
+    const actionTasks = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string }>(
+      `SELECT particulars, company, responsible, COALESCE(due_date::text,'') AS due_date, priority
+       FROM tasks WHERE status = 'action-required'
+       ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, due_date ASC NULLS LAST
+       LIMIT 20`
+    )
+    if (actionTasks.length > 0) {
+      lines.push(`Action Required tasks (${actionTasks.length}) — these need immediate attention:`)
+      actionTasks.forEach(t => {
+        const due = t.due_date ? ` | due: ${t.due_date}` : ''
+        lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | ${t.priority}${due}`)
       })
       lines.push('')
     }
-  } catch (e) { console.error('[AI tasks overdue]', e) }
+  } catch (e) { console.error('[AI] action-required', e) }
 
-  // ── TASKS: due today ────────────────────────────────────────────────────
-  try {
-    const dueTodayTasks = await query<{ particulars: string; company: string; responsible: string; priority: string }>(
-      `SELECT particulars, company, responsible, priority
-       FROM tasks
-       WHERE status NOT IN ('resolved','expired')
-         AND due_date = $1::date`,
-      [now]
-    )
-    if (dueTodayTasks.length > 0) {
-      lines.push(`Due today (${dueTodayTasks.length}):`)
-      dueTodayTasks.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | ${t.priority}`))
-      lines.push('')
-    }
-  } catch (e) { console.error('[AI tasks dueToday]', e) }
-
-  // ── TASKS: by company ───────────────────────────────────────────────────
-  try {
-    const byCompany = await query<{ company: string; open: string; overdue: string }>(
-      `SELECT company,
-              COUNT(*)::text AS open,
-              COUNT(CASE WHEN due_date IS NOT NULL AND due_date < $1::date THEN 1 END)::text AS overdue
-       FROM tasks
-       WHERE status NOT IN ('resolved','expired')
-       GROUP BY company ORDER BY open::int DESC LIMIT 12`,
-      [now]
-    )
-    if (byCompany.length > 0) {
-      lines.push(`Tasks by company:`)
-      byCompany.forEach(r => lines.push(`- ${r.company}: ${r.open} open, ${r.overdue} overdue`))
-      lines.push('')
-    }
-  } catch (e) { console.error('[AI tasks byCompany]', e) }
-
-  // ── TASKS: awaiting director approval ───────────────────────────────────
+  // ── TASKS: awaiting HK approval ─────────────────────────────────────────
   try {
     const awaitingApproval = await query<{ particulars: string; company: string; responsible: string }>(
-      `SELECT particulars, company, responsible FROM tasks WHERE status='awaiting-hk-approval' LIMIT 10`
+      `SELECT particulars, company, responsible FROM tasks
+       WHERE status = 'awaiting-hk-approval' LIMIT 15`
     )
     if (awaitingApproval.length > 0) {
       lines.push(`Awaiting your approval (${awaitingApproval.length}):`)
       awaitingApproval.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible}`))
       lines.push('')
     }
-  } catch (e) { console.error('[AI tasks awaitingApproval]', e) }
+  } catch (e) { console.error('[AI] awaiting-approval', e) }
 
-  // ── TASKS: high priority ────────────────────────────────────────────────
+  // ── TASKS: overdue (with actual due_date set) ───────────────────────────
   try {
-    const criticalTasks = await query<{ particulars: string; company: string; responsible: string; status: string; due_date: string }>(
-      `SELECT particulars, company, responsible, status, COALESCE(due_date::text,'') AS due_date
+    const overdueTasks = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string }>(
+      `SELECT particulars, company, responsible, due_date::text, priority
        FROM tasks
-       WHERE status NOT IN ('resolved','expired') AND priority = 'critical'
-       ORDER BY due_date ASC NULLS LAST LIMIT 10`
+       WHERE status NOT IN ('resolved','expired')
+         AND due_date IS NOT NULL
+         AND due_date < $1::date
+       ORDER BY due_date ASC LIMIT 10`,
+      [now]
     )
-    if (criticalTasks.length > 0) {
-      lines.push(`Critical priority tasks (${criticalTasks.length}):`)
-      criticalTasks.forEach(t => {
-        const due = t.due_date ? ` | due: ${t.due_date}` : ''
-        lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | ${t.status}${due}`)
+    if (overdueTasks.length > 0) {
+      lines.push(`Overdue tasks (${overdueTasks.length} with missed due dates):`)
+      overdueTasks.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | due: ${t.due_date} | ${t.priority}`))
+      lines.push('')
+    }
+  } catch (e) { console.error('[AI] overdue', e) }
+
+  // ── TASKS: by company breakdown ─────────────────────────────────────────
+  try {
+    const byCompany = await query<{ company: string; total: string; action_req: string }>(
+      `SELECT company,
+              COUNT(*)::text AS total,
+              COUNT(CASE WHEN status = 'action-required' THEN 1 END)::text AS action_req
+       FROM tasks
+       WHERE status NOT IN ('resolved','expired')
+       GROUP BY company ORDER BY total::int DESC LIMIT 15`
+    )
+    if (byCompany.length > 0) {
+      lines.push(`Tasks by company:`)
+      byCompany.forEach(r => {
+        const ar = parseInt(r.action_req, 10)
+        lines.push(`- ${r.company}: ${r.total} open${ar > 0 ? `, ${ar} action-required` : ''}`)
       })
       lines.push('')
     }
-  } catch (e) { console.error('[AI tasks critical]', e) }
+  } catch (e) { console.error('[AI] byCompany', e) }
 
-  // ── PETTY CASH (FORMS) ─────────────────────────────────────────────────
+  // ── PETTY CASH (FORMS module — fully live) ─────────────────────────────
   try {
     const pcrs = await query<{
       req_no: string; employee_name: string; company: string;
-      total_amount: string; status: string; created_at: string
-    }>(`SELECT req_no, employee_name, company, total_amount::text, status, created_at
+      total_amount: string; status: string
+    }>(`SELECT req_no, employee_name, company, total_amount::text, status
         FROM petty_cash_requests
         WHERE status NOT IN ('received','rejected')
         ORDER BY total_amount::numeric DESC LIMIT 20`)
 
     if (pcrs.length > 0) {
-      lines.push(`## Petty Cash Requests (${pcrs.length} active)`)
+      lines.push(`## Petty Cash Requests — Forms module (${pcrs.length} active)`)
       pcrs.forEach(r => {
         const amt = Number(r.total_amount)
         const flag = amt >= 500000 ? ' 🔴 HIGH VALUE' : amt >= 100000 ? ' 🟡' : ''
         lines.push(`- ${r.req_no} | ${r.employee_name} | KES ${amt.toLocaleString()} [${r.company}] | ${r.status}${flag}`)
       })
-      lines.push('')
     } else {
       lines.push(`## Petty Cash: No active requests.`)
-      lines.push('')
     }
-  } catch (e) { console.error('[AI pcr]', e) }
+    lines.push('')
+  } catch (e) { console.error('[AI] pcr', e) }
 
-  // ── LEAVE REQUESTS ──────────────────────────────────────────────────────
+  // ── LEAVE REQUESTS (FORMS module — fully live) ─────────────────────────
   try {
     const leaves = await query<{
-      employee_name: string; leave_type: string;
+      employee_name: string; leave_type: string
       date_from: string; date_to: string; days_requested: number; status: string; company: string
     }>(`SELECT employee_name, leave_type, date_from::text, date_to::text, days_requested, status, company
         FROM leave_requests
@@ -167,14 +174,13 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
         ORDER BY created_at DESC LIMIT 15`)
 
     if (leaves.length > 0) {
-      lines.push(`## Leave Requests (${leaves.length} pending)`)
+      lines.push(`## Leave Requests — Forms module (${leaves.length} pending)`)
       leaves.forEach(l => lines.push(`- ${l.employee_name} | ${l.leave_type} | ${l.date_from} → ${l.date_to} (${l.days_requested}d) | ${l.company} | ${l.status}`))
-      lines.push('')
     } else {
       lines.push(`## Leave: No pending requests.`)
-      lines.push('')
     }
-  } catch (e) { console.error('[AI leave]', e) }
+    lines.push('')
+  } catch (e) { console.error('[AI] leave', e) }
 
   // ── DOCUMENTS ──────────────────────────────────────────────────────────
   try {
@@ -182,14 +188,13 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
     const recentDocs = await query<{ name: string; folder: string; uploaded_by: string; created_at: string }>(
       `SELECT name, COALESCE(folder,'Uncategorised') AS folder, uploaded_by, created_at FROM documents ORDER BY created_at DESC LIMIT 8`
     )
-    lines.push(`## Documents`)
-    lines.push(`Total: ${docCount[0]?.count ?? 0} documents`)
+    lines.push(`## Documents (${docCount[0]?.count ?? 0} total)`)
     recentDocs.forEach(d => {
       const date = new Date(d.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
       lines.push(`- ${d.name} | ${d.folder} | ${d.uploaded_by} | ${date}`)
     })
     lines.push('')
-  } catch (e) { console.error('[AI docs]', e) }
+  } catch (e) { console.error('[AI] docs', e) }
 
   return lines.join('\n')
 }
@@ -218,28 +223,33 @@ export async function POST(req: NextRequest) {
 
   const systemPrompt = `You are the Pabari Executive AI — a private decision intelligence assistant for ${user.name} (${user.role}) at Pabari Group.
 
-You have FULL real-time access to three live systems: Tasks, Forms (Petty Cash & Leave), and Documents.
-Finance and Projects modules are still in beta — if asked about those, say they are not yet connected.
+LIVE DATA SOURCES (all fully connected and real-time):
+1. Tasks — full task management system with ${firstName}'s attention queue
+2. Forms — Petty Cash Requests (PCR) and Leave Requests
+3. Documents — uploaded files and folders
 
-IMPORTANT: You DO have complete task data below. Never say you lack access to tasks — use the data provided.
+NOT YET CONNECTED (beta): Finance module, Projects module. Tell ${firstName} these are not yet available if asked.
+
+CRITICAL: You have complete real-time data below. Never say you lack access. Never confuse Petty Cash (Forms module) with Finance. PCR data IS available.
 
 Here is today's live data (${today()}):
 
 ${context}
 
-## Your role:
-You are an Executive Decision Assistant. Give ${firstName} fast, actionable intelligence.
+## Priority for ${firstName}:
+The most important items are:
+1. Tasks needing your HK comment — these are blocking team progress
+2. Action Required tasks — these need your immediate decision
+3. Tasks awaiting your approval
+4. High-value Petty Cash Requests (≥ KES 100K)
 
-## Response style:
-- When briefing: Tasks → PCR → Leave → Documents → Risks
-- Always cite real numbers from the data above
-- Flag critical and overdue items prominently
-- For approvals, give a recommendation (Approve / Hold / Reject) with a reason
-- Flag any PCR over KES 100,000 — especially over KES 500,000
-- Be concise. No filler. No "I recommend checking /tasks" — you already have the data.
-
-## ERP links:
-- Tasks: /tasks | Forms: /forms | Documents: /documents | Centre: /centre
+## Response rules:
+- Always lead with the numbers: how many tasks need comment, how many action-required
+- Name specific tasks when relevant — use the data, don't be generic
+- Flag high-priority and high-value items explicitly
+- Give recommendations: which tasks to address first and why
+- Be direct. No filler. Use the actual data provided.
+- Structure briefings as: HK Attention → Action Required → Approvals → PCR → Leave → Documents
 
 Today is ${today()}, good ${getGreeting()}, ${firstName}.`
 
