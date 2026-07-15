@@ -17,24 +17,22 @@ export async function GET() {
   if (user.role !== 'admin' && !EXEC_NAMES.includes(firstName))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // ── Compute real signals ─────────────────────────────────────────────────
-
-  // 1. Task velocity: this week vs last week
+  // ── 1. Task velocity ─────────────────────────────────────────────────────
   let velocity: { created_this_week: string; created_last_week: string; resolved_this_week: string; resolved_last_week: string } | null = null
   try {
     const rows = await query<{ created_this_week: string; created_last_week: string; resolved_this_week: string; resolved_last_week: string }>(`
       SELECT
-        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text            AS created_this_week,
+        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text AS created_this_week,
         COUNT(CASE WHEN created_at >= NOW() - INTERVAL '14 days'
-                    AND created_at <  NOW() - INTERVAL '7 days'  THEN 1 END)::text            AS created_last_week,
+                    AND created_at < NOW() - INTERVAL '7 days' THEN 1 END)::text  AS created_last_week,
         COUNT(CASE WHEN status='resolved' AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text AS resolved_this_week,
         COUNT(CASE WHEN status='resolved' AND updated_at >= NOW() - INTERVAL '14 days'
-                    AND updated_at <  NOW() - INTERVAL '7 days'  THEN 1 END)::text            AS resolved_last_week
+                    AND updated_at < NOW() - INTERVAL '7 days' THEN 1 END)::text  AS resolved_last_week
       FROM tasks`)
     velocity = rows[0] ?? null
   } catch { /**/ }
 
-  // 2. Per-person deadline risk this week
+  // ── 2. Deadline risk this week per person ────────────────────────────────
   let deadlineRisk: { responsible: string; due_this_week: string; blocked: string }[] = []
   try {
     deadlineRisk = await query<{ responsible: string; due_this_week: string; blocked: string }>(`
@@ -51,7 +49,7 @@ export async function GET() {
       LIMIT 8`)
   } catch { /**/ }
 
-  // 3. PCR processing time this month vs last
+  // ── 3. PCR processing time ───────────────────────────────────────────────
   let pcrProcessing: { this_month: string; last_month: string } | null = null
   try {
     const rows = await query<{ this_month: string; last_month: string }>(`
@@ -65,7 +63,7 @@ export async function GET() {
     pcrProcessing = rows[0] ?? null
   } catch { /**/ }
 
-  // 4. Approval bottleneck by section
+  // ── 4. Approval bottleneck by section ───────────────────────────────────
   let approvalBottleneck: { section: string; total: string; added_this_week: string }[] = []
   try {
     approvalBottleneck = await query<{ section: string; total: string; added_this_week: string }>(`
@@ -80,21 +78,40 @@ export async function GET() {
       LIMIT 5`)
   } catch { /**/ }
 
-  // 5. Highest-risk aging tasks (oldest, no HK comment)
-  let highRisk: { particulars: string; responsible: string; company: string; days_open: string; priority: string }[] = []
+  // ── 5. Oldest unresolved tasks — with EXACT priority label ──────────────
+  //    NOTE: sorted by age only. Priority field shows the ACTUAL task priority.
+  //    Do NOT treat "old" as meaning "high priority" — they are separate concepts.
+  let oldestTasks: { particulars: string; responsible: string; company: string; days_open: string; actual_priority: string }[] = []
   try {
-    highRisk = await query<{ particulars: string; responsible: string; company: string; days_open: string; priority: string }>(`
+    oldestTasks = await query<{ particulars: string; responsible: string; company: string; days_open: string; actual_priority: string }>(`
       SELECT particulars, responsible, company,
         GREATEST(0, EXTRACT(DAY FROM NOW() - created_at))::int::text AS days_open,
-        priority
+        priority AS actual_priority
       FROM tasks
       WHERE status NOT IN ('resolved','expired')
         AND (hk_comment IS NULL OR TRIM(hk_comment) = '')
       ORDER BY created_at ASC
-      LIMIT 5`)
+      LIMIT 8`)
   } catch { /**/ }
 
-  // 6. Workload distribution
+  // ── 6. Per-person HIGH and CRITICAL priority task count (accurate data) ──
+  let highPriorityByPerson: { responsible: string; critical_count: string; high_count: string; medium_count: string }[] = []
+  try {
+    highPriorityByPerson = await query<{ responsible: string; critical_count: string; high_count: string; medium_count: string }>(`
+      SELECT responsible,
+        COUNT(CASE WHEN priority='critical' THEN 1 END)::text AS critical_count,
+        COUNT(CASE WHEN priority='high'     THEN 1 END)::text AS high_count,
+        COUNT(CASE WHEN priority='medium'   THEN 1 END)::text AS medium_count
+      FROM tasks
+      WHERE status NOT IN ('resolved','expired')
+        AND responsible IS NOT NULL AND responsible != ''
+      GROUP BY responsible
+      HAVING COUNT(CASE WHEN priority IN ('critical','high') THEN 1 END) > 0
+      ORDER BY (COUNT(CASE WHEN priority='critical' THEN 1 END) + COUNT(CASE WHEN priority='high' THEN 1 END)) DESC
+      LIMIT 10`)
+  } catch { /**/ }
+
+  // ── 7. Workload distribution ─────────────────────────────────────────────
   let workload: { responsible: string; open: string }[] = []
   try {
     workload = await query<{ responsible: string; open: string }>(`
@@ -107,7 +124,7 @@ export async function GET() {
       LIMIT 8`)
   } catch { /**/ }
 
-  // 7. Overview snapshot
+  // ── 8. Overview snapshot ─────────────────────────────────────────────────
   let overview: { total: string; action_req: string; hk_queue: string } | null = null
   try {
     const rows = await query<{ total: string; action_req: string; hk_queue: string }>(`
@@ -119,37 +136,40 @@ export async function GET() {
     overview = rows[0] ?? null
   } catch { /**/ }
 
-  // 8. Leave pending
+  // ── 9. Leave pending ─────────────────────────────────────────────────────
   let leavePending = 0
   try {
     const rows = await query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM leave_requests WHERE status NOT IN ('approved','rejected')`)
     leavePending = parseInt(rows[0]?.count ?? '0', 10)
   } catch { /**/ }
 
-  // ── Build Groq prompt ────────────────────────────────────────────────────
+  // ── Build context ─────────────────────────────────────────────────────────
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   const context = `
 Today: ${today}
-Organisation: Pabari Group (multi-company ERP)
+Organisation: Pabari Group
+
+BACKLOG OVERVIEW
+Total open: ${overview?.total ?? '?'} | Action required: ${overview?.action_req ?? '?'} | Needs HK comment: ${overview?.hk_queue ?? '?'}
 
 TASK VELOCITY (this week vs last week)
 Created: ${velocity?.created_this_week ?? '?'} this week / ${velocity?.created_last_week ?? '?'} last week
 Resolved: ${velocity?.resolved_this_week ?? '?'} this week / ${velocity?.resolved_last_week ?? '?'} last week
 
-BACKLOG OVERVIEW
-Total open: ${overview?.total ?? '?'} | Action required: ${overview?.action_req ?? '?'} | HK comment queue: ${overview?.hk_queue ?? '?'}
-
 DEADLINE RISK (tasks due within 7 days, per person)
-${deadlineRisk.length ? deadlineRisk.map(r => `${r.responsible}: ${r.due_this_week} due, ${r.blocked} blocked on approval`).join('\n') : 'No tasks with due dates this week'}
+${deadlineRisk.length ? deadlineRisk.map(r => `${r.responsible}: ${r.due_this_week} tasks due, ${r.blocked} blocked on approval`).join('\n') : 'No tasks have due dates set this week'}
 
-APPROVAL BOTTLENECK BY SECTION
-${approvalBottleneck.length ? approvalBottleneck.map(r => `${r.section}: ${r.total} pending, ${r.added_this_week} added this week`).join('\n') : 'None'}
+APPROVAL BOTTLENECK BY SECTION (action-required or awaiting approval)
+${approvalBottleneck.length ? approvalBottleneck.map(r => `${r.section}: ${r.total} pending (${r.added_this_week} added this week)`).join('\n') : 'None'}
 
-HIGHEST RISK TASKS (oldest unresolved, no HK comment)
-${highRisk.length ? highRisk.map(r => `"${r.particulars.slice(0, 60)}" — ${r.responsible} @ ${r.company}, ${r.days_open} days open, ${r.priority} priority`).join('\n') : 'None'}
+OLDEST UNRESOLVED TASKS BY AGE (these are sorted by how long open, NOT by priority — see actual_priority field)
+${oldestTasks.map(r => `"${r.particulars.slice(0, 55)}" — owner: ${r.responsible}, company: ${r.company}, open: ${r.days_open} days, actual priority: ${r.actual_priority}`).join('\n')}
 
-TEAM WORKLOAD (open tasks per person)
+ACTUAL HIGH/CRITICAL PRIORITY TASKS PER PERSON (only people with at least 1 high or critical task)
+${highPriorityByPerson.length ? highPriorityByPerson.map(r => `${r.responsible}: ${r.critical_count} critical, ${r.high_count} high, ${r.medium_count} medium priority open tasks`).join('\n') : 'No one currently has high or critical priority tasks'}
+
+TEAM WORKLOAD (total open tasks per person)
 ${workload.map(r => `${r.responsible}: ${r.open} open`).join(' | ')}
 
 PCR PROCESSING TIME (submission to disbursement)
@@ -158,26 +178,32 @@ This month avg: ${pcrProcessing?.this_month ?? 'N/A'} days | Last month avg: ${p
 LEAVE REQUESTS PENDING APPROVAL: ${leavePending}
 `.trim()
 
-  const systemPrompt = `You are Pabari Intelligence — an executive forecasting engine embedded in Pabari Group's ERP.
-You receive live operational signals and generate short, sharp, forward-looking forecast statements for the executive chairman.
+  const systemPrompt = `You are Pabari Intelligence — an executive forecasting system for Pabari Group.
+You receive structured operational data from the ERP database and generate precise, forward-looking forecast statements.
+
+STRICT ACCURACY RULES — violations destroy executive trust:
+- NEVER call a task or person "high risk" unless the data explicitly shows priority = "high" or "critical". Age alone does not mean high priority.
+- The "OLDEST UNRESOLVED TASKS" section is sorted by age only — some may be medium or low priority. Always use the "actual_priority" field when describing them.
+- NEVER say someone has "multiple" tasks of a type unless the count is 2 or more from the data.
+- NEVER invent numbers, percentages, or counts not present in the data.
+- If the high/critical priority section says someone has 0 critical and 0 high tasks, do NOT describe their tasks as high-risk.
+- Use exact counts from the data. "3 tasks" not "several tasks" unless you have the number.
 
 OUTPUT FORMAT:
 - Return exactly 5 forecast statements
 - Each on its own line, no numbers, no bullets, no markdown
 - Each under 30 words
-- Every statement must be forward-looking: what will happen, what is at risk, what is trending
-- Base every statement strictly on the data given — no invented numbers
-- Name specific people and sections from the data where relevant
-- Tone: precise, confident, intelligence-briefing style — not chatty
+- Every statement must be forward-looking (what will happen, what is at risk, what is trending)
+- Tone: precise, intelligence-briefing style
 - Never start with "I", "We", or "The system"
-- Focus on: bottlenecks about to worsen, deadline risks, workload imbalances, processing trends, highest-aging risks`
+- Focus areas: velocity trends, bottlenecks worsening, aging without resolution, workload imbalance, processing trends`
 
   try {
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       max_tokens: 400,
-      temperature: 0.3,
+      temperature: 0.2,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: context },
