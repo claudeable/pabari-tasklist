@@ -180,7 +180,11 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
     const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean }
     if (s.superAdminOnly) return currentUser.role === 'admin'
     if (s.adminOnly) return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
-    if (s.projectsOnly) { const f = currentUser.name.toLowerCase().split(' ')[0]; return currentUser.role === 'admin' || f === 'harshil' || f === 'benson' }
+    if (s.projectsOnly) {
+      const f = currentUser.name.toLowerCase().split(' ')[0]
+      const FINANCE_EMAILS = ['rkrishnan@usm.co.ke', 'yaynalem@usm.co.ke']
+      return currentUser.role === 'admin' || f === 'harshil' || f === 'benson' || FINANCE_EMAILS.includes(currentUser.email)
+    }
     return true
   })
 
