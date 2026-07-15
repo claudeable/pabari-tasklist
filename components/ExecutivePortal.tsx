@@ -162,36 +162,76 @@ function genRecommendations(data: ExecData): Rec[] {
 }
 
 function computeHealth(data: ExecData) {
-  const totalOpen  = data.totalOpen || 1
-  const overloaded = data.workload.filter(p => parseInt(p.open) > 25).length
+  const totalOpen = data.totalOpen || 1
 
-  // Tasks: % not action-required
-  const taskScore = Math.round(Math.max(0, ((totalOpen - data.actionRequired) / totalOpen) * 100))
+  // TASKS — penalise heavily for HK comment backlog (main bottleneck signal),
+  // action queue, wait time, and age of oldest item
+  const actionRatio = data.actionRequired / totalOpen
+  const hkRatio     = data.needsHkComment / totalOpen
+  const taskScore   = Math.max(5, Math.round(
+    100
+    - (actionRatio * 35)  // -35 max if every task is action-required
+    - (hkRatio     * 50)  // -50 max if every task lacks HK comment — biggest signal
+    - (data.avgWaitDays > 14 ? 15 : data.avgWaitDays > 7 ? 8 : data.avgWaitDays > 3 ? 3 : 0)
+    - (data.oldestDays  > 60 ? 10 : data.oldestDays  > 30 ? 5 : 0)
+  ))
 
-  // Petty Cash: high-value PCR queue
-  const pcrScore = data.pcrHighValue === 0 ? 90 : data.pcrHighValue > 4 ? 45 : 65
+  // PETTY CASH — pending active PCRs and high-value queue
+  const pcrScore = data.pcrActive === 0 ? 95
+    : data.pcrHighValue > 4 ? 40
+    : data.pcrHighValue > 1 ? 60
+    : data.pcrActive    > 8 ? 68
+    : data.pcrActive    > 3 ? 78
+    : 88
 
-  // Leave: pending leave approval
-  const leaveScore = data.leavePending === 0 ? 95 : data.leavePending > 5 ? 50 : 70
+  // LEAVE — pending requests
+  const leaveScore = data.leavePending === 0 ? 95
+    : data.leavePending > 8 ? 40
+    : data.leavePending > 4 ? 62
+    : data.leavePending > 1 ? 78
+    : 88
 
-  // Logistics: delivery note cancellation rate
-  const dnTotal = data.dnTotal || 0
-  const dnCancelRate = dnTotal > 0 ? (data.dnCancelled / dnTotal) : 0
-  const logScore = dnTotal === 0 ? 80 : dnCancelRate > 0.3 ? 45 : dnCancelRate > 0.1 ? 68 : 90
+  // LOGISTICS — cancellation rate on delivery notes
+  const dnTotal      = data.dnTotal || 0
+  const cancelRate   = dnTotal > 0 ? data.dnCancelled / dnTotal : 0
+  const logScore     = dnTotal === 0 ? 80
+    : cancelRate > 0.3 ? 40
+    : cancelRate > 0.1 ? 65
+    : 92
 
-  // People: team overload
-  const peopleScore = overloaded === 0 ? 92 : overloaded > 2 ? 50 : 70
+  // PEOPLE — workload imbalance across team
+  // If one person carries 3× the team average, that's a serious imbalance
+  const opens        = data.workload.map(p => parseInt(p.open))
+  const maxOpen      = opens.length ? Math.max(...opens) : 0
+  const avgOpen      = opens.length ? opens.reduce((a, b) => a + b, 0) / opens.length : 1
+  const imbalance    = avgOpen > 0 ? maxOpen / avgOpen : 1
+  const heavyCount   = opens.filter(o => o > 30).length
+  const peopleScore  = Math.max(5, Math.round(
+    100
+    - (imbalance > 5 ? 45 : imbalance > 3 ? 28 : imbalance > 2 ? 12 : 0)
+    - (heavyCount > 3 ? 20 : heavyCount > 1 ? 12 : heavyCount === 1 ? 6 : 0)
+    - (maxOpen > 60 ? 12 : maxOpen > 40 ? 6 : 0)
+  ))
 
-  const col = (s: number) => s >= 80 ? T.green : s >= 60 ? T.amber : T.red
-  const lbl = (s: number) => s >= 80 ? 'Healthy' : s >= 60 ? 'At Risk' : 'Critical'
-  const bg  = (s: number) => s >= 80 ? 'rgba(34,197,94,0.08)' : s >= 60 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)'
+  const col = (s: number) => s >= 75 ? T.green : s >= 50 ? T.amber : T.red
+  const lbl = (s: number) => s >= 75 ? 'Healthy' : s >= 50 ? 'At Risk' : 'Critical'
+  const bg  = (s: number) => s >= 75 ? 'rgba(34,197,94,0.08)' : s >= 50 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)'
+
+  const hkDetail = hkRatio > 0.5
+    ? `${data.needsHkComment} of ${data.totalOpen} tasks need your comment`
+    : `${data.actionRequired} tasks need action`
+
+  const overloadedCount = opens.filter(o => o > 30).length
+  const peopleDetail = maxOpen > 0
+    ? `Top load: ${maxOpen} tasks · ${overloadedCount} member${overloadedCount !== 1 ? 's' : ''} over 30`
+    : '0 team members overloaded'
 
   return [
-    { name: 'Tasks',       score: taskScore,   color: col(taskScore),   label: lbl(taskScore),   bg: bg(taskScore),   detail: `${data.actionRequired} tasks need action` },
-    { name: 'Petty Cash',  score: pcrScore,    color: col(pcrScore),    label: lbl(pcrScore),    bg: bg(pcrScore),    detail: `${data.pcrHighValue} high-value PCR pending` },
-    { name: 'Leave',       score: leaveScore,  color: col(leaveScore),  label: lbl(leaveScore),  bg: bg(leaveScore),  detail: `${data.leavePending} requests pending` },
-    { name: 'Logistics',   score: logScore,    color: col(logScore),    label: lbl(logScore),    bg: bg(logScore),    detail: `${data.dnTotal} total · ${data.dnCancelled} cancelled` },
-    { name: 'People',      score: peopleScore, color: col(peopleScore), label: lbl(peopleScore), bg: bg(peopleScore), detail: `${overloaded} team member${overloaded !== 1 ? 's' : ''} overloaded` },
+    { name: 'Tasks',      score: taskScore,   color: col(taskScore),   label: lbl(taskScore),   bg: bg(taskScore),   detail: hkDetail },
+    { name: 'Petty Cash', score: pcrScore,    color: col(pcrScore),    label: lbl(pcrScore),    bg: bg(pcrScore),    detail: `${data.pcrActive} active · ${data.pcrHighValue} high-value` },
+    { name: 'Leave',      score: leaveScore,  color: col(leaveScore),  label: lbl(leaveScore),  bg: bg(leaveScore),  detail: `${data.leavePending} requests pending` },
+    { name: 'Logistics',  score: logScore,    color: col(logScore),    label: lbl(logScore),    bg: bg(logScore),    detail: `${data.dnTotal} notes · ${data.dnCancelled} cancelled` },
+    { name: 'People',     score: peopleScore, color: col(peopleScore), label: lbl(peopleScore), bg: bg(peopleScore), detail: peopleDetail },
   ]
 }
 
