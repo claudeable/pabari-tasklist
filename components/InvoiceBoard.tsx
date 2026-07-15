@@ -17,7 +17,7 @@ const DOC_COLOR: Record<DocType, { bg: string; color: string }> = {
 const BLANK_ITEM: InvoiceItem = { description: '', qty: 1, unit_price: 0, amount: 0 }
 const TAX_RATE_DEFAULT = 16
 
-function blankForm(type: DocType = 'quotation') {
+function blankForm(type: DocType = 'lpo') {
   return {
     type,
     issuing_company: '',
@@ -293,7 +293,7 @@ function InvoiceForm({ initial, onSave, onCancel, saving, projects }: {
       <div style={{ marginBottom:14 }}>
         {label('Document type')}
         <div style={{ display:'flex', gap:8 }}>
-          {(['quotation','lpo'] as DocType[]).map(t => (
+          {(['lpo'] as DocType[]).map(t => (
             <button key={t} onClick={()=>set('type',t)}
               style={{ border:`2px solid ${form.type===t?'#1a3a2a':'#e5e7eb'}`, borderRadius:8, padding:'6px 18px', fontSize:12, fontWeight:600, cursor:'pointer', background:form.type===t?'#1a3a2a':'white', color:form.type===t?'white':'#374151' }}>
               {DOC_LABEL[t]}
@@ -559,7 +559,6 @@ export default function InvoiceBoard({ initialInvoices, currentUser }: Props) {
           <select value={filterType} onChange={e=>setFType(e.target.value as DocType|'all')}
             style={{ border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', fontSize:11, background:'white' }}>
             <option value="all">All types</option>
-            <option value="quotation">Quotation</option>
             <option value="lpo">LPO</option>
           </select>
           <select value={filterStatus} onChange={e=>setFStatus(e.target.value as InvoiceStatus|'all')}

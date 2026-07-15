@@ -21,7 +21,8 @@ interface DeliveryNote {
 
 function fmtDate(d: string) {
   if (!d) return ''
-  const parts = d.split('-')
+  const clean = d.slice(0, 10) // strip time component from ISO timestamps
+  const parts = clean.split('-')
   return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d
 }
 
@@ -91,18 +92,18 @@ function DeliveryNoteDocument({ note, items, tableRows }: {
 
       {/* ── COMPANY HEADER ── */}
       <div style={{ textAlign: 'center', marginBottom: 14 }}>
-        {/* Mercury Agencies Limited logo — dark red square with M peaks */}
+        {/* Mercury Agencies (K) Ltd logo — dark brown square, white M peaks, gold accent */}
         <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
-          <svg width="64" height="56" viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg">
-            <rect width="64" height="56" rx="4" fill="#8B0000"/>
-            {/* Left outer triangle */}
-            <polygon points="4,46 18,14 26,32" fill="white"/>
-            {/* Right outer triangle */}
-            <polygon points="60,46 46,14 38,32" fill="white"/>
-            {/* Center valley — dark red cutout to create the M dip */}
-            <polygon points="26,32 32,20 38,32 32,44" fill="#8B0000"/>
-            {/* Bottom baseline */}
-            <rect x="4" y="44" width="56" height="2" fill="white" opacity="0.15"/>
+          <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="4" fill="#3D2314"/>
+            {/* Left peak */}
+            <polygon points="4,54 18,12 27,36" fill="white"/>
+            {/* Right peak */}
+            <polygon points="60,54 46,12 37,36" fill="white"/>
+            {/* Centre peak */}
+            <polygon points="27,36 32,18 37,36 32,48" fill="white"/>
+            {/* Gold accent — small diamond at centre base */}
+            <polygon points="32,44 28,52 32,56 36,52" fill="#C9A84C"/>
           </svg>
         </div>
         <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: '0.1em', textTransform: 'uppercase' }}>MERCURY AGENCIES LIMITED</div>

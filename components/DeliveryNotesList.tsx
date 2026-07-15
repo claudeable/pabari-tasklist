@@ -127,7 +127,8 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
 
   const fmtDate = (d: string) => {
     if (!d) return ''
-    const parts = d.split('-')
+    const clean = d.slice(0, 10)
+    const parts = clean.split('-')
     return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d
   }
 
@@ -141,11 +142,15 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
           </a>
           <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
           <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Delivery Notes</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '3px 10px' }}>
-            <div style={{ width: 14, height: 14, background: '#8B0000', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="10" height="8" viewBox="0 0 10 8"><polygon points="0,8 3,1 5,4.5 7,1 10,8" fill="white"/></svg>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#8B0000' }}>MERCURY AGENCIES LIMITED</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fdf6ee', border: '1px solid #e8d5b7', borderRadius: 6, padding: '3px 10px' }}>
+            <svg width="14" height="14" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <rect width="64" height="64" rx="4" fill="#3D2314"/>
+              <polygon points="4,54 18,12 27,36" fill="white"/>
+              <polygon points="60,54 46,12 37,36" fill="white"/>
+              <polygon points="27,36 32,18 37,36 32,48" fill="white"/>
+              <polygon points="32,44 28,52 32,56 36,52" fill="#C9A84C"/>
+            </svg>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#3D2314' }}>MERCURY AGENCIES LIMITED</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -218,12 +223,16 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
               style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>✕</button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <div style={{ width: 40, height: 36, background: '#8B0000', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="28" height="22" viewBox="0 0 28 22"><polygon points="0,22 8,2 14,12 20,2 28,22" fill="white"/></svg>
-              </div>
+              <svg width="40" height="40" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                <rect width="64" height="64" rx="6" fill="#3D2314"/>
+                <polygon points="4,54 18,12 27,36" fill="white"/>
+                <polygon points="60,54 46,12 37,36" fill="white"/>
+                <polygon points="27,36 32,18 37,36 32,48" fill="white"/>
+                <polygon points="32,44 28,52 32,56 36,52" fill="#C9A84C"/>
+              </svg>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>New Delivery Note</div>
-                <div style={{ fontSize: 11, color: '#8B0000', fontWeight: 700 }}>MERCURY AGENCIES LIMITED</div>
+                <div style={{ fontSize: 11, color: '#3D2314', fontWeight: 700 }}>MERCURY AGENCIES LIMITED</div>
               </div>
             </div>
 
