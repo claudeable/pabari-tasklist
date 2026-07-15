@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { query } from '@/lib/database'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 
 export const dynamic = 'force-dynamic'
 
@@ -181,8 +181,8 @@ export async function POST(req: NextRequest) {
   }
   if (!messages?.length) return NextResponse.json({ error: 'No messages' }, { status: 400 })
 
-  if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ error: 'AI not configured — add GEMINI_API_KEY to Railway environment variables.' }, { status: 503 })
+  if (!process.env.GROQ_API_KEY) {
+    return NextResponse.json({ error: 'AI not configured — add GROQ_API_KEY to Railway environment variables.' }, { status: 503 })
   }
 
   const context = await buildContext(user)
@@ -226,27 +226,24 @@ ${context}
 - Today is ${today()}, good ${getGreeting()}`
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+
+    const stream = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 1024,
+      stream: true,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      ],
     })
-
-    const history = messages.slice(0, -1).map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }))
-    const lastMessage = messages[messages.length - 1].content
-
-    const chat = model.startChat({ history })
-    const result = await chat.sendMessageStream(lastMessage)
 
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of result.stream) {
-            const text = chunk.text()
+          for await (const chunk of stream) {
+            const text = chunk.choices[0]?.delta?.content ?? ''
             if (text) controller.enqueue(encoder.encode(text))
           }
         } finally {
