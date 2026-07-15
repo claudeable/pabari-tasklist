@@ -8,6 +8,14 @@ export const dynamic = 'force-dynamic'
 
 const EXEC_NAMES = ['harshil', 'benson']
 
+export interface ForecastItem {
+  category: string
+  observation: string
+  impact: string
+  recommendation: string
+  confidence: number
+}
+
 export async function GET() {
   const session = cookies().get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
@@ -78,9 +86,7 @@ export async function GET() {
       LIMIT 5`)
   } catch { /**/ }
 
-  // ── 5. Oldest unresolved tasks — with EXACT priority label ──────────────
-  //    NOTE: sorted by age only. Priority field shows the ACTUAL task priority.
-  //    Do NOT treat "old" as meaning "high priority" — they are separate concepts.
+  // ── 5. Oldest unresolved tasks ──────────────────────────────────────────
   let oldestTasks: { particulars: string; responsible: string; company: string; days_open: string; actual_priority: string }[] = []
   try {
     oldestTasks = await query<{ particulars: string; responsible: string; company: string; days_open: string; actual_priority: string }>(`
@@ -94,7 +100,7 @@ export async function GET() {
       LIMIT 8`)
   } catch { /**/ }
 
-  // ── 6. Per-person HIGH and CRITICAL priority task count (accurate data) ──
+  // ── 6. High/critical priority per person ─────────────────────────────────
   let highPriorityByPerson: { responsible: string; critical_count: string; high_count: string; medium_count: string }[] = []
   try {
     highPriorityByPerson = await query<{ responsible: string; critical_count: string; high_count: string; medium_count: string }>(`
@@ -163,11 +169,11 @@ ${deadlineRisk.length ? deadlineRisk.map(r => `${r.responsible}: ${r.due_this_we
 APPROVAL BOTTLENECK BY SECTION (action-required or awaiting approval)
 ${approvalBottleneck.length ? approvalBottleneck.map(r => `${r.section}: ${r.total} pending (${r.added_this_week} added this week)`).join('\n') : 'None'}
 
-OLDEST UNRESOLVED TASKS BY AGE (these are sorted by how long open, NOT by priority — see actual_priority field)
+OLDEST UNRESOLVED TASKS BY AGE (sorted by age, NOT priority — see actual_priority field)
 ${oldestTasks.map(r => `"${r.particulars.slice(0, 55)}" — owner: ${r.responsible}, company: ${r.company}, open: ${r.days_open} days, actual priority: ${r.actual_priority}`).join('\n')}
 
-ACTUAL HIGH/CRITICAL PRIORITY TASKS PER PERSON (only people with at least 1 high or critical task)
-${highPriorityByPerson.length ? highPriorityByPerson.map(r => `${r.responsible}: ${r.critical_count} critical, ${r.high_count} high, ${r.medium_count} medium priority open tasks`).join('\n') : 'No one currently has high or critical priority tasks'}
+ACTUAL HIGH/CRITICAL PRIORITY TASKS PER PERSON
+${highPriorityByPerson.length ? highPriorityByPerson.map(r => `${r.responsible}: ${r.critical_count} critical, ${r.high_count} high, ${r.medium_count} medium priority open tasks`).join('\n') : 'No high or critical priority tasks currently'}
 
 TEAM WORKLOAD (total open tasks per person)
 ${workload.map(r => `${r.responsible}: ${r.open} open`).join(' | ')}
@@ -178,36 +184,32 @@ This month avg: ${pcrProcessing?.this_month ?? 'N/A'} days | Last month avg: ${p
 LEAVE REQUESTS PENDING APPROVAL: ${leavePending}
 `.trim()
 
-  const systemPrompt = `You are Pabari Intelligence — an executive forecasting system for Pabari Group.
-You receive structured operational data from the ERP database and produce specific, data-driven forecast statements.
+  const systemPrompt = `You are Pabari Intelligence — the executive AI decision engine for Pabari Group.
+Analyze the operational data and produce exactly 5 forward-looking intelligence predictions.
+
+Return a JSON array ONLY. No markdown, no explanation, no text outside the array.
+Each object must have these exact fields:
+{
+  "category": one of "Operations" | "Finance" | "Compliance" | "People" | "Projects",
+  "observation": "What the data shows right now — include specific numbers, names, or dates from the data. 1-2 sentences.",
+  "impact": "Business consequence if not addressed — concrete and specific. 1 sentence.",
+  "recommendation": "Single best action the executive should take today — specific and actionable. 1 sentence.",
+  "confidence": integer 70-97 based on how complete and unambiguous the underlying data is
+}
 
 ACCURACY RULES (non-negotiable):
-- Every statement MUST contain at least one specific number, name, or date from the data — no generic statements allowed.
-- NEVER call a task "high risk" unless its actual_priority field says "high" or "critical". Age alone ≠ high priority.
-- NEVER say "multiple" unless count ≥ 2 from the data.
-- NEVER invent numbers not in the data.
-- If a data section is empty or N/A, skip it and use a different data point.
-
-SPECIFICITY RULES:
-- Use real task names, real people's names, real counts, real company names from the data.
-- Bad: "Velocity will remain steady." Good: "With only 2 tasks resolved this week vs 8 created, the backlog will grow by at least 6 tasks."
-- Bad: "Workload imbalance will persist." Good: "Yared carries 43 open tasks — the heaviest load on the team — while the backlog shows no sign of reducing."
-- Bad: "Aging tasks will continue unresolved." Good: "The Ministry of Environment letter has been open 95 days with no HK comment — at current pace it will exceed 100 days this week."
-- Always name the specific task, person, or company when the data provides it.
-
-OUTPUT FORMAT:
-- Return exactly 5 forecast statements
-- Each on its own line — no numbers, bullets, or markdown
-- Each between 20 and 35 words
-- Every statement is forward-looking: what WILL happen, what IS AT RISK, what IS TRENDING
-- Tone: precise executive intelligence briefing
-- Never start with "I", "We", or "The system"`
+- Every observation MUST include at least one specific number, name, or date from the provided data
+- NEVER label a task high-risk based on age alone — only if actual_priority says "high" or "critical"
+- confidence above 90 only when data is complete and unambiguous
+- Never invent numbers, names, or events not present in the data
+- If a data section is empty or N/A, use a different category for that prediction
+- Each category should appear at most once across the 5 predictions`
 
   try {
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
-      max_tokens: 400,
+      max_tokens: 800,
       temperature: 0.2,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -215,12 +217,16 @@ OUTPUT FORMAT:
       ],
     })
     const raw = completion.choices[0]?.message?.content ?? ''
-    const forecasts = raw
-      .split('\n')
-      .map(l => l.trim().replace(/^[-•*\d.]+\s*/, ''))
-      .filter(l => l.length > 15)
-      .slice(0, 5)
-
+    const match = raw.match(/\[[\s\S]*\]/)
+    let forecasts: ForecastItem[] = []
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0])
+        forecasts = (parsed as ForecastItem[]).filter(
+          f => f && typeof f === 'object' && f.observation && f.recommendation
+        ).slice(0, 5)
+      } catch { /**/ }
+    }
     return NextResponse.json({ forecasts, generatedAt: new Date().toISOString() })
   } catch (e) {
     console.error('Forecast error:', e)
