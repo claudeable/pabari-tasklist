@@ -6,7 +6,7 @@ import Groq from 'groq-sdk'
 
 export const dynamic = 'force-dynamic'
 
-const EXEC_NAMES = ['harshil', 'benson', 'pedro']
+const EXEC_NAMES = ['harshil', 'benson']
 
 const today = () => new Date().toISOString().slice(0, 10)
 

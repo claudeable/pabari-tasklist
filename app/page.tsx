@@ -6,7 +6,7 @@ import ExecutivePortal from '@/components/ExecutivePortal'
 
 export const dynamic = 'force-dynamic'
 
-const EXEC_NAMES = ['harshil', 'benson', 'pedro']
+const EXEC_NAMES = ['harshil', 'benson']
 
 export default async function Home() {
   const cookieStore = cookies()

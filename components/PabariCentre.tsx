@@ -9,7 +9,7 @@ type Tab = 'inbox' | 'chat' | 'ai'
 
 interface AiMessage { role: 'user' | 'assistant'; content: string }
 
-const EXEC_NAMES = ['harshil', 'benson', 'pedro']
+const EXEC_NAMES = ['harshil', 'benson']
 
 function isExecUser(name: string, role: string) {
   const first = (name?.split(' ')[0] ?? '').toLowerCase()
