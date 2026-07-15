@@ -9,11 +9,20 @@ type Tab = 'inbox' | 'chat' | 'ai'
 
 interface AiMessage { role: 'user' | 'assistant'; content: string }
 
+const EXEC_NAMES = ['harshil', 'benson', 'pedro']
+
+function isExecUser(name: string, role: string) {
+  const first = (name?.split(' ')[0] ?? '').toLowerCase()
+  return role === 'admin' || EXEC_NAMES.includes(first)
+}
+
 const AI_SUGGESTIONS = [
-  'What do I need to finish today?',
-  'Show my overdue tasks',
-  'Do I have any pending approvals?',
-  'What changed while I was away?',
+  'Give me my executive briefing',
+  'What needs my approval today?',
+  'Show high-value pending requests',
+  'What are the biggest risks right now?',
+  'Which projects are behind schedule?',
+  'Summarise this week\'s activity',
 ]
 
 function AiTab({ currentUser }: { currentUser: SessionUser }) {
@@ -25,10 +34,20 @@ function AiTab({ currentUser }: { currentUser: SessionUser }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLTextAreaElement>(null)
   const firstName = currentUser.name.split(' ')[0]
+  const briefingFired = useRef(false)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  // Auto-fire executive briefing on first open
+  useEffect(() => {
+    if (!briefingFired.current) {
+      briefingFired.current = true
+      send('Give me my executive briefing for today.')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function send(text: string) {
     if (!text.trim() || loading) return
@@ -120,28 +139,18 @@ function AiTab({ currentUser }: { currentUser: SessionUser }) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', gap: 24 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>🤖</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Pabari AI</div>
-          <div style={{ fontSize: 13, color: '#6b7280', maxWidth: 340, lineHeight: 1.6 }}>
-            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {firstName}. Ask me anything about your work.
+          <div style={{ fontSize: 48, marginBottom: 10 }}>⚡</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Executive AI</div>
+          <div style={{ fontSize: 13, color: '#6b7280', maxWidth: 360, lineHeight: 1.6 }}>
+            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {firstName}. Preparing your executive briefing…
           </div>
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, width: '100%', maxWidth: 460 }}>
-          {AI_SUGGESTIONS.map(s => (
-            <button key={s} onClick={() => send(s)}
-              style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', textAlign: 'left', fontSize: 12, color: '#374151', lineHeight: 1.4, transition: 'border-color 0.1s' }}
-              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a3a2a'}
-              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = '#e5e7eb'}
-            >
-              {s}
-            </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {[0,1,2].map(j => (
+            <div key={j} style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a3a2a', animation: `pulse 1.2s ease-in-out ${j * 0.2}s infinite` }} />
           ))}
         </div>
-
-        <div style={{ width: '100%', maxWidth: 560 }}>
-          <AiInput inputRef={inputRef} input={input} setInput={setInput} loading={loading} onSend={() => send(input)} onKey={handleKey} />
-        </div>
+        <style>{`@keyframes pulse { 0%,80%,100%{opacity:.3} 40%{opacity:1} }`}</style>
       </div>
     )
   }
@@ -183,9 +192,20 @@ function AiTab({ currentUser }: { currentUser: SessionUser }) {
       <div style={{ padding: '12px 24px 16px', borderTop: '1px solid #e5e7eb', background: 'white' }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           <AiInput inputRef={inputRef} input={input} setInput={setInput} loading={loading} onSend={() => send(input)} onKey={handleKey} />
+          {!loading && messages.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {AI_SUGGESTIONS.slice(1).map(s => (
+                <button key={s} onClick={() => send(s)}
+                  style={{ padding: '5px 10px', borderRadius: 20, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: 11, color: '#374151', transition: 'border-color 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a3a2a'}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = '#e5e7eb'}
+                >{s}</button>
+              ))}
+            </div>
+          )}
           {messages.length > 1 && (
-            <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <button onClick={() => { setMessages([]); setStarted(false); setError('') }}
+            <div style={{ textAlign: 'center', marginTop: 4 }}>
+              <button onClick={() => { setMessages([]); setStarted(false); setError(''); briefingFired.current = false }}
                 style={{ background: 'transparent', border: 'none', fontSize: 11, color: '#9ca3af', cursor: 'pointer', textDecoration: 'underline' }}>
                 Start new conversation
               </button>
@@ -466,7 +486,9 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
               [
                 { key: 'inbox', icon: '📥', label: 'Inbox', badge: counts.all },
                 { key: 'chat',  icon: '💬', label: 'Chat',  badge: 0 },
-                { key: 'ai',    icon: '🤖', label: 'Pabari AI', badge: 0 },
+                ...(isExecUser(currentUser.name, currentUser.role)
+                  ? [{ key: 'ai' as Tab, icon: '⚡', label: 'Executive AI', badge: 0 }]
+                  : []),
               ] as { key: Tab; icon: string; label: string; badge: number }[]
             ).map(item => (
               <button
@@ -511,10 +533,10 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
           {/* Mobile tab bar */}
           {isMobile && (
             <div style={{ display: 'flex', background: 'white', borderBottom: '1px solid #e5e7eb', padding: '0 8px' }}>
-              {(['inbox', 'chat', 'ai'] as Tab[]).map(t => (
+              {(['inbox', 'chat', ...(isExecUser(currentUser.name, currentUser.role) ? ['ai'] : [])] as Tab[]).map(t => (
                 <button key={t} onClick={() => setTab(t)}
                   style={{ flex: 1, padding: '12px 4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, color: tab === t ? '#1a3a2a' : '#6b7280', borderBottom: `2px solid ${tab === t ? '#1a3a2a' : 'transparent'}` }}>
-                  {t === 'inbox' ? '📥 Inbox' : t === 'chat' ? '💬 Chat' : '🤖 AI'}
+                  {t === 'inbox' ? '📥 Inbox' : t === 'chat' ? '💬 Chat' : '⚡ AI'}
                 </button>
               ))}
             </div>
