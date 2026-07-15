@@ -9,7 +9,6 @@ export const dynamic = 'force-dynamic'
 const EXEC_NAMES = ['harshil', 'benson', 'pedro']
 
 const today = () => new Date().toISOString().slice(0, 10)
-const fmt   = (n: number) => n.toLocaleString()
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -26,63 +25,16 @@ function isExecutive(user: { role: string; name: string }) {
 async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
   if (!user) return ''
   const now = today()
-  const firstName = user.name?.split(' ')[0] ?? user.name
   const lines: string[] = [
     `## Executive Profile`,
     `Name: ${user.name}`,
     `Role: ${user.role}`,
-    `Department: ${user.department}`,
     `Today: ${now}`,
     `Time: ${getGreeting()}`,
     '',
   ]
 
-  // Pending PCRs with details
-  try {
-    const pcrs = await query<{
-      id: number; req_no: string; employee_name: string; company: string;
-      total_amount: string; status: string; form_type: string; created_at: string
-    }>(`SELECT id, req_no, employee_name, company, total_amount::text, status, form_type, created_at
-        FROM petty_cash_requests
-        WHERE status NOT IN ('received','rejected','disbursed')
-        ORDER BY created_at DESC LIMIT 20`)
-
-    if (pcrs.length > 0) {
-      lines.push(`## Pending Petty Cash Requests (${pcrs.length})`)
-      pcrs.forEach(r => {
-        const amt = Number(r.total_amount)
-        const flag = amt >= 500000 ? ' 🔴 HIGH VALUE' : amt >= 100000 ? ' 🟡' : ''
-        lines.push(`- ${r.req_no} | ${r.employee_name} | KES ${fmt(amt)} [${r.company}] | Status: ${r.status}${flag}`)
-      })
-      lines.push('')
-      const highValue = pcrs.filter(r => Number(r.total_amount) >= 500000)
-      if (highValue.length > 0) {
-        lines.push(`⚠️ HIGH VALUE (≥KES 500K): ${highValue.length} request(s) awaiting decision`)
-        lines.push('')
-      }
-    }
-  } catch { /**/ }
-
-  // Pending leave requests
-  try {
-    const leaves = await query<{
-      id: number; employee_name: string; leave_type: string;
-      date_from: string; date_to: string; days_requested: number; status: string; company: string
-    }>(`SELECT id, employee_name, leave_type, date_from, date_to, days_requested, status, company
-        FROM leave_requests
-        WHERE status NOT IN ('approved','rejected')
-        ORDER BY created_at DESC LIMIT 10`)
-
-    if (leaves.length > 0) {
-      lines.push(`## Pending Leave Requests (${leaves.length})`)
-      leaves.forEach(l => {
-        lines.push(`- ${l.employee_name} | ${l.leave_type} | ${l.date_from} to ${l.date_to} (${l.days_requested} days) | ${l.company} | Status: ${l.status}`)
-      })
-      lines.push('')
-    }
-  } catch { /**/ }
-
-  // Tasks overview
+  // ── TASKS ──────────────────────────────────────────────────────────────
   try {
     const byStatus = await query<{ status: string; count: string }>(
       `SELECT status, COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') GROUP BY status ORDER BY count::int DESC`
@@ -96,77 +48,109 @@ async function buildContext(user: Awaited<ReturnType<typeof verifyToken>>) {
       [now]
     )
     const byCompany = await query<{ company: string; count: string }>(
-      `SELECT company, COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') GROUP BY company ORDER BY count::int DESC LIMIT 8`
+      `SELECT company, COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') GROUP BY company ORDER BY count::int DESC LIMIT 10`
     )
-    const total = byStatus.reduce((s, r) => s + parseInt(r.count, 10), 0)
-    lines.push(`## Task Intelligence`)
-    lines.push(`Total open tasks: ${total}`)
-    lines.push(`Overdue: ${parseInt(overdue[0]?.count ?? '0', 10)}`)
-    lines.push(`Due today: ${parseInt(dueToday[0]?.count ?? '0', 10)}`)
-    byStatus.forEach(r => lines.push(`- ${r.status}: ${r.count}`))
-    lines.push('')
-    if (byCompany.length > 0) {
-      lines.push(`Tasks by company:`)
-      byCompany.forEach(r => lines.push(`- ${r.company}: ${r.count} tasks`))
-      lines.push('')
-    }
-
-    // My personal tasks
-    const myOpen = await query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') AND LOWER(responsible)=LOWER($1)`,
-      [user.name]
-    )
-    const myOverdue = await query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') AND due_date < $1 AND LOWER(responsible)=LOWER($2)`,
-      [now, user.name]
-    )
-    lines.push(`My open tasks: ${myOpen[0]?.count ?? 0} (${myOverdue[0]?.count ?? 0} overdue)`)
-    lines.push('')
-  } catch { /**/ }
-
-  // Finance snapshot
-  try {
-    const inv = await query<{ status: string; count: string; total: string }>(
-      `SELECT status, COUNT(*)::text AS count, COALESCE(SUM(amount),0)::text AS total FROM invoices GROUP BY status`
-    )
-    if (inv.length > 0) {
-      lines.push(`## Finance Snapshot`)
-      inv.forEach(r => lines.push(`- ${r.status}: ${r.count} invoices | KES ${fmt(Number(r.total))}`))
-      lines.push('')
-    }
-  } catch { /**/ }
-
-  // HK-specific awaiting approval
-  try {
-    const awaiting = await query<{ count: string }>(
+    const awaitingHK = await query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM tasks WHERE status='awaiting-hk-approval'`
     )
     const needComment = await query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired') AND (hk_comment IS NULL OR TRIM(hk_comment)='')`
     )
-    const cnt = parseInt(awaiting[0]?.count ?? '0', 10)
-    const nc  = parseInt(needComment[0]?.count ?? '0', 10)
-    if (cnt > 0 || nc > 0) {
-      lines.push(`## Director Actions Required`)
-      if (cnt > 0) lines.push(`- Tasks awaiting your approval: ${cnt}`)
-      if (nc > 0)  lines.push(`- Tasks needing your comment: ${nc}`)
+
+    const total = byStatus.reduce((s, r) => s + parseInt(r.count, 10), 0)
+    lines.push(`## Task Overview`)
+    lines.push(`Total open tasks: ${total}`)
+    lines.push(`Overdue: ${parseInt(overdue[0]?.count ?? '0', 10)}`)
+    lines.push(`Due today: ${parseInt(dueToday[0]?.count ?? '0', 10)}`)
+    lines.push(`Awaiting director approval: ${parseInt(awaitingHK[0]?.count ?? '0', 10)}`)
+    lines.push(`Needing director comment: ${parseInt(needComment[0]?.count ?? '0', 10)}`)
+    lines.push('')
+    byStatus.forEach(r => lines.push(`- ${r.status}: ${r.count} tasks`))
+    lines.push('')
+    lines.push(`Tasks by company:`)
+    byCompany.forEach(r => lines.push(`- ${r.company}: ${r.count}`))
+    lines.push('')
+
+    // Top overdue tasks
+    const overdueTasks = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string }>(
+      `SELECT particulars, company, responsible, due_date, priority FROM tasks
+       WHERE status NOT IN ('resolved','expired') AND due_date IS NOT NULL AND due_date < $1
+       ORDER BY due_date ASC LIMIT 10`,
+      [now]
+    )
+    if (overdueTasks.length > 0) {
+      lines.push(`Top overdue tasks:`)
+      overdueTasks.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 80)} | owner: ${t.responsible} | due: ${t.due_date} | ${t.priority}`))
       lines.push('')
     }
   } catch { /**/ }
 
-  // Recent activity
+  // ── PETTY CASH (FORMS) ─────────────────────────────────────────────────
   try {
-    const activity = await query<{ user_name: string; action: string; details: string; created_at: string }>(
-      `SELECT user_name, action, details, created_at FROM activity_log ORDER BY created_at DESC LIMIT 10`
-    )
-    if (activity.length > 0) {
-      lines.push(`## Recent Activity (last 10 events)`)
-      activity.forEach(a => {
-        const time = new Date(a.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-        lines.push(`- ${time} | ${a.user_name} | ${a.action} | ${(a.details ?? '').slice(0, 80)}`)
+    const pcrs = await query<{
+      req_no: string; employee_name: string; company: string;
+      total_amount: string; status: string; created_at: string
+    }>(`SELECT req_no, employee_name, company, total_amount::text, status, created_at
+        FROM petty_cash_requests
+        WHERE status NOT IN ('received','rejected')
+        ORDER BY created_at DESC LIMIT 20`)
+
+    if (pcrs.length > 0) {
+      lines.push(`## Petty Cash Requests (${pcrs.length} active)`)
+      pcrs.forEach(r => {
+        const amt = Number(r.total_amount)
+        const flag = amt >= 500000 ? ' 🔴 HIGH VALUE' : amt >= 100000 ? ' 🟡' : ''
+        lines.push(`- ${r.req_no} | ${r.employee_name} | KES ${amt.toLocaleString()} [${r.company}] | ${r.status}${flag}`)
       })
       lines.push('')
     }
+
+    // Summary counts by status
+    const pcrByStatus = await query<{ status: string; count: string; total: string }>(
+      `SELECT status, COUNT(*)::text AS count, COALESCE(SUM(total_amount),0)::text AS total FROM petty_cash_requests WHERE status NOT IN ('received','rejected') GROUP BY status`
+    )
+    if (pcrByStatus.length > 0) {
+      lines.push(`PCR status summary:`)
+      pcrByStatus.forEach(r => lines.push(`- ${r.status}: ${r.count} requests | KES ${Number(r.total).toLocaleString()}`))
+      lines.push('')
+    }
+  } catch { /**/ }
+
+  // ── LEAVE REQUESTS (FORMS) ─────────────────────────────────────────────
+  try {
+    const leaves = await query<{
+      employee_name: string; leave_type: string;
+      date_from: string; date_to: string; days_requested: number; status: string; company: string
+    }>(`SELECT employee_name, leave_type, date_from, date_to, days_requested, status, company
+        FROM leave_requests
+        WHERE status NOT IN ('approved','rejected')
+        ORDER BY created_at DESC LIMIT 15`)
+
+    if (leaves.length > 0) {
+      lines.push(`## Leave Requests (${leaves.length} pending)`)
+      leaves.forEach(l => lines.push(`- ${l.employee_name} | ${l.leave_type} | ${l.date_from} → ${l.date_to} (${l.days_requested}d) | ${l.company} | ${l.status}`))
+      lines.push('')
+    }
+  } catch { /**/ }
+
+  // ── DOCUMENTS ──────────────────────────────────────────────────────────
+  try {
+    const docs = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM documents`
+    )
+    const recentDocs = await query<{ name: string; folder: string; uploaded_by: string; created_at: string }>(
+      `SELECT name, COALESCE(folder,'Uncategorised') AS folder, uploaded_by, created_at FROM documents ORDER BY created_at DESC LIMIT 10`
+    )
+    lines.push(`## Document Management`)
+    lines.push(`Total documents: ${docs[0]?.count ?? 0}`)
+    if (recentDocs.length > 0) {
+      lines.push(`Recently uploaded:`)
+      recentDocs.forEach(d => {
+        const date = new Date(d.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+        lines.push(`- ${d.name} | ${d.folder} | by ${d.uploaded_by} | ${date}`)
+      })
+    }
+    lines.push('')
   } catch { /**/ }
 
   return lines.join('\n')
@@ -198,27 +182,27 @@ export async function POST(req: NextRequest) {
 
 You are speaking with ${user.name} (${user.role}).
 
-You have real-time access to the company's operational data:
+You have real-time access to three live systems: Tasks, Forms (Petty Cash & Leave), and Documents.
+Finance, Projects, and other modules are still in beta and you do NOT have data from them — if asked about those, let ${firstName} know they are not yet connected.
+
+Here is the current live data:
 
 ${context}
 
 ## Your role:
-You are an Executive Decision Assistant. You do NOT just answer questions — you proactively surface risks, priorities, and recommendations so that ${firstName} can make fast, well-informed decisions.
+You are an Executive Decision Assistant. Surface risks, priorities, and recommendations so ${firstName} can make fast, informed decisions.
 
 ## How you respond:
-- Lead with what matters most: risks, deadlines, high-value decisions
-- Be direct and concise — no corporate filler
-- When asked for a briefing, structure it clearly: Approvals → Finance → Operations → People → Risks
-- When summarizing a request (PCR, leave, project), give a recommendation: Approve / Hold / Reject — and the reason
-- Always flag items over KES 500,000 or items with time pressure
-- Use bullet points for lists, bold for key figures
-- When the data supports it, give a recommendation — but always make clear the decision is ${firstName}'s
+- Lead with what matters most: overdue tasks, high-value requests, pending approvals
+- Be concise and direct — no filler
+- When asked for a briefing, structure it: Tasks → Petty Cash → Leave → Documents → Risks
+- Flag petty cash items over KES 100,000 and especially over KES 500,000
+- For pending approvals, give a recommendation where possible
+- Use bullet points for lists
 
 ## ERP Navigation:
 - Tasks: /tasks
 - Forms (Leave / Petty Cash): /forms
-- Finance: /finance
-- Projects: /projects
 - Documents: /documents
 - Pabari Centre: /centre
 
