@@ -417,6 +417,16 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                             ✅ Confirm I Received Funds
                           </button>
                         )}
+                        {isAdmin && (
+                          <button onClick={async()=>{
+                            if(!confirm(`Delete ${req.ref_number}? This cannot be undone.`)) return
+                            const r = await fetch(`/api/forms/petty-cash/${req.id}`,{method:'DELETE',credentials:'include'})
+                            if(r.ok) setRequests(prev=>prev.filter(x=>x.id!==req.id))
+                            else alert('Delete failed')
+                          }} style={{background:'transparent',border:'1px solid #fca5a5',color:'#dc2626',padding:'8px 14px',borderRadius:5,fontSize:12,cursor:'pointer',marginLeft:'auto'}}>
+                            🗑 Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
