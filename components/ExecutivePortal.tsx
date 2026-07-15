@@ -287,7 +287,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                     const days = parseInt(t.days_waiting, 10)
                     const isOld = days >= 5
                     return (
-                      <a key={t.id} href="/tasks"
+                      <a key={t.id} href={`/tasks?id=${t.id}`}
                         style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: '1px solid #f9fafb', textDecoration: 'none' }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -314,7 +314,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   {data?.approvalTasks.map((t) => {
                     const days = parseInt(t.days_waiting, 10)
                     return (
-                      <a key={t.id} href="/tasks"
+                      <a key={t.id} href={`/tasks?id=${t.id}`}
                         style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: '1px solid #f9fafb', textDecoration: 'none' }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -338,7 +338,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
 
                   {/* HK comment queue */}
                   {(data?.needsHkComment ?? 0) > 0 && (
-                    <a href="/tasks"
+                    <a href="/tasks?filter=hk_comment"
                       style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: '1px solid #f9fafb', textDecoration: 'none', background: '#fffbeb' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#fef9c3')}
                       onMouseLeave={e => (e.currentTarget.style.background = '#fffbeb')}>

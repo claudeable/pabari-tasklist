@@ -673,6 +673,22 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  // Deep-link: /tasks?id=123 — open that task directly
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('id')
+    if (!id || tasks.length === 0) return
+    const target = tasks.find(t => String(t.id) === id)
+    if (target) {
+      setActiveTask(target)
+      setActiveMainTab('active')
+      // Clear the param from the URL without a reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete('id')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [tasks])
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
