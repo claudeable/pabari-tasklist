@@ -92,10 +92,11 @@ function fmtRelative(ts: string) {
   return 'just now'
 }
 
-function genRecommendations(data: ExecData): Rec[] {
+function genRecommendations(data: ExecData, myTasks: ActionTask[], isHK: boolean): Rec[] {
   const recs: Rec[] = []
 
-  const critical = data.actionTasks.filter(t => t.priority === 'critical')
+  // Critical tasks — scoped to what this user can action
+  const critical = myTasks.filter(t => t.priority === 'critical')
   if (critical.length > 0) {
     const t = critical[0]
     recs.push({
@@ -108,30 +109,33 @@ function genRecommendations(data: ExecData): Rec[] {
     })
   }
 
-  if ((data.needsHkComment ?? 0) >= 6) {
+  // HK Comment queue — only relevant to Harshil
+  if (isHK && (data.needsHkComment ?? 0) >= 6) {
     recs.push({
       title: `Comment on ${data.needsHkComment} blocked tasks`,
-      reason: `Your direction is the only thing stopping the team from progressing each of these`,
-      impact: `${data.needsHkComment} team members unblocked immediately`,
+      reason: `Team is waiting on your direction to proceed — each comment unlocks next steps`,
+      impact: `${data.needsHkComment} tasks unblocked immediately`,
       priority: data.needsHkComment > 20 ? 'critical' : 'high',
       confidence: 99,
       href: '/tasks',
     })
   }
 
-  const sorted = [...data.actionTasks].sort((a, b) => parseInt(b.days_waiting) - parseInt(a.days_waiting))
+  // Oldest pending task scoped to this user's tasks
+  const sorted = [...myTasks].sort((a, b) => parseInt(b.days_waiting) - parseInt(a.days_waiting))
   const oldest = sorted[0]
   if (oldest && parseInt(oldest.days_waiting) >= 7 && oldest.priority !== 'critical') {
     recs.push({
       title: `Resolve ${oldest.days_waiting}-day pending item`,
       reason: `"${oldest.particulars.slice(0, 55)}" from ${oldest.company} — SLA exposure rising`,
-      impact: `Eliminates longest-standing risk in the backlog`,
+      impact: `Eliminates longest-standing risk in your queue`,
       priority: 'high',
       confidence: 88,
       href: `/tasks?id=${oldest.id}`,
     })
   }
 
+  // PCR high value — both executives may action these
   if ((data.pcrHighValue ?? 0) > 0) {
     const top = data.pcrItems.find(p => Number(p.total_amount) >= 100000)
     recs.push({
@@ -146,7 +150,8 @@ function genRecommendations(data: ExecData): Rec[] {
     })
   }
 
-  if ((data.awaitingApproval ?? 0) >= 2) {
+  // Awaiting approval — only show for HK since approvals route to him
+  if (isHK && (data.awaitingApproval ?? 0) >= 2) {
     recs.push({
       title: `Process ${data.awaitingApproval} pending approvals`,
       reason: `${data.awaitingApproval} tasks await your sign-off — avg ${data.avgWaitDays}d delay compounds daily`,
@@ -154,6 +159,18 @@ function genRecommendations(data: ExecData): Rec[] {
       priority: 'medium',
       confidence: 91,
       href: '/tasks',
+    })
+  }
+
+  // For non-HK with no tasks, suggest checking forms/leave
+  if (!isHK && recs.length === 0) {
+    recs.push({
+      title: 'Review pending leave requests',
+      reason: `${data.leavePending} leave request${data.leavePending !== 1 ? 's' : ''} pending across the organisation`,
+      impact: `Staff planning clarity restored`,
+      priority: 'medium',
+      confidence: 85,
+      href: '/forms',
     })
   }
 
@@ -218,7 +235,7 @@ function computeHealth(data: ExecData) {
   const bg  = (s: number) => s >= 75 ? 'rgba(34,197,94,0.08)' : s >= 50 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)'
 
   const hkDetail = hkRatio > 0.5
-    ? `${data.needsHkComment} of ${data.totalOpen} tasks need your comment`
+    ? `${data.needsHkComment} of ${data.totalOpen} tasks need HK comment`
     : `${data.actionRequired} tasks need action`
 
   const overloadedCount = opens.filter(o => o > 30).length
@@ -271,6 +288,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
+  const isHK      = firstName.toLowerCase() === 'harshil'
 
   useEffect(() => {
     fetch('/api/executive-portal', { credentials: 'include' })
@@ -297,9 +315,21 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
   }
   useEffect(() => { loadForecast() }, [])
 
-  const decisions    = (data?.actionRequired ?? 0) + (data?.awaitingApproval ?? 0)
+  // Scope task lists by role:
+  // HK sees all action-required and approval tasks (he owns those queues)
+  // Non-HK executives see only tasks assigned to them personally
+  const myActionTasks = isHK
+    ? (data?.actionTasks ?? [])
+    : (data?.actionTasks ?? []).filter(t =>
+        t.responsible.toLowerCase().includes(firstName.toLowerCase()))
+
+  const myApprovalTasks = isHK
+    ? (data?.approvalTasks ?? [])
+    : [] // HK approval queue belongs to Harshil only
+
+  const decisions    = myActionTasks.length + myApprovalTasks.length
   const reviewMins   = Math.round(decisions * 1.5)
-  const recs         = data ? genRecommendations(data) : []
+  const recs         = data ? genRecommendations(data, myActionTasks, isHK) : []
   const health       = data ? computeHealth(data) : []
   const mostLoaded   = data?.workload[0]
   const overloadedPpl = data?.workload.filter(p => parseInt(p.open) > 25).length ?? 0
@@ -516,7 +546,9 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: T.text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Executive Decisions</div>
                 <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>
-                  {loading ? 'Loading…' : `${decisions} items require your attention`}
+                  {loading ? 'Loading…' : isHK
+                    ? `${decisions} items require your attention`
+                    : decisions > 0 ? `${decisions} tasks assigned to you` : 'No tasks currently assigned to you'}
                 </div>
               </div>
               <a href="/tasks" style={{ fontSize: 11, color: T.green, fontWeight: 700, textDecoration: 'none', background: `${T.greenDim}18`, border: `1px solid ${T.greenDim}33`, borderRadius: 6, padding: '5px 12px' }}>
@@ -528,8 +560,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               <div style={{ padding: 24, color: T.text3, fontSize: 13, textAlign: 'center' }}>Loading decisions…</div>
             ) : (
               <>
-                {/* Action-required tasks */}
-                {data?.actionTasks.map(t => {
+                {/* Action-required tasks — scoped by role */}
+                {myActionTasks.map(t => {
                   const days = parseInt(t.days_waiting, 10)
                   const isOld = days >= 5
                   const pColor = t.priority === 'critical' ? T.red : t.priority === 'high' ? T.amber : T.text3
@@ -558,8 +590,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   )
                 })}
 
-                {/* Awaiting approval tasks */}
-                {data?.approvalTasks.map(t => {
+                {/* Awaiting approval — HK only */}
+                {myApprovalTasks.map(t => {
                   const days = parseInt(t.days_waiting, 10)
                   return (
                     <div key={t.id} style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
@@ -583,8 +615,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   )
                 })}
 
-                {/* HK comment queue */}
-                {(data?.needsHkComment ?? 0) > 0 && (
+                {/* HK comment queue — Harshil only */}
+                {isHK && (data?.needsHkComment ?? 0) > 0 && (
                   <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start', background: `${T.amber}08` }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.amber, marginTop: 5, flexShrink: 0, boxShadow: `0 0 6px ${T.amber}66` }} />
                     <div style={{ flex: 1 }}>
@@ -622,7 +654,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   </div>
                 ))}
 
-                {!loading && decisions === 0 && (data?.needsHkComment ?? 0) === 0 && (data?.pcrHighValue ?? 0) === 0 && (
+                {!loading && decisions === 0 && (!isHK || (data?.needsHkComment ?? 0) === 0) && (data?.pcrHighValue ?? 0) === 0 && (
                   <div style={{ padding: '36px', textAlign: 'center' }}>
                     <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.6 }}>◈</div>
                     <div style={{ color: T.green, fontSize: 14, fontWeight: 700 }}>All clear — no pending decisions</div>
@@ -794,8 +826,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
           {/* Business Health — by domain */}
           <div style={card}>
             <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Business Health</div>
-              <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>By domain · AI-assessed</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: T.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Company Health</div>
+              <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Group-wide · AI-assessed</div>
             </div>
             <div>
               {loading ? (
