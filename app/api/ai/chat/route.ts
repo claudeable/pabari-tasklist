@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { query } from '@/lib/database'
-import { getOpenAI } from '@/lib/openai'
+import Anthropic from '@anthropic-ai/sdk'
 
 export const dynamic = 'force-dynamic'
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const today = () => new Date().toISOString().slice(0, 10)
 const fmt   = (n: number) => n.toLocaleString()
@@ -188,8 +190,8 @@ export async function POST(req: NextRequest) {
   }
   if (!messages?.length) return NextResponse.json({ error: 'No messages' }, { status: 400 })
 
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'AI not configured — add OPENAI_API_KEY to Railway environment variables.' }, { status: 503 })
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'AI not configured — add ANTHROPIC_API_KEY to Railway environment variables.' }, { status: 503 })
   }
 
   const context = await buildContext(user)
@@ -232,16 +234,11 @@ ${context}
 - Address the user as ${firstName}
 - Today is ${today()}, good ${getGreeting()}`
 
-  const openai = getOpenAI()
-
-  const stream = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const stream = await client.messages.stream({
+    model:      'claude-haiku-4-5-20251001',
     max_tokens: 1024,
-    stream: true,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    ],
+    system:     systemPrompt,
+    messages:   messages.map(m => ({ role: m.role, content: m.content })),
   })
 
   const encoder = new TextEncoder()
@@ -249,8 +246,9 @@ ${context}
     async start(controller) {
       try {
         for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content ?? ''
-          if (text) controller.enqueue(encoder.encode(text))
+          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+            controller.enqueue(encoder.encode(chunk.delta.text))
+          }
         }
       } finally {
         controller.close()
