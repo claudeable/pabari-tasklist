@@ -99,6 +99,10 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
   const [data, setData] = useState<ExecData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activityTab, setActivityTab] = useState<'all' | 'today'>('all')
+  const [forecasts, setForecasts] = useState<string[]>([])
+  const [forecastLoading, setForecastLoading] = useState(true)
+  const [forecastTime, setForecastTime] = useState('')
+  const [forecastError, setForecastError] = useState(false)
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -109,6 +113,25 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
       .then(d => { if (d) setData(d) })
       .finally(() => setLoading(false))
   }, [])
+
+  function loadForecast() {
+    setForecastLoading(true)
+    setForecastError(false)
+    fetch('/api/executive-portal/forecast', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.forecasts?.length) {
+          setForecasts(d.forecasts)
+          setForecastTime(new Date(d.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
+        } else {
+          setForecastError(true)
+        }
+      })
+      .catch(() => setForecastError(true))
+      .finally(() => setForecastLoading(false))
+  }
+
+  useEffect(() => { loadForecast() }, [])
 
   const decisions     = (data?.actionRequired ?? 0) + (data?.awaitingApproval ?? 0)
   const estReviewMins = Math.round(decisions * 1.5)
@@ -235,6 +258,52 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
           </div>
         </div>
       )}
+
+      {/* ── FORECAST ────────────────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1240, margin: '20px auto 0', padding: '0 24px' }}>
+        <div style={{ background: '#0f172a', borderRadius: 12, border: '1px solid #1e293b', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: forecastLoading ? '#6b7280' : forecastError ? '#dc2626' : '#4ade80', boxShadow: forecastLoading ? 'none' : `0 0 8px ${forecastError ? '#dc2626' : '#4ade80'}` }} />
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#4ade80', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Pabari Intelligence · Forecast</span>
+              {forecastTime && !forecastLoading && (
+                <span style={{ fontSize: 10, color: '#334155', fontWeight: 500 }}>Generated {forecastTime}</span>
+              )}
+            </div>
+            <button onClick={loadForecast} disabled={forecastLoading}
+              style={{ background: 'none', border: '1px solid #1e293b', color: '#475569', borderRadius: 6, padding: '3px 10px', fontSize: 10, cursor: forecastLoading ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
+              {forecastLoading ? 'Generating…' : '↻ Refresh'}
+            </button>
+          </div>
+
+          {forecastLoading ? (
+            <div style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[85, 70, 90, 65, 75].map((w, i) => (
+                <div key={i} style={{ height: 14, borderRadius: 4, background: '#1e293b', width: `${w}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />
+              ))}
+              <style>{`@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.8} }`}</style>
+            </div>
+          ) : forecastError ? (
+            <div style={{ padding: '20px', color: '#475569', fontSize: 13 }}>Intelligence unavailable — check API connection.</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 0 }}>
+              {forecasts.map((f, i) => {
+                const lower = f.toLowerCase()
+                const isRisk     = /risk|miss|bottleneck|delay|critical|breach|overload|backlog.*grow|increas/.test(lower)
+                const isPositive = /improv|reduc|down|faster|complet|resolv/.test(lower)
+                const icon  = isRisk ? '⚠' : isPositive ? '↑' : '→'
+                const color = isRisk ? '#f87171' : isPositive ? '#4ade80' : '#94a3b8'
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 12, padding: '14px 20px', borderBottom: i < forecasts.length - 1 ? '1px solid #1e293b' : 'none', borderRight: (i % 2 === 0 && i < forecasts.length - 1) ? '1px solid #1e293b' : 'none' }}>
+                    <span style={{ fontSize: 13, color, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>{icon}</span>
+                    <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.55, fontWeight: 400 }}>{f}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── KPI STRIP ───────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 1240, margin: '20px auto 0', padding: '0 24px' }}>
