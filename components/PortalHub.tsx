@@ -68,7 +68,7 @@ const systems = [
   { key:'tasks',    icon:'✓',  iconBg:'#dbeafe', iconColor:'#1d4ed8', label:'Task Management',     href:'/tasks',     detail:'Pending · Assignments · Deadlines' },
   { key:'forms',    icon:'📋', iconBg:'#fef3c7', iconColor:'#b45309', label:'Forms',               href:'/forms',     detail:'Leave Requests · Petty Cash' },
   { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',  detail:'Milestones · Gantt · Budget',   projectsOnly:true },
-  { key:'finance',  icon:'💳', iconBg:'#ecfdf5', iconColor:'#059669', label:'Finance',             href:'/finance',   detail:'Invoice · LPO · Quotation',     projectsOnly:true },
+  { key:'finance',  icon:'💳', iconBg:'#ecfdf5', iconColor:'#059669', label:'Finance',             href:'/finance',   detail:'LPO · Delivery Notes',     projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents', detail:'Upload · Folders · View',        adminOnly:true },
   { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security', detail:'Threats · IP Blocking',     superAdminOnly:true },
 ]
