@@ -52,6 +52,17 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
   const [callTarget, setCallTarget] = useState<Contact | null>(null)
 
   // Form state
+  const [showForm,   setShowForm]   = useState(false)
+  const [editId,     setEditId]     = useState<number | null>(null)
+  const [form,       setForm]       = useState(emptyForm())
+  const [saving,     setSaving]     = useState(false)
+  const [formError,  setFormError]  = useState('')
+  const [newCatInput, setNewCatInput] = useState('')
+
+  // All categories (for suggestions + filter tabs)
+  const [allCategories, setAllCategories] = useState<Category[]>([])
+
+  // Tab scroll
   const tabsRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft,  setCanScrollLeft]  = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
@@ -75,16 +86,6 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
   function scrollTabs(dir: 'left' | 'right') {
     tabsRef.current?.scrollBy({ left: dir === 'right' ? 200 : -200, behavior: 'smooth' })
   }
-
-  const [showForm,   setShowForm]   = useState(false)
-  const [editId,     setEditId]     = useState<number | null>(null)
-  const [form,       setForm]       = useState(emptyForm())
-  const [saving,     setSaving]     = useState(false)
-  const [formError,  setFormError]  = useState('')
-  const [newCatInput, setNewCatInput] = useState('')
-
-  // All categories (for suggestions)
-  const [allCategories, setAllCategories] = useState<Category[]>([])
 
   const loadCategories = useCallback(() => {
     fetch('/api/connect/categories').then(r => r.json()).then(data => {
