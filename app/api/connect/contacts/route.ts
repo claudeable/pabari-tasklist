@@ -27,10 +27,12 @@ export async function GET(req: NextRequest) {
   const params: unknown[] = []
 
   if (q) {
-    params.push(
-      q.split(/\s+/).filter(Boolean).map(t => `${t}:*`).join(' & ')
-    )
-    conditions.push(`c.search_vector @@ to_tsquery('simple', $${params.length})`)
+    const tsQuery = q.split(/\s+/).filter(Boolean).map(t => `${t}:*`).join(' & ')
+    params.push(tsQuery)
+    const tsIdx = params.length
+    params.push(`%${q}%`)
+    const likeIdx = params.length
+    conditions.push(`(c.search_vector @@ to_tsquery('simple', $${tsIdx}) OR co.name ILIKE $${likeIdx})`)
   }
   if (category) {
     params.push(category)
