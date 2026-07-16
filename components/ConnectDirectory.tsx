@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { SessionUser } from '@/types'
 
 type Contact = {
@@ -52,6 +52,30 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
   const [callTarget, setCallTarget] = useState<Contact | null>(null)
 
   // Form state
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft,  setCanScrollLeft]  = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  function updateScrollState() {
+    const el = tabsRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 4)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }
+
+  useEffect(() => {
+    const el = tabsRef.current
+    if (!el) return
+    updateScrollState()
+    el.addEventListener('scroll', updateScrollState)
+    window.addEventListener('resize', updateScrollState)
+    return () => { el.removeEventListener('scroll', updateScrollState); window.removeEventListener('resize', updateScrollState) }
+  }, [allCategories])
+
+  function scrollTabs(dir: 'left' | 'right') {
+    tabsRef.current?.scrollBy({ left: dir === 'right' ? 200 : -200, behavior: 'smooth' })
+  }
+
   const [showForm,   setShowForm]   = useState(false)
   const [editId,     setEditId]     = useState<number | null>(null)
   const [form,       setForm]       = useState(emptyForm())
@@ -191,18 +215,34 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
           style={{ width: '100%', boxSizing: 'border-box', borderRadius: 10, border: `1px solid ${C.border}`, background: C.input, padding: '11px 14px', fontSize: 14, color: C.text, outline: 'none' }}
         />
 
-        <div style={{ display: 'flex', gap: 2, overflowX: 'auto', marginTop: 10, scrollbarWidth: 'none' as const }}>
-          {['All', ...allCategories.map(c => c.name)].map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              flexShrink: 0, whiteSpace: 'nowrap', padding: '7px 13px',
-              borderRadius: '8px 8px 0 0', border: `1px solid ${tab === t ? C.brass : C.border}`,
-              borderBottom: 'none', background: tab === t ? C.brass : C.card,
-              color: tab === t ? '#12151c' : C.muted, fontSize: 11, fontFamily: 'monospace',
-              fontWeight: tab === t ? 700 : 400, cursor: 'pointer',
-            }}>
-              {t}
-            </button>
-          ))}
+        <div style={{ position: 'relative', marginTop: 10 }}>
+          {/* Left fade + arrow */}
+          {canScrollLeft && (
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 1, zIndex: 2, display: 'flex', alignItems: 'center', background: `linear-gradient(to right, ${C.bg} 60%, transparent)`, paddingRight: 12 }}>
+              <button onClick={() => scrollTabs('left')} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, cursor: 'pointer', color: C.muted, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>‹</button>
+            </div>
+          )}
+
+          <div ref={tabsRef} style={{ display: 'flex', gap: 2, overflowX: 'auto', scrollbarWidth: 'none' as const }}>
+            {['All', ...allCategories.map(c => c.name)].map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                flexShrink: 0, whiteSpace: 'nowrap', padding: '7px 13px',
+                borderRadius: '8px 8px 0 0', border: `1px solid ${tab === t ? C.brass : C.border}`,
+                borderBottom: 'none', background: tab === t ? C.brass : C.card,
+                color: tab === t ? '#12151c' : C.muted, fontSize: 11, fontFamily: 'monospace',
+                fontWeight: tab === t ? 700 : 400, cursor: 'pointer',
+              }}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Right fade + arrow */}
+          {canScrollRight && (
+            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 1, zIndex: 2, display: 'flex', alignItems: 'center', background: `linear-gradient(to left, ${C.bg} 60%, transparent)`, paddingLeft: 12 }}>
+              <button onClick={() => scrollTabs('right')} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, cursor: 'pointer', color: C.muted, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>›</button>
+            </div>
+          )}
         </div>
         <div style={{ height: 1, background: C.border }} />
       </div>
