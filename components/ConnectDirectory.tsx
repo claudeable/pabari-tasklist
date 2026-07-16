@@ -20,7 +20,8 @@ type Contact = {
 
 type Category = { id: number; name: string }
 
-const FILTER_TABS = ['All', 'Banking', 'Government', 'Logistics', 'Legal', 'Healthcare', 'Manufacturing', 'Insurance', 'Other']
+// Filter tabs are loaded dynamically from the DB; this is just the fallback while loading
+const DEFAULT_TABS = ['All']
 
 const emptyForm = () => ({
   fullName: '', companyName: '', position: '', phone: '', email: '', country: '', address: '',
@@ -191,7 +192,7 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
         />
 
         <div style={{ display: 'flex', gap: 2, overflowX: 'auto', marginTop: 10, scrollbarWidth: 'none' as const }}>
-          {FILTER_TABS.map(t => (
+          {['All', ...allCategories.map(c => c.name)].map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               flexShrink: 0, whiteSpace: 'nowrap', padding: '7px 13px',
               borderRadius: '8px 8px 0 0', border: `1px solid ${tab === t ? C.brass : C.border}`,
