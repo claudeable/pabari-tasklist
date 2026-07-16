@@ -8,6 +8,7 @@ type Contact = {
   full_name: string
   position: string | null
   phone: string | null
+  phone_secondary: string | null
   email: string | null
   country: string | null
   address: string | null
@@ -16,6 +17,13 @@ type Contact = {
   categories: string[] | null
   needs_review: boolean
   duplicate_group: string | null
+}
+
+function parsePhones(phone: string | null, secondary: string | null): string[] {
+  const all: string[] = []
+  if (phone) all.push(...phone.split(/[,\/;]+/).map(p => p.trim()).filter(Boolean))
+  if (secondary) all.push(...secondary.split(/[,\/;]+/).map(p => p.trim()).filter(Boolean))
+  return [...new Set(all)]
 }
 
 type Category = { id: number; name: string }
@@ -44,6 +52,13 @@ const C = {
 }
 
 export default function ConnectDirectory({ currentUser }: { currentUser: SessionUser }) {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check(); window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const [query,    setQuery]    = useState('')
   const [tab,      setTab]      = useState('All')
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -197,31 +212,27 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui,-apple-system,sans-serif' }}>
 
       {/* ── ERP Nav Bar ──────────────────────────────────────────────────────── */}
-      <div style={{ background: C.green, padding: '0 20px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 30 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ background: C.green, padding: isMobile ? '0 12px' : '0 20px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 30 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <a href="/" style={{ textDecoration: 'none' }}>
             <div style={{ background: C.pabari, color: 'white', fontWeight: 800, fontSize: 11, padding: '5px 10px', borderRadius: 4, letterSpacing: '1px' }}>PABARI</div>
           </a>
-          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Connect</span>
+          {!isMobile && <><div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }} /><span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Connect</span></>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            onClick={openAdd}
-            style={{ background: C.pabari, color: 'white', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-          >
-            + Add Contact
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={openAdd} style={{ background: C.pabari, color: 'white', border: 'none', borderRadius: 8, padding: isMobile ? '7px 12px' : '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>
+            {isMobile ? '+' : '+ Add Contact'}
           </button>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{currentUser.name}</span>
-          <a href="/" style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}>← Portal</a>
+          {!isMobile && <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{currentUser.name}</span>}
+          <a href="/" style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textDecoration: 'none', whiteSpace: 'nowrap' as const }}>← Portal</a>
         </div>
       </div>
 
       {/* ── Search + Tabs ─────────────────────────────────────────────────────── */}
-      <div style={{ position: 'sticky', top: 52, zIndex: 20, background: C.bg, padding: '14px 20px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>Directory</h1>
-          <span style={{ fontSize: 11, color: C.dim, fontFamily: 'monospace' }}>
+      <div style={{ position: 'sticky', top: 52, zIndex: 20, background: C.bg, padding: isMobile ? '10px 12px 0' : '14px 20px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          {!isMobile && <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>Directory</h1>}
+          <span style={{ fontSize: 11, color: C.dim, fontFamily: 'monospace', marginLeft: 'auto' }}>
             {loading ? 'Searching…' : total !== null
               ? `${contacts.length.toLocaleString()} of ${total.toLocaleString()} contacts`
               : `${contacts.length.toLocaleString()} shown`}
@@ -268,7 +279,7 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
       </div>
 
       {/* ── Contact List ──────────────────────────────────────────────────────── */}
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '12px 20px 80px' }}>
+      <main style={{ maxWidth: 720, margin: '0 auto', padding: isMobile ? '10px 10px 80px' : '12px 20px 80px' }}>
         {!query.trim() && tab === 'All' && contacts.length === 0 && !loading && (
           <div style={{ padding: '60px 20px', textAlign: 'center', fontSize: 13, color: C.dim, lineHeight: 1.7 }}>
             Search a name, company, or country — or pick a category above.
@@ -316,7 +327,6 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
         <CallModal
           contact={callTarget}
           onCancel={() => setCallTarget(null)}
-          onConfirm={() => { window.location.href = `tel:${callTarget.phone}`; setCallTarget(null) }}
         />
       )}
 
@@ -326,7 +336,7 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
           onClick={e => e.target === e.currentTarget && setShowForm(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
         >
-          <div style={{ width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', borderRadius: '18px 18px 0 0', border: `1px solid ${C.border}`, borderBottom: 'none', background: '#161b24', padding: '0 0 32px' }}>
+          <div style={{ width: '100%', maxWidth: isMobile ? '100%' : 560, height: isMobile ? '95vh' : 'auto', maxHeight: '95vh', overflowY: 'auto', borderRadius: isMobile ? '18px 18px 0 0' : '18px 18px 0 0', border: `1px solid ${C.border}`, borderBottom: 'none', background: '#161b24', padding: '0 0 32px' }}>
 
             {/* Panel header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, background: '#161b24', zIndex: 1 }}>
@@ -463,6 +473,7 @@ function ContactCard({ contact, expanded, onToggle, onCallRequest, onEdit, onDel
   const [catSaving, setCatSaving] = useState(false)
 
   const currentCats = c.categories ?? []
+  const phones = parsePhones(c.phone, c.phone_secondary)
 
   async function patchCategories(next: string[]) {
     setCatSaving(true)
@@ -506,7 +517,7 @@ function ContactCard({ contact, expanded, onToggle, onCallRequest, onEdit, onDel
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-          <IconBtn label="Call" color="#e6bd72" disabled={!c.phone} onClick={e => { e.stopPropagation(); onCallRequest() }}>☎</IconBtn>
+          <IconBtn label="Call" color="#e6bd72" disabled={phones.length === 0} onClick={e => { e.stopPropagation(); onCallRequest() }}>☎</IconBtn>
           <a aria-label="Email" href={c.email ? `mailto:${c.email}` : undefined} onClick={e => e.stopPropagation()}
             style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #2b3242', background: '#232a37', color: '#8fb3d6', fontSize: 13, opacity: c.email ? 1 : 0.25, pointerEvents: c.email ? 'auto' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
             ✉
@@ -516,7 +527,7 @@ function ContactCard({ contact, expanded, onToggle, onCallRequest, onEdit, onDel
 
       {expanded && (
         <div style={{ marginTop: 10, borderTop: '1px dashed #2b3242', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
-          {c.phone   && <Row label="phone"   value={c.phone} />}
+          {phones.length > 0 && <Row label="phone" value={phones.join('  ·  ')} />}
           {c.email   && <Row label="email"   value={c.email} />}
           {c.address && <Row label="address" value={c.address} />}
 
@@ -618,18 +629,45 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CallModal({ contact, onCancel, onConfirm }: { contact: Contact; onCancel: () => void; onConfirm: () => void }) {
+function CallModal({ contact, onCancel }: { contact: Contact; onCancel: () => void }) {
+  const phones = parsePhones(contact.phone, contact.phone_secondary)
+
   return (
     <div onClick={e => e.target === e.currentTarget && onCancel()}
       style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
       <div style={{ width: '100%', maxWidth: 420, borderRadius: '16px 16px 0 0', border: '1px solid #2b3242', borderBottom: 'none', background: '#1b202b', padding: '20px 20px 32px' }}>
-        <div style={{ textAlign: 'center', fontFamily: 'monospace', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#5c6272' }}>Call</div>
-        <div style={{ marginTop: 6, textAlign: 'center', fontSize: 19, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>{contact.full_name}</div>
-        <div style={{ marginTop: 4, textAlign: 'center', fontFamily: 'monospace', fontSize: 15, color: '#e6bd72' }}>{contact.phone}</div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button onClick={onCancel} style={{ flex: 1, borderRadius: 12, border: '1px solid #2b3242', background: '#232a37', padding: 13, fontSize: 13, fontWeight: 600, color: '#8b93a3', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ flex: 1, borderRadius: 12, border: '1px solid #e6bd72', background: '#e6bd72', padding: 13, fontSize: 13, fontWeight: 700, color: '#12151c', cursor: 'pointer' }}>Call</button>
+        <div style={{ textAlign: 'center', fontFamily: 'monospace', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#5c6272' }}>
+          {phones.length > 1 ? 'Select number to call' : 'Call'}
         </div>
+        <div style={{ marginTop: 6, textAlign: 'center', fontSize: 19, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>{contact.full_name}</div>
+
+        {phones.length > 1 ? (
+          /* Multiple numbers — show each as a call button */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+            {phones.map(num => (
+              <button
+                key={num}
+                onClick={() => { window.location.href = `tel:${num}`; onCancel() }}
+                style={{ width: '100%', borderRadius: 12, border: '1px solid #e6bd72', background: 'rgba(230,189,114,0.1)', padding: '13px 16px', fontSize: 15, fontWeight: 700, color: '#e6bd72', cursor: 'pointer', fontFamily: 'monospace', textAlign: 'center' }}
+              >
+                ☎ {num}
+              </button>
+            ))}
+          </div>
+        ) : (
+          /* Single number */
+          <>
+            <div style={{ marginTop: 4, textAlign: 'center', fontFamily: 'monospace', fontSize: 15, color: '#e6bd72' }}>{phones[0]}</div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={onCancel} style={{ flex: 1, borderRadius: 12, border: '1px solid #2b3242', background: '#232a37', padding: 13, fontSize: 13, fontWeight: 600, color: '#8b93a3', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { window.location.href = `tel:${phones[0]}`; onCancel() }} style={{ flex: 1, borderRadius: 12, border: '1px solid #e6bd72', background: '#e6bd72', padding: 13, fontSize: 13, fontWeight: 700, color: '#12151c', cursor: 'pointer' }}>Call</button>
+            </div>
+          </>
+        )}
+
+        <button onClick={onCancel} style={{ width: '100%', marginTop: 10, background: 'none', border: '1px solid #2b3242', borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 600, color: '#8b93a3', cursor: 'pointer' }}>
+          Cancel
+        </button>
       </div>
     </div>
   )

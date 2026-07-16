@@ -285,7 +285,15 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
   const [fTime, setFTime]             = useState('')
   const [fError, setFError]           = useState(false)
   const [actTab, setActTab]           = useState<'all' | 'today'>('all')
+  const [isMobile, setIsMobile]       = useState(false)
+  const [navOpen,  setNavOpen]        = useState(false)
   const [userMenu, setUserMenu]       = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 900)
+    check(); window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
   const [showPwModal, setShowPwModal] = useState(false)
   const [pwForm, setPwForm]           = useState({ current: '', next: '', confirm: '' })
   const [pwError, setPwError]         = useState('')
@@ -352,17 +360,37 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
     <div style={{ minHeight: '100vh', background: T.bg, fontFamily: 'system-ui,-apple-system,sans-serif', color: T.text }}>
 
       {/* ── NAV ─────────────────────────────────────────────────────────── */}
-      <nav style={{ background: '#060e09', borderBottom: `1px solid ${T.border}`, padding: '0 28px', display: 'flex', alignItems: 'center', height: 50, gap: 24, position: 'sticky', top: 0, zIndex: 50 }}>
+      <nav style={{ background: '#060e09', borderBottom: `1px solid ${T.border}`, padding: isMobile ? '0 14px' : '0 28px', display: 'flex', alignItems: 'center', height: 50, gap: isMobile ? 10 : 24, position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontWeight: 900, fontSize: 14, color: T.gold, letterSpacing: '0.15em' }}>PABARI</span>
-          <span style={{ fontSize: 9, color: T.text3, letterSpacing: '0.08em', fontWeight: 700, background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`, borderRadius: 4, padding: '2px 6px' }}>INTELLIGENCE</span>
+          {!isMobile && <span style={{ fontSize: 9, color: T.text3, letterSpacing: '0.08em', fontWeight: 700, background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`, borderRadius: 4, padding: '2px 6px' }}>INTELLIGENCE</span>}
         </div>
         <div style={{ flex: 1 }} />
-        {[['Tasks','/tasks'],['Portal','/'],['Forms','/forms'],['Connect','/connect'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre']].map(([l, h]) => (
+
+        {/* Desktop nav links */}
+        {!isMobile && [['Tasks','/tasks'],['Portal','/'],['Forms','/forms'],['Connect','/connect'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre']].map(([l, h]) => (
           <a key={l} href={h} style={{ color: T.text3, fontSize: 12, textDecoration: 'none', fontWeight: 600, letterSpacing: '0.04em', transition: 'color 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.color = T.text)}
             onMouseLeave={e => (e.currentTarget.style.color = T.text3)}>{l}</a>
         ))}
+
+        {/* Mobile hamburger */}
+        {isMobile && (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setNavOpen(n => !n)} style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, color: T.text2, fontSize: 16, padding: '4px 10px', cursor: 'pointer' }}>☰</button>
+            {navOpen && (
+              <>
+                <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+                <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 99, background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 10, minWidth: 160, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
+                  {[['Tasks','/tasks'],['Portal','/'],['Forms','/forms'],['Connect','/connect'],['Centre','/centre'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects']].map(([l, h]) => (
+                    <a key={l} href={h} onClick={() => setNavOpen(false)} style={{ display: 'block', padding: '11px 16px', fontSize: 13, fontWeight: 600, color: T.text2, textDecoration: 'none', borderBottom: `1px solid ${T.border}` }}>{l}</a>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <NotificationBell userEmail={currentUser.email} />
 
         {/* ── User menu ──────────────────────────────────────────────── */}
@@ -457,25 +485,25 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
       )}
 
       {/* ── HERO ────────────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(180deg, #0a1510 0%, ${T.bg} 100%)`, borderBottom: `1px solid ${T.border}`, padding: '36px 32px 28px' }}>
+      <div style={{ background: `linear-gradient(180deg, #0a1510 0%, ${T.bg} 100%)`, borderBottom: `1px solid ${T.border}`, padding: isMobile ? '20px 16px 20px' : '36px 32px 28px' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
 
             {/* Left: greeting + decision count */}
             <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.text3, letterSpacing: '0.12em', marginBottom: 12, textTransform: 'uppercase' }}>
+              {!isMobile && <div style={{ fontSize: 11, fontWeight: 800, color: T.text3, letterSpacing: '0.12em', marginBottom: 12, textTransform: 'uppercase' }}>
                 Executive Operating System · Pabari Group
-              </div>
-              <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, color: T.text, lineHeight: 1.1 }}>
+              </div>}
+              <h1 style={{ margin: 0, fontSize: isMobile ? 24 : 34, fontWeight: 900, color: T.text, lineHeight: 1.1 }}>
                 {getGreeting()}, {firstName}.
               </h1>
-              <p style={{ margin: '8px 0 0', color: T.text3, fontSize: 13 }}>{fmtDate()}</p>
+              <p style={{ margin: '6px 0 0', color: T.text3, fontSize: 12 }}>{fmtDate()}</p>
 
               {!loading && (
-                <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ fontSize: 44, fontWeight: 900, color: decisions > 0 ? T.amber : T.green, lineHeight: 1 }}>{decisions}</span>
-                    <span style={{ fontSize: 16, color: T.text2, fontWeight: 500 }}>executive decisions today</span>
+                    <span style={{ fontSize: isMobile ? 32 : 44, fontWeight: 900, color: decisions > 0 ? T.amber : T.green, lineHeight: 1 }}>{decisions}</span>
+                    <span style={{ fontSize: isMobile ? 13 : 16, color: T.text2, fontWeight: 500 }}>executive decisions today</span>
                   </div>
                   {decisions > 0 && (
                     <span style={{ fontSize: 12, color: T.text3, background: `${T.border}88`, border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 12px' }}>
@@ -534,7 +562,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
 
           {/* Forecast cards */}
           {fLoading ? (
-            <div style={{ padding: '24px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
+            <div style={{ padding: isMobile ? '14px 12px' : '24px 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
               {[1,2,3,4,5].map(i => (
                 <div key={i} style={{ background: T.card2, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[70, 85, 60, 50].map((w, j) => (
@@ -549,7 +577,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               Intelligence engine unavailable — check API connection and refresh.
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', padding: '20px', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))', padding: isMobile ? '12px' : '20px', gap: 12 }}>
               {forecasts.map((f, i) => {
                 const catColor = CATEGORY_COLORS[f.category] ?? T.text2
                 return (
@@ -593,7 +621,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
       </div>
 
       {/* ── MAIN GRID ───────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px 56px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '12px 10px 56px' : '20px 24px 56px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: 20 }}>
 
         {/* ── LEFT COLUMN ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
