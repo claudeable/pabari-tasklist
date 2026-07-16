@@ -70,6 +70,7 @@ const systems = [
   { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',  detail:'Milestones · Gantt · Budget',   projectsOnly:true },
   { key:'finance',  icon:'💳', iconBg:'#ecfdf5', iconColor:'#059669', label:'Finance',             href:'/finance',   detail:'LPO · Delivery Notes',     projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents', detail:'Upload · Folders · View',        adminOnly:true },
+  { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',   detail:'Contacts · Directory · Search' },
   { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security', detail:'Threats · IP Blocking',     superAdminOnly:true },
 ]
 

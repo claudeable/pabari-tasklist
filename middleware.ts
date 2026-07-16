@@ -69,7 +69,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/delivery-notes')       ||
     pathname.startsWith('/api/delivery-notes')  ||
     pathname.startsWith('/api/profile')      ||
-    pathname.startsWith('/api/push')
+    pathname.startsWith('/api/push')          ||
+    pathname.startsWith('/connect')           ||
+    pathname.startsWith('/api/connect')
 
   if (!isProtected) return NextResponse.next()
 
@@ -107,5 +109,7 @@ export const config = {
     '/api/delivery-notes', '/api/delivery-notes/:path*',
     '/api/profile/:path*',
     '/api/push/:path*',
+    '/connect', '/connect/:path*',
+    '/api/connect/:path*',
   ],
 }
