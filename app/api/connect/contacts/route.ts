@@ -48,6 +48,15 @@ export async function GET(req: NextRequest) {
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  // Count query uses same filters but no pagination
+  const countSql = `
+    SELECT COUNT(DISTINCT c.id) AS total
+    FROM connect_contacts c
+    LEFT JOIN connect_companies co ON co.id = c.company_id
+    ${whereClause}
+  `
+
   params.push(pageSize, offset)
 
   const sql = `
@@ -67,8 +76,13 @@ export async function GET(req: NextRequest) {
   `
 
   try {
-    const contacts = await query(sql, params)
-    return NextResponse.json({ contacts, page, pageSize })
+    const filterParams = params.slice(0, params.length - 2)
+    const [countRows, contacts] = await Promise.all([
+      query<{ total: string }>(countSql, filterParams),
+      query(sql, params),
+    ])
+    const total = parseInt(countRows[0]?.total ?? '0', 10)
+    return NextResponse.json({ contacts, page, pageSize, total })
   } catch (e) {
     console.error('[connect/contacts GET]', e)
     return NextResponse.json({ error: String(e) }, { status: 500 })

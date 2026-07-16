@@ -47,6 +47,9 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
   const [query,    setQuery]    = useState('')
   const [tab,      setTab]      = useState('All')
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [total,    setTotal]    = useState<number | null>(null)
+  const [page,     setPage]     = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [expanded, setExpanded] = useState<number | null>(null)
   const [callTarget, setCallTarget] = useState<Contact | null>(null)
@@ -95,22 +98,36 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
 
   useEffect(() => { loadCategories() }, [loadCategories])
 
-  const loadContacts = useCallback(() => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (query.trim()) params.set('q', query.trim())
-    if (tab !== 'All') params.set('category', tab)
-    fetch(`/api/connect/contacts?${params}`)
+  const loadContacts = useCallback((resetPage = true) => {
+    if (resetPage) {
+      setPage(1)
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
+    const p = new URLSearchParams()
+    if (query.trim()) p.set('q', query.trim())
+    if (tab !== 'All') p.set('category', tab)
+    if (!resetPage) p.set('page', String(page + 1))
+    fetch(`/api/connect/contacts?${p}`)
       .then(r => r.json())
-      .then(data => setContacts(data.contacts || []))
+      .then(data => {
+        if (resetPage) {
+          setContacts(data.contacts || [])
+        } else {
+          setContacts(prev => [...prev, ...(data.contacts || [])])
+          setPage(prev => prev + 1)
+        }
+        setTotal(data.total ?? null)
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [query, tab])
+      .finally(() => { setLoading(false); setLoadingMore(false) })
+  }, [query, tab, page])
 
   useEffect(() => {
-    const t = setTimeout(loadContacts, 200)
+    const t = setTimeout(() => loadContacts(true), 200)
     return () => clearTimeout(t)
-  }, [loadContacts])
+  }, [query, tab])
 
   function openAdd() {
     setEditId(null)
@@ -205,7 +222,9 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>Directory</h1>
           <span style={{ fontSize: 11, color: C.dim, fontFamily: 'monospace' }}>
-            {loading ? 'Searching…' : `${contacts.length.toLocaleString()} shown`}
+            {loading ? 'Searching…' : total !== null
+              ? `${contacts.length.toLocaleString()} of ${total.toLocaleString()} contacts`
+              : `${contacts.length.toLocaleString()} shown`}
           </span>
         </div>
 
@@ -271,6 +290,25 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
             }
           />
         ))}
+
+        {/* Load more */}
+        {total !== null && contacts.length < total && (
+          <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+            <button
+              onClick={() => loadContacts(false)}
+              disabled={loadingMore}
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, color: C.muted, cursor: loadingMore ? 'wait' : 'pointer', opacity: loadingMore ? 0.6 : 1 }}
+            >
+              {loadingMore ? 'Loading…' : `Load more (${total - contacts.length} remaining)`}
+            </button>
+          </div>
+        )}
+
+        {total !== null && contacts.length >= total && contacts.length > 0 && (
+          <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 11, color: C.dim, fontFamily: 'monospace' }}>
+            All {total.toLocaleString()} contacts shown
+          </div>
+        )}
       </main>
 
       {/* ── Call confirm modal ───────────────────────────────────────────────── */}
