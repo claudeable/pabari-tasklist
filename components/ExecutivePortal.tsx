@@ -285,6 +285,12 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
   const [fTime, setFTime]             = useState('')
   const [fError, setFError]           = useState(false)
   const [actTab, setActTab]           = useState<'all' | 'today'>('all')
+  const [userMenu, setUserMenu]       = useState(false)
+  const [showPwModal, setShowPwModal] = useState(false)
+  const [pwForm, setPwForm]           = useState({ current: '', next: '', confirm: '' })
+  const [pwError, setPwError]         = useState('')
+  const [pwSuccess, setPwSuccess]     = useState(false)
+  const [pwSaving, setPwSaving]       = useState(false)
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -352,15 +358,103 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
           <span style={{ fontSize: 9, color: T.text3, letterSpacing: '0.08em', fontWeight: 700, background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`, borderRadius: 4, padding: '2px 6px' }}>INTELLIGENCE</span>
         </div>
         <div style={{ flex: 1 }} />
-        {[['Tasks','/tasks'],['Portal','/'],['Forms','/forms'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre']].map(([l, h]) => (
+        {[['Tasks','/tasks'],['Portal','/'],['Forms','/forms'],['Connect','/connect'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre']].map(([l, h]) => (
           <a key={l} href={h} style={{ color: T.text3, fontSize: 12, textDecoration: 'none', fontWeight: 600, letterSpacing: '0.04em', transition: 'color 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.color = T.text)}
             onMouseLeave={e => (e.currentTarget.style.color = T.text3)}>{l}</a>
         ))}
         <NotificationBell userEmail={currentUser.email} />
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: `${T.greenDim}33`, border: `1px solid ${T.greenDim}55`, color: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.02em' }}
-          onClick={signOut} title="Sign out">{initials}</div>
+
+        {/* ── User menu ──────────────────────────────────────────────── */}
+        <div style={{ position: 'relative' }}>
+          <div
+            onClick={() => setUserMenu(m => !m)}
+            style={{ width: 30, height: 30, borderRadius: '50%', background: `${T.greenDim}33`, border: `1px solid ${T.greenDim}55`, color: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.02em', userSelect: 'none' }}
+          >{initials}</div>
+
+          {userMenu && (
+            <>
+              {/* Click-away overlay */}
+              <div onClick={() => setUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
+              <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 100, background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 10, minWidth: 180, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                <div style={{ padding: '10px 14px', borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{currentUser.name}</div>
+                  <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>{currentUser.email}</div>
+                </div>
+                <button
+                  onClick={() => { setUserMenu(false); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); setPwSuccess(false); setShowPwModal(true) }}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 12, color: T.text2, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                  onMouseEnter={e => (e.currentTarget.style.background = `${T.border}44`)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  🔑 Change Password
+                </button>
+                <button
+                  onClick={signOut}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 12, color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderTop: `1px solid ${T.border}` }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  → Sign Out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </nav>
+
+      {/* ── Change Password Modal ─────────────────────────────────────────── */}
+      {showPwModal && (
+        <div onClick={e => e.target === e.currentTarget && setShowPwModal(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 16, width: '100%', maxWidth: 400, padding: 28 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 20 }}>Change Password</div>
+            {pwSuccess ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+                <div style={{ color: T.green, fontSize: 13, fontWeight: 600 }}>Password updated successfully</div>
+                <button onClick={() => setShowPwModal(false)} style={{ marginTop: 20, background: T.green, border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, color: 'white', cursor: 'pointer' }}>Done</button>
+              </div>
+            ) : (
+              <>
+                {[
+                  { label: 'Current Password', key: 'current' },
+                  { label: 'New Password',      key: 'next'    },
+                  { label: 'Confirm New',        key: 'confirm' },
+                ].map(f => (
+                  <div key={f.key} style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: T.text3, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 5 }}>{f.label}</label>
+                    <input
+                      type="password"
+                      value={(pwForm as Record<string,string>)[f.key]}
+                      onChange={e => setPwForm(p => ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: '100%', boxSizing: 'border-box', background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, color: T.text, outline: 'none' }}
+                    />
+                  </div>
+                ))}
+                {pwError && <div style={{ fontSize: 12, color: '#f87171', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>{pwError}</div>}
+                <div style={{ fontSize: 10, color: T.text3, marginBottom: 16, lineHeight: 1.6 }}>Min 8 chars · uppercase · number · special character</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setShowPwModal(false)} style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: 11, fontSize: 13, fontWeight: 600, color: T.text3, cursor: 'pointer' }}>Cancel</button>
+                  <button
+                    disabled={pwSaving}
+                    onClick={async () => {
+                      if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match'); return }
+                      setPwSaving(true); setPwError('')
+                      const res = await fetch('/api/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }) })
+                      const d = await res.json()
+                      setPwSaving(false)
+                      if (!res.ok) { setPwError(d.error ?? 'Error'); return }
+                      setPwSuccess(true)
+                    }}
+                    style={{ flex: 2, background: T.greenDim, border: 'none', borderRadius: 8, padding: 11, fontSize: 13, fontWeight: 700, color: 'white', cursor: pwSaving ? 'wait' : 'pointer', opacity: pwSaving ? 0.7 : 1 }}
+                  >{pwSaving ? 'Saving…' : 'Update Password'}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── HERO ────────────────────────────────────────────────────────── */}
       <div style={{ background: `linear-gradient(180deg, #0a1510 0%, ${T.bg} 100%)`, borderBottom: `1px solid ${T.border}`, padding: '36px 32px 28px' }}>
