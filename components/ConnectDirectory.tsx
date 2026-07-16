@@ -23,7 +23,7 @@ function parsePhones(phone: string | null, secondary: string | null): string[] {
   const all: string[] = []
   if (phone) all.push(...phone.split(/[,\/;]+/).map(p => p.trim()).filter(Boolean))
   if (secondary) all.push(...secondary.split(/[,\/;]+/).map(p => p.trim()).filter(Boolean))
-  return [...new Set(all)]
+  return Array.from(new Set(all))
 }
 
 type Category = { id: number; name: string }
