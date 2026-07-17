@@ -2,27 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exchangeCode, getZohoAccounts, getInboxFolder } from '@/lib/mail/zoho'
 import { encryptToken } from '@/lib/mail/encryption'
 import { query, execute } from '@/lib/database'
+import { verifyState } from '@/lib/mail/oauthState'
+import type { DataCenter } from '@/lib/mail/zoho'
 
 export const dynamic = 'force-dynamic'
-
-// We import verifyState from the authorize route to validate CSRF state
-// To avoid circular imports, we re-implement a simple in-memory store here
-// In production this should be a Redis or DB-backed store
-const pendingStates = new Map<string, { userId: string; dc: string; createdAt: number }>()
-
-// The authorize route writes to this shared map via module-level state
-// In a single Next.js instance this works; for multi-instance use DB/Redis
-export function registerState(state: string, userId: string, dc: string) {
-  pendingStates.set(state, { userId, dc, createdAt: Date.now() })
-}
-
-function popState(state: string): { userId: string; dc: string } | null {
-  const entry = pendingStates.get(state)
-  if (!entry) return null
-  if (Date.now() - entry.createdAt > 10 * 60 * 1000) { pendingStates.delete(state); return null }
-  pendingStates.delete(state)
-  return { userId: entry.userId, dc: entry.dc }
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -39,12 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/centre?tab=mail&error=missing_params`)
   }
 
-  // For single-instance: state is stored in authorize route's module-level map.
-  // We access it via a shared in-process reference.
-  // Retrieve state from authorize module
-  const { verifyState } = await import('@/app/api/mail/oauth/authorize/route')
   const stateData = verifyState(state)
-
   if (!stateData) {
     return NextResponse.redirect(`${baseUrl}/centre?tab=mail&error=invalid_state`)
   }
@@ -52,23 +30,17 @@ export async function GET(req: NextRequest) {
   const { userId, dc } = stateData
 
   try {
-    // Exchange code for tokens
-    const tokens = await exchangeCode(code, dc as import('@/lib/mail/zoho').DataCenter)
-
+    const tokens = await exchangeCode(code, dc as DataCenter)
     const expiry = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
     const accessEnc  = encryptToken(tokens.access_token)
     const refreshEnc = encryptToken(tokens.refresh_token)
 
-    // Get Zoho account info
-    const accounts = await getZohoAccounts(tokens.access_token, dc as import('@/lib/mail/zoho').DataCenter)
+    const accounts = await getZohoAccounts(tokens.access_token, dc as DataCenter)
     if (!accounts.length) throw new Error('No Zoho accounts found')
-
     const zohoAccount = accounts[0]
 
-    // Get INBOX folder ID for initial sync bookmarking
-    const inbox = await getInboxFolder(tokens.access_token, zohoAccount.accountId, dc as import('@/lib/mail/zoho').DataCenter)
+    const inbox = await getInboxFolder(tokens.access_token, zohoAccount.accountId, dc as DataCenter)
 
-    // Upsert mail_account record (supports reconnect)
     const existing = await query<{ id: number }>(
       `SELECT id FROM mail_accounts WHERE user_id = $1 AND provider = 'zoho'`,
       [userId]
