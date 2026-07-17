@@ -49,10 +49,10 @@ interface ExecData {
 }
 
 interface MailStats {
-  today: { received: number; unread: number; critical: number; action_required: number }
+  today: { total: number; unread: number; critical: number; high: number; medium: number; low: number; requires_action: number }
   unread_over_24h: number
-  category_breakdown: { category: string; count: number }[]
-  recent_critical: { subject: string; from_name: string; received_at: string }[]
+  categories: { category: string; count: string }[]
+  critical_emails: { subject: string; from_name: string; from_email: string; received_at: string }[]
 }
 
 interface ForecastItem {
@@ -975,10 +975,10 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                   {[
-                    { v: mailStats.today.received,       l: 'Received',       c: T.text2 },
-                    { v: mailStats.today.unread,         l: 'Unread',         c: mailStats.today.unread > 10 ? T.amber : T.text2 },
-                    { v: mailStats.today.critical,       l: 'Critical',       c: mailStats.today.critical > 0 ? T.red : T.green },
-                    { v: mailStats.today.action_required,l: 'Action Required',c: mailStats.today.action_required > 0 ? T.amber : T.green },
+                    { v: mailStats.today.total,           l: 'Received',       c: T.text2 },
+                    { v: mailStats.today.unread,          l: 'Unread',         c: mailStats.today.unread > 10 ? T.amber : T.text2 },
+                    { v: mailStats.today.critical,        l: 'Critical',       c: mailStats.today.critical > 0 ? T.red : T.green },
+                    { v: mailStats.today.requires_action, l: 'Action Required',c: mailStats.today.requires_action > 0 ? T.amber : T.green },
                   ].map((s, i) => (
                     <div key={s.l} style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}`, borderRight: i % 2 === 0 ? `1px solid ${T.border}` : 'none' }}>
                       <div style={{ fontSize: 22, fontWeight: 900, color: s.c, lineHeight: 1 }}>{s.v}</div>
@@ -992,10 +992,10 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                     <span style={{ fontSize: 11, color: T.amber, fontWeight: 600 }}>{mailStats.unread_over_24h} unread emails older than 24h</span>
                   </div>
                 )}
-                {mailStats.recent_critical.length > 0 && (
+                {mailStats.critical_emails.length > 0 && (
                   <div style={{ padding: '10px 16px 6px' }}>
                     <div style={{ fontSize: 9, fontWeight: 800, color: T.red, letterSpacing: '0.08em', marginBottom: 6 }}>CRITICAL EMAILS</div>
-                    {mailStats.recent_critical.slice(0, 2).map((e, i) => (
+                    {mailStats.critical_emails.slice(0, 2).map((e, i) => (
                       <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
                         <div style={{ width: 4, height: 4, borderRadius: '50%', background: T.red, flexShrink: 0, marginTop: 4, boxShadow: `0 0 4px ${T.red}88` }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1006,11 +1006,11 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                     ))}
                   </div>
                 )}
-                {mailStats.category_breakdown.length > 0 && (
+                {(mailStats.categories ?? []).length > 0 && (
                   <div style={{ padding: '8px 16px 12px', borderTop: `1px solid ${T.border}` }}>
                     <div style={{ fontSize: 9, fontWeight: 800, color: T.text3, letterSpacing: '0.08em', marginBottom: 6 }}>7-DAY CATEGORIES</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {mailStats.category_breakdown.slice(0, 5).map(c => (
+                      {(mailStats.categories ?? []).slice(0, 5).map(c => (
                         <span key={c.category} style={{ fontSize: 9, background: T.card2, border: `1px solid ${T.border}`, borderRadius: 4, padding: '2px 6px', color: T.text2, fontWeight: 600 }}>
                           {c.category} <span style={{ color: T.text3 }}>{c.count}</span>
                         </span>
