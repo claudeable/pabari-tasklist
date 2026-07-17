@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic'
 export async function POST() {
   const session = cookies().get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
-  if (!user || user.role !== 'admin') {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
