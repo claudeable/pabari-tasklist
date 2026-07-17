@@ -116,7 +116,7 @@ export async function persistAnalysis(
 
 // Generate the AI morning email briefing for the given user
 export async function generateEmailBriefing(
-  userId: number,
+  userId: string | number,
   firstName: string
 ): Promise<string> {
   const stats = await query<{
