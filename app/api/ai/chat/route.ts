@@ -4,6 +4,80 @@ import { verifyToken } from '@/lib/auth'
 import { query } from '@/lib/database'
 import Groq from 'groq-sdk'
 
+async function buildEmailContext(userId: string): Promise<string> {
+  try {
+    const account = await query<{ id: number; account_email: string }>(
+      `SELECT id, account_email FROM mail_accounts WHERE user_id = $1 AND provider = 'zoho' AND sync_status = 'active' LIMIT 1`,
+      [userId]
+    )
+    if (!account[0]) return ''
+
+    const aid = account[0].id
+    const [stats, criticals, actionable] = await Promise.all([
+      query<{ total: string; critical: string; high: string; unread: string; req_action: string }>(
+        `SELECT COUNT(e.id)::text AS total,
+                COUNT(CASE WHEN a.priority='Critical' THEN 1 END)::text AS critical,
+                COUNT(CASE WHEN a.priority='High' THEN 1 END)::text AS high,
+                COUNT(CASE WHEN e.is_read=false THEN 1 END)::text AS unread,
+                COUNT(CASE WHEN a.requires_action=true AND e.is_read=false THEN 1 END)::text AS req_action
+         FROM mail_emails e
+         LEFT JOIN mail_email_analysis a ON a.email_id = e.id
+         WHERE e.account_id = $1 AND e.is_archived=false AND e.received_at >= now() - interval '24 hours'`,
+        [aid]
+      ),
+      query<{ subject: string; from_name: string; from_email: string; summary: string; deadline: string; received_at: string }>(
+        `SELECT e.subject, e.from_name, e.from_email, a.summary, a.deadline,
+                e.received_at::text
+         FROM mail_emails e
+         JOIN mail_email_analysis a ON a.email_id = e.id
+         WHERE e.account_id = $1 AND a.priority='Critical' AND e.is_read=false AND e.is_archived=false
+         ORDER BY e.received_at DESC LIMIT 5`,
+        [aid]
+      ),
+      query<{ subject: string; from_name: string; summary: string; deadline: string; priority: string }>(
+        `SELECT e.subject, e.from_name, a.summary, a.deadline, a.priority
+         FROM mail_emails e
+         JOIN mail_email_analysis a ON a.email_id = e.id
+         WHERE e.account_id = $1 AND a.requires_action=true AND e.is_read=false AND e.is_archived=false
+           AND e.received_at >= now() - interval '48 hours'
+         ORDER BY CASE a.priority WHEN 'Critical' THEN 1 WHEN 'High' THEN 2 ELSE 3 END
+         LIMIT 10`,
+        [aid]
+      ),
+    ])
+
+    const s = stats[0]
+    if (!s || parseInt(s.total) === 0) return ''
+
+    const lines: string[] = [
+      `## Email Intelligence (${account[0].account_email} · last 24h)`,
+      `- Received: ${s.total} emails | Critical: ${s.critical} | High: ${s.high} | Unread: ${s.unread} | Need action: ${s.req_action}`,
+    ]
+
+    if (criticals.length > 0) {
+      lines.push(`Critical emails awaiting response:`)
+      criticals.forEach(e => {
+        const from = e.from_name || e.from_email
+        const dl   = e.deadline && e.deadline !== 'None' ? ` | deadline: ${e.deadline}` : ''
+        lines.push(`- "${e.subject}" from ${from}${dl} — ${e.summary}`)
+      })
+    }
+
+    if (actionable.length > 0) {
+      lines.push(`Emails requiring action:`)
+      actionable.forEach(e => {
+        const dl = e.deadline && e.deadline !== 'None' ? ` [${e.deadline}]` : ''
+        lines.push(`- [${e.priority}] "${e.subject}" from ${e.from_name}${dl} — ${e.summary}`)
+      })
+    }
+
+    lines.push('')
+    return lines.join('\n')
+  } catch {
+    return ''
+  }
+}
+
 export const dynamic = 'force-dynamic'
 
 const EXEC_NAMES = ['harshil', 'benson']
@@ -23,7 +97,7 @@ function isExecutive(user: { role: string; name: string }) {
 }
 
 // ── Context for Harshil (HK) — operational, approval-focused ─────────────
-async function buildHKContext(userName: string) {
+async function buildHKContext(userName: string, userId: string) {
   const now = today()
   const lines: string[] = [
     `## Executive Profile`,
@@ -150,6 +224,10 @@ async function buildHKContext(userName: string) {
     lines.push('')
   } catch { /**/ }
 
+  // Email intelligence
+  const emailCtx = await buildEmailContext(userId)
+  if (emailCtx) lines.push(emailCtx)
+
   // Delivery notes
   try {
     const dn = await query<{ total: string; active: string; cancelled: string; this_week: string }>(
@@ -193,7 +271,7 @@ async function buildHKContext(userName: string) {
 }
 
 // ── Context for Benson — strategic overview, not operational ─────────────
-async function buildBensonContext(userName: string) {
+async function buildBensonContext(userName: string, userId: string) {
   const now = today()
   const lines: string[] = [
     `## Executive Profile`,
@@ -340,7 +418,7 @@ async function buildBensonContext(userName: string) {
               COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text AS this_week
        FROM delivery_notes`
     )
-    const recent = await query<{ note_number: string; to_company: string; delivery_date: string }>(
+    const recent = await query<{ note_number: string; to_company: string; delivery_date: string }>(  // Benson delivery query
       `SELECT note_number, to_company, delivery_date FROM delivery_notes
        WHERE status='active' ORDER BY created_at DESC LIMIT 5`
     )
@@ -351,6 +429,10 @@ async function buildBensonContext(userName: string) {
     }
     lines.push('')
   } catch { /**/ }
+
+  // Email intelligence
+  const emailCtx2 = await buildEmailContext(userId)
+  if (emailCtx2) lines.push(emailCtx2)
 
   return lines.join('\n')
 }
@@ -378,8 +460,8 @@ export async function POST(req: NextRequest) {
   const isHK = firstName.toLowerCase() === 'harshil'
 
   const context = isHK
-    ? await buildHKContext(user.name ?? '')
-    : await buildBensonContext(user.name ?? '')
+    ? await buildHKContext(user.name ?? '', user.id)
+    : await buildBensonContext(user.name ?? '', user.id)
 
   const systemPrompt = isHK
     ? `You are the Pabari Executive AI — private decision intelligence for ${user.name}, Group Director (HK) at Pabari Group.

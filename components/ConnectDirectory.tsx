@@ -17,6 +17,7 @@ type Contact = {
   categories: string[] | null
   needs_review: boolean
   duplicate_group: string | null
+  contact_type: string
 }
 
 function parsePhones(phone: string | null, secondary: string | null): string[] {
@@ -34,6 +35,7 @@ const DEFAULT_TABS = ['All']
 const emptyForm = () => ({
   fullName: '', companyName: '', position: '', phone: '', email: '', country: '', address: '',
   categoryNames: [] as string[],
+  contactType: 'person' as string,
 })
 
 // ── Colours ───────────────────────────────────────────────────────────────────
@@ -155,14 +157,15 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
     e.stopPropagation()
     setEditId(c.id)
     setForm({
-      fullName:      c.full_name,
-      companyName:   c.company_name ?? '',
+      fullName:      c.contact_type === 'company' ? '' : c.full_name,
+      companyName:   c.company_name ?? (c.contact_type === 'company' ? c.full_name : ''),
       position:      c.position ?? '',
       phone:         c.phone ?? '',
       email:         c.email ?? '',
       country:       c.country ?? '',
       address:       c.address ?? '',
       categoryNames: c.categories ?? [],
+      contactType:   c.contact_type ?? 'person',
     })
     setFormError('')
     setShowForm(true)
@@ -188,7 +191,9 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
   }
 
   async function handleSave() {
-    if (!form.fullName.trim()) { setFormError('Name is required'); return }
+    const isCompany = form.contactType === 'company'
+    if (!isCompany && !form.fullName.trim()) { setFormError('Name is required'); return }
+    if (isCompany && !form.companyName.trim()) { setFormError('Company name is required'); return }
     setSaving(true); setFormError('')
     try {
       const url    = editId ? `/api/connect/contacts/${editId}` : '/api/connect/contacts'
@@ -348,16 +353,34 @@ export default function ConnectDirectory({ currentUser }: { currentUser: Session
 
             <div style={{ padding: '20px 20px 0' }}>
 
+              {/* Contact type toggle */}
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 7 }}>
+                  Contact Type
+                </label>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden', width: 'fit-content' }}>
+                  {(['person', 'company'] as const).map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setForm(f => ({ ...f, contactType: type }))}
+                      style={{ padding: '8px 20px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', textTransform: 'capitalize' as const, background: form.contactType === type ? C.brass : C.input, color: form.contactType === type ? '#12151c' : C.muted }}
+                    >
+                      {type === 'person' ? '👤 Person' : '🏢 Company'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Fields */}
-              {[
-                { label: 'Full Name *',   key: 'fullName',     type: 'text', placeholder: 'e.g. Jane Mwangi' },
-                { label: 'Company',       key: 'companyName',  type: 'text', placeholder: 'e.g. Kenya Commercial Bank' },
-                { label: 'Position',      key: 'position',     type: 'text', placeholder: 'e.g. Head of Finance' },
-                { label: 'Phone',         key: 'phone',        type: 'tel',  placeholder: '+254 700 000 000' },
-                { label: 'Email',         key: 'email',        type: 'email',placeholder: 'jane@company.com' },
-                { label: 'Country',       key: 'country',      type: 'text', placeholder: 'Kenya' },
-                { label: 'Address',       key: 'address',      type: 'text', placeholder: 'Westlands, Nairobi' },
-              ].map(f => (
+              {([
+                form.contactType !== 'company' ? { label: 'Full Name *', key: 'fullName', type: 'text', placeholder: 'e.g. Jane Mwangi' } : null,
+                { label: form.contactType === 'company' ? 'Company Name *' : 'Company', key: 'companyName', type: 'text', placeholder: 'e.g. Kenya Commercial Bank' },
+                { label: 'Position',  key: 'position', type: 'text', placeholder: 'e.g. Head of Finance' },
+                { label: 'Phone',     key: 'phone',    type: 'tel',  placeholder: '+254 700 000 000' },
+                { label: 'Email',     key: 'email',    type: 'email',placeholder: 'jane@company.com' },
+                { label: 'Country',   key: 'country',  type: 'text', placeholder: 'Kenya' },
+                { label: 'Address',   key: 'address',  type: 'text', placeholder: 'Westlands, Nairobi' },
+              ] as ({ label: string; key: string; type: string; placeholder: string } | null)[]).filter(Boolean).map(f => f && (
                 <div key={f.key} style={{ marginBottom: 14 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 5 }}>
                     {f.label}
@@ -505,11 +528,22 @@ function ContactCard({ contact, expanded, onToggle, onCallRequest, onEdit, onDel
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>{c.full_name}</div>
-          <div style={{ marginTop: 2, fontSize: 12, color: '#8b93a3' }}>
-            {c.company_name}
-            {c.position && <span style={{ color: '#b7bdc9' }}> · {c.position}</span>}
-          </div>
+          {c.contact_type === 'company' ? (
+            /* Company-only contact */
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>{c.company_name ?? c.full_name}</div>
+              <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(181,131,58,0.18)', border: '1px solid #b5833a', color: '#b5833a', borderRadius: 4, padding: '2px 6px', letterSpacing: '0.06em', textTransform: 'uppercase' as const, flexShrink: 0 }}>Company</span>
+            </div>
+          ) : (
+            /* Person contact */
+            <>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>{c.full_name}</div>
+              <div style={{ marginTop: 2, fontSize: 12, color: '#8b93a3' }}>
+                {c.company_name}
+                {c.position && <span style={{ color: '#b7bdc9' }}> · {c.position}</span>}
+              </div>
+            </>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
             {c.country && <Tag>{c.country}</Tag>}
             {currentCats.map(cat => <Tag key={cat}>{cat}</Tag>)}
@@ -639,7 +673,9 @@ function CallModal({ contact, onCancel }: { contact: Contact; onCancel: () => vo
         <div style={{ textAlign: 'center', fontFamily: 'monospace', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#5c6272' }}>
           {phones.length > 1 ? 'Select number to call' : 'Call'}
         </div>
-        <div style={{ marginTop: 6, textAlign: 'center', fontSize: 19, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>{contact.full_name}</div>
+        <div style={{ marginTop: 6, textAlign: 'center', fontSize: 19, fontWeight: 700, color: '#f2ead9', fontFamily: 'Georgia,serif' }}>
+          {contact.contact_type === 'company' ? (contact.company_name ?? contact.full_name) : contact.full_name}
+        </div>
 
         {phones.length > 1 ? (
           /* Multiple numbers — show each as a call button */

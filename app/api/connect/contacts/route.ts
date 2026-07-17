@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     SELECT
       c.id, c.full_name, c.position, c.phone, c.email, c.country, c.address,
       c.needs_review, c.duplicate_group, c.card_front_image_url, c.card_back_image_url,
-      co.id AS company_id, co.name AS company_name,
+      c.contact_type, co.id AS company_id, co.name AS company_name,
       ARRAY_AGG(DISTINCT cat.name) FILTER (WHERE cat.name IS NOT NULL) AS categories
     FROM connect_contacts c
     LEFT JOIN connect_companies co ON co.id = c.company_id
@@ -95,10 +95,14 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { fullName, companyName, position, phone, email, country, address, categoryNames } = body
+  const { fullName, companyName, position, phone, email, country, address, categoryNames, contactType } = body
+  const isCompany = contactType === 'company'
 
-  if (!fullName?.trim()) {
-    return NextResponse.json({ error: 'fullName is required' }, { status: 400 })
+  if (!isCompany && !fullName?.trim()) {
+    return NextResponse.json({ error: 'fullName is required for person contacts' }, { status: 400 })
+  }
+  if (isCompany && !companyName?.trim()) {
+    return NextResponse.json({ error: 'companyName is required for company contacts' }, { status: 400 })
   }
 
   try {
@@ -114,12 +118,15 @@ export async function POST(req: NextRequest) {
       companyId = rows[0].id
     }
 
+    // For company contacts use company name as full_name placeholder
+    const effectiveName = isCompany ? (companyName?.trim() ?? '') : fullName.trim()
+
     const rows = await query<{ id: number }>(
       `INSERT INTO connect_contacts
-         (company_id, full_name, position, phone, email, country, address, source)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'manual')
+         (company_id, full_name, position, phone, email, country, address, source, contact_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',$8)
        RETURNING id`,
-      [companyId, fullName.trim(), position ?? null, phone ?? null, email ?? null, country ?? null, address ?? null]
+      [companyId, effectiveName, position ?? null, phone ?? null, email ?? null, country ?? null, address ?? null, isCompany ? 'company' : 'person']
     )
     const contactId = rows[0].id
 

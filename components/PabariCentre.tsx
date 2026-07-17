@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { SessionUser } from '@/types'
 import { NotifItem } from './NotificationBell'
 import ChatPanel from './ChatPanel'
+import MailInbox from './MailInbox'
 
-type Tab = 'inbox' | 'chat' | 'ai'
+type Tab = 'inbox' | 'chat' | 'ai' | 'mail'
 
 interface AiMessage { role: 'user' | 'assistant'; content: string }
 
@@ -301,8 +302,8 @@ async function signOut() {
   window.location.href = '/login'
 }
 
-export default function PabariCentre({ currentUser }: { currentUser: SessionUser }) {
-  const [tab,        setTab]        = useState<Tab>('inbox')
+export default function PabariCentre({ currentUser, initialTab }: { currentUser: SessionUser; initialTab?: Tab }) {
+  const [tab,        setTab]        = useState<Tab>(initialTab ?? 'inbox')
   const [filter,     setFilter]     = useState<Filter>('all')
   const [items,      setItems]      = useState<NotifItem[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -484,8 +485,9 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
             </div>
             {(
               [
-                { key: 'inbox', icon: '📥', label: 'Inbox', badge: counts.all },
-                { key: 'chat',  icon: '💬', label: 'Chat',  badge: 0 },
+                { key: 'inbox', icon: '📥', label: 'Inbox',             badge: counts.all },
+                { key: 'mail',  icon: '📧', label: 'Zoho Mail',         badge: 0 },
+                { key: 'chat',  icon: '💬', label: 'Chat',              badge: 0 },
                 ...(isExecUser(currentUser.name, currentUser.role)
                   ? [{ key: 'ai' as Tab, icon: '⚡', label: 'Pabari Intelligence', badge: 0 }]
                   : []),
@@ -528,15 +530,15 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
         )}
 
         {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: (tab === 'chat' || tab === 'ai') ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: (tab === 'chat' || tab === 'ai' || tab === 'mail') ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
 
           {/* Mobile tab bar */}
           {isMobile && (
             <div style={{ display: 'flex', background: 'white', borderBottom: '1px solid #e5e7eb', padding: '0 8px' }}>
-              {(['inbox', 'chat', ...(isExecUser(currentUser.name, currentUser.role) ? ['ai'] : [])] as Tab[]).map(t => (
+              {(['inbox', 'mail', 'chat', ...(isExecUser(currentUser.name, currentUser.role) ? ['ai'] : [])] as Tab[]).map(t => (
                 <button key={t} onClick={() => setTab(t)}
-                  style={{ flex: 1, padding: '12px 4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, color: tab === t ? '#1a3a2a' : '#6b7280', borderBottom: `2px solid ${tab === t ? '#1a3a2a' : 'transparent'}` }}>
-                  {t === 'inbox' ? '📥 Inbox' : t === 'chat' ? '💬 Chat' : '⚡ AI'}
+                  style={{ flex: 1, padding: '12px 4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, fontWeight: tab === t ? 700 : 400, color: tab === t ? '#1a3a2a' : '#6b7280', borderBottom: `2px solid ${tab === t ? '#1a3a2a' : 'transparent'}` }}>
+                  {t === 'inbox' ? '📥' : t === 'mail' ? '📧' : t === 'chat' ? '💬' : '⚡'}
                 </button>
               ))}
             </div>
@@ -627,6 +629,11 @@ export default function PabariCentre({ currentUser }: { currentUser: SessionUser
           {/* ── CHAT TAB ────────────────────────────────────────────────────── */}
           {tab === 'chat' && (
             <ChatPanel currentUser={currentUser} />
+          )}
+
+          {/* ── MAIL TAB ────────────────────────────────────────────────────── */}
+          {tab === 'mail' && (
+            <MailInbox currentUser={currentUser} />
           )}
 
           {/* ── AI TAB ──────────────────────────────────────────────────────── */}

@@ -71,7 +71,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/profile')      ||
     pathname.startsWith('/api/push')          ||
     pathname.startsWith('/connect')           ||
-    pathname.startsWith('/api/connect')
+    pathname.startsWith('/api/connect')       ||
+    // Mail routes — oauth/callback is public (Zoho redirects here without cookie)
+    (pathname.startsWith('/api/mail') && !pathname.startsWith('/api/mail/oauth/callback'))
 
   if (!isProtected) return NextResponse.next()
 
@@ -111,5 +113,6 @@ export const config = {
     '/api/push/:path*',
     '/connect', '/connect/:path*',
     '/api/connect/:path*',
+    '/api/mail', '/api/mail/:path*',
   ],
 }

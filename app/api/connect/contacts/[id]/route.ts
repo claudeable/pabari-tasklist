@@ -36,9 +36,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { fullName, companyName, position, phone, email, country, address, categoryNames } = body
+  const { fullName, companyName, position, phone, email, country, address, categoryNames, contactType } = body
+  const isCompany = contactType === 'company'
 
-  if (!fullName?.trim()) return NextResponse.json({ error: 'fullName is required' }, { status: 400 })
+  if (!isCompany && !fullName?.trim()) return NextResponse.json({ error: 'fullName is required' }, { status: 400 })
+  if (isCompany && !companyName?.trim()) return NextResponse.json({ error: 'companyName is required for company contacts' }, { status: 400 })
 
   // Upsert company
   let companyId: number | null = null
@@ -53,13 +55,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     companyId = rows[0].id
   }
 
+  const effectiveName = isCompany ? (companyName?.trim() ?? '') : fullName.trim()
+
   await execute(
     `UPDATE connect_contacts SET
        full_name = $1, company_id = $2, position = $3,
        phone = $4, email = $5, country = $6, address = $7,
-       updated_at = now()
-     WHERE id = $8`,
-    [fullName.trim(), companyId, position ?? null, phone ?? null, email ?? null, country ?? null, address ?? null, params.id]
+       contact_type = $8, updated_at = now()
+     WHERE id = $9`,
+    [effectiveName, companyId, position ?? null, phone ?? null, email ?? null, country ?? null, address ?? null, isCompany ? 'company' : 'person', params.id]
   )
 
   // Sync categories

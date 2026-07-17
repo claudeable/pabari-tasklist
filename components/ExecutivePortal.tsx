@@ -48,6 +48,13 @@ interface ExecData {
   workload: WorkloadRow[]; byCompany: CompanyRow[]
 }
 
+interface MailStats {
+  today: { received: number; unread: number; critical: number; action_required: number }
+  unread_over_24h: number
+  category_breakdown: { category: string; count: number }[]
+  recent_critical: { subject: string; from_name: string; received_at: string }[]
+}
+
 interface ForecastItem {
   category: string
   observation: string
@@ -284,6 +291,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
   const [fLoading, setFLoading]       = useState(true)
   const [fTime, setFTime]             = useState('')
   const [fError, setFError]           = useState(false)
+  const [mailStats, setMailStats]      = useState<MailStats | null>(null)
   const [actTab, setActTab]           = useState<'all' | 'today'>('all')
   const [isMobile, setIsMobile]       = useState(false)
   const [navOpen,  setNavOpen]        = useState(false)
@@ -328,6 +336,13 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
       .finally(() => setFLoading(false))
   }
   useEffect(() => { loadForecast() }, [])
+
+  useEffect(() => {
+    fetch('/api/mail/stats', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMailStats(d) })
+      .catch(() => {})
+  }, [])
 
   // Scope task lists by role:
   // HK sees all action-required and approval tasks (he owns those queues)
@@ -944,6 +959,68 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               </div>
             </div>
           </div>
+
+          {/* Email Intelligence */}
+          {mailStats && (
+            <div style={{ ...card, border: `1px solid #1a2a3a` }}>
+              <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#080f14' }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em' }}>EMAIL INTELLIGENCE</div>
+                  <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Today's inbox signal</div>
+                </div>
+                <a href="/centre?tab=mail" style={{ fontSize: 10, color: '#60a5fa', textDecoration: 'none', fontWeight: 700, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 6, padding: '4px 10px' }}>
+                  Open →
+                </a>
+              </div>
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                  {[
+                    { v: mailStats.today.received,       l: 'Received',       c: T.text2 },
+                    { v: mailStats.today.unread,         l: 'Unread',         c: mailStats.today.unread > 10 ? T.amber : T.text2 },
+                    { v: mailStats.today.critical,       l: 'Critical',       c: mailStats.today.critical > 0 ? T.red : T.green },
+                    { v: mailStats.today.action_required,l: 'Action Required',c: mailStats.today.action_required > 0 ? T.amber : T.green },
+                  ].map((s, i) => (
+                    <div key={s.l} style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}`, borderRight: i % 2 === 0 ? `1px solid ${T.border}` : 'none' }}>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: s.c, lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 9, color: T.text3, marginTop: 3, fontWeight: 600 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                {mailStats.unread_over_24h > 0 && (
+                  <div style={{ padding: '8px 16px', background: 'rgba(245,158,11,0.06)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 9, color: T.amber }}>⚠</span>
+                    <span style={{ fontSize: 11, color: T.amber, fontWeight: 600 }}>{mailStats.unread_over_24h} unread emails older than 24h</span>
+                  </div>
+                )}
+                {mailStats.recent_critical.length > 0 && (
+                  <div style={{ padding: '10px 16px 6px' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: T.red, letterSpacing: '0.08em', marginBottom: 6 }}>CRITICAL EMAILS</div>
+                    {mailStats.recent_critical.slice(0, 2).map((e, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                        <div style={{ width: 4, height: 4, borderRadius: '50%', background: T.red, flexShrink: 0, marginTop: 4, boxShadow: `0 0 4px ${T.red}88` }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, color: T.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
+                          <div style={{ fontSize: 9, color: T.text3 }}>{e.from_name} · {fmtRelative(e.received_at)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {mailStats.category_breakdown.length > 0 && (
+                  <div style={{ padding: '8px 16px 12px', borderTop: `1px solid ${T.border}` }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: T.text3, letterSpacing: '0.08em', marginBottom: 6 }}>7-DAY CATEGORIES</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {mailStats.category_breakdown.slice(0, 5).map(c => (
+                        <span key={c.category} style={{ fontSize: 9, background: T.card2, border: `1px solid ${T.border}`, borderRadius: 4, padding: '2px 6px', color: T.text2, fontWeight: 600 }}>
+                          {c.category} <span style={{ color: T.text3 }}>{c.count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Business Health — by domain */}
           <div style={card}>
