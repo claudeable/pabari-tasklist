@@ -17,7 +17,7 @@ export async function POST() {
     await execute(`
       CREATE TABLE IF NOT EXISTS mail_accounts (
         id                    SERIAL PRIMARY KEY,
-        user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id               TEXT    NOT NULL,
         provider              TEXT    NOT NULL DEFAULT 'zoho',
         account_email         TEXT    NOT NULL,
         zoho_account_id       TEXT,
@@ -39,7 +39,7 @@ export async function POST() {
     await execute(`
       CREATE TABLE IF NOT EXISTS mail_emails (
         id                SERIAL PRIMARY KEY,
-        account_id        INTEGER NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+        account_id        INTEGER NOT NULL,
         zoho_message_id   TEXT    NOT NULL,
         zoho_thread_id    TEXT,
         from_email        TEXT,
@@ -65,7 +65,7 @@ export async function POST() {
     await execute(`
       CREATE TABLE IF NOT EXISTS mail_email_analysis (
         id                  SERIAL PRIMARY KEY,
-        email_id            INTEGER NOT NULL REFERENCES mail_emails(id) ON DELETE CASCADE UNIQUE,
+        email_id            INTEGER NOT NULL UNIQUE,
         priority            TEXT    CHECK (priority IN ('Critical','High','Medium','Low')),
         category            TEXT,
         requires_action     BOOLEAN NOT NULL DEFAULT false,
@@ -81,7 +81,7 @@ export async function POST() {
     await execute(`
       CREATE TABLE IF NOT EXISTS mail_email_labels (
         id          SERIAL PRIMARY KEY,
-        email_id    INTEGER NOT NULL REFERENCES mail_emails(id) ON DELETE CASCADE,
+        email_id    INTEGER NOT NULL,
         label       TEXT    NOT NULL,
         UNIQUE(email_id, label)
       )
@@ -91,10 +91,10 @@ export async function POST() {
     await execute(`
       CREATE TABLE IF NOT EXISTS mail_email_tasks (
         id          SERIAL PRIMARY KEY,
-        email_id    INTEGER NOT NULL REFERENCES mail_emails(id) ON DELETE CASCADE,
+        email_id    INTEGER NOT NULL,
         task_id     INTEGER NOT NULL,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        created_by  INTEGER REFERENCES users(id),
+        created_by  TEXT,
         UNIQUE(email_id, task_id)
       )
     `)
@@ -103,8 +103,8 @@ export async function POST() {
     await execute(`
       CREATE TABLE IF NOT EXISTS mail_notification_queue (
         id          SERIAL PRIMARY KEY,
-        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        email_id    INTEGER NOT NULL REFERENCES mail_emails(id) ON DELETE CASCADE,
+        user_id     TEXT    NOT NULL,
+        email_id    INTEGER NOT NULL,
         type        TEXT    NOT NULL DEFAULT 'email_critical',
         title       TEXT,
         body        TEXT,
