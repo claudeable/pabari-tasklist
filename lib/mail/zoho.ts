@@ -268,10 +268,10 @@ export async function moveMessageToTrash(
 
 // ── Account record helpers ────────────────────────────────────────────────────
 
-export async function getMailAccount(userId: number): Promise<MailAccount | null> {
+export async function getMailAccount(userId: string | number): Promise<MailAccount | null> {
   const rows = await query<MailAccount>(
     `SELECT * FROM mail_accounts WHERE user_id = $1 AND provider = 'zoho' LIMIT 1`,
-    [userId]
+    [String(userId)]
   )
   return rows[0] ?? null
 }

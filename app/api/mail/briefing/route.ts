@@ -12,11 +12,11 @@ export async function GET() {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const account = await getMailAccount(parseInt(user.id))
+  const account = await getMailAccount(user.id)
   if (!account) return NextResponse.json({ connected: false, briefing: '' })
 
   const firstName = user.name.split(' ')[0]
-  const briefing  = await generateEmailBriefing(parseInt(user.id), firstName)
+  const briefing  = await generateEmailBriefing(user.id, firstName)
 
   return NextResponse.json({ connected: true, briefing })
 }

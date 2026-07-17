@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const user = await auth()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const account = await getMailAccount(parseInt(user.id))
+  const account = await getMailAccount(user.id)
   if (!account) return NextResponse.json({ connected: false, emails: [], total: 0 })
 
   const { searchParams } = req.nextUrl

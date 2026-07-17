@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const user = await auth()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const account = await getMailAccount(parseInt(user.id))
+  const account = await getMailAccount(user.id)
   if (!account) return NextResponse.json({ error: 'No mail account' }, { status: 404 })
 
   const email = await query<{
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   await execute(
     `INSERT INTO mail_email_tasks (email_id, task_id, created_by)
      VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-    [e.id, taskId, parseInt(user.id)]
+    [e.id, taskId, user.id]
   )
 
   return NextResponse.json({ ok: true, task_id: taskId })

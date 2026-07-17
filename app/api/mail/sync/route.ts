@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       const user = session?.value ? await verifyToken(session.value) : null
       if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-      const account = await getMailAccount(parseInt(user.id))
+      const account = await getMailAccount(user.id)
       if (!account) return NextResponse.json({ ok: true, fetched: 0, message: 'No account connected' })
 
       const result = await syncAccount(account)
