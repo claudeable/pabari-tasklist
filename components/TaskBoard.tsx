@@ -187,7 +187,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'>('active')
-  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|''>('')
+  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|''>('')
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
   const [pwError,        setPwError]        = useState('')
@@ -433,9 +433,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }, [tasks])
 
   const dirAttention = useMemo(() => ({
-    pendingReview:  visibleTasks.filter(t => t.status === 'in-review'),
-    needsComment:   visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired'),
-    actionRequired: visibleTasks.filter(t => t.status === 'action-required'),
+    pendingReview:   visibleTasks.filter(t => t.status === 'in-review'),
+    needsComment:    visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired'),
+    actionRequired:  visibleTasks.filter(t => t.status === 'action-required'),
+    financeCategory: visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired'),
   }), [visibleTasks])
 
   const filtered = useMemo(() => {
@@ -443,6 +444,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     if (directorFilter === 'pending-review')   list = visibleTasks.filter(t => t.status === 'in-review')
     if (directorFilter === 'needs-comment')     list = visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired')
     if (directorFilter === 'action-required')   list = visibleTasks.filter(t => t.status === 'action-required')
+    if (directorFilter === 'finance')           list = visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
@@ -1174,16 +1176,21 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         {/* SIDEBAR — hidden on mobile */}
         <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8,display:isMobile?'none':'block'}}>
 
-          {/* My Attention — Harshil and admin only */}
-          {perms.showAttentionPanel && (
+          {/* My Attention — directors/admin, plus Finance row for whitelist */}
+          {(perms.showAttentionPanel || canSeeFinance) && (
             <>
               <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#b5833a',letterSpacing:'0.7px',textTransform:'uppercase'}}>
                 My Attention
               </div>
               {[
-                {label:'Pending My Review',   val:'pending-review'   as const, count:dirAttention.pendingReview.length,   dot:'#1d4ed8', desc:'In-review — ready for sign-off'},
-                {label:'Needs HK Comment',    val:'needs-comment'    as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'Open tasks with no comment yet'},
-                {label:'Action Required',     val:'action-required'  as const, count:dirAttention.actionRequired.length,  dot:'#dc2626', desc:'Flagged for escalation'},
+                ...(perms.showAttentionPanel ? [
+                  {label:'Pending My Review',   val:'pending-review'   as const, count:dirAttention.pendingReview.length,   dot:'#1d4ed8', desc:'In-review — ready for sign-off'},
+                  {label:'Needs HK Comment',    val:'needs-comment'    as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'Open tasks with no comment yet'},
+                  {label:'Action Required',     val:'action-required'  as const, count:dirAttention.actionRequired.length,  dot:'#dc2626', desc:'Flagged for escalation'},
+                ] : []),
+                ...(canSeeFinance ? [
+                  {label:'Finance',             val:'finance'          as const, count:dirAttention.financeCategory.length, dot:'#15803d', desc:'Active Finance category tasks'},
+                ] : []),
               ].map(item=>(
                 <div key={item.val}
                   onClick={()=>{
