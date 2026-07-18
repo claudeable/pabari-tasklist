@@ -516,9 +516,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       body: JSON.stringify({ hod_comment: text }),
     })
     if (res.ok) {
-      const updated = await res.json()
-      setTasks(prev => prev.map(t => t.id===taskId ? updated : t))
-      if (activeTask?.id===taskId) setActiveTask(updated)
+      setTasks(prev => prev.map(t => t.id===taskId ? {...t, hod_comment:text} : t))
+      if (activeTask?.id===taskId) setActiveTask(p => p ? {...p, hod_comment:text} : p)
     }
     setHodEditId(null); setHodDraft('')
   }
@@ -529,9 +528,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       body: JSON.stringify({ legal_comment: text }),
     })
     if (res.ok) {
-      const updated = await res.json()
-      setTasks(prev => prev.map(t => t.id===taskId ? updated : t))
-      if (activeTask?.id===taskId) setActiveTask(updated)
+      setTasks(prev => prev.map(t => t.id===taskId ? {...t, legal_comment:text} : t))
+      if (activeTask?.id===taskId) setActiveTask(p => p ? {...p, legal_comment:text} : p)
     }
     setLegalEditId(null); setLegalDraft('')
   }

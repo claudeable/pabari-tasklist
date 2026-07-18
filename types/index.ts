@@ -128,7 +128,6 @@ export const FINANCE_VISIBLE_EMAILS = new Set([
   'yaynalem@usm.co.ke',
   'rkrishnan@usm.co.ke',
   'ateferi@kwale-group.com',
-  'admin@usm.co.ke',
 ])
 
 export interface TaskAttachment {
