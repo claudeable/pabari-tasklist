@@ -573,6 +573,15 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     })
     const { update } = await res.json()
     const u = update as TaskUpdate
+    // Upload image attached to this update
+    if (updateFile) {
+      const fd = new FormData()
+      fd.append('file', updateFile)
+      fd.append('update_id', u.id)
+      const ar = await fetch(`/api/tasks/${activeTask.id}/attachments`, { method:'POST', body:fd, credentials:'include' })
+      if (ar.ok) { const att = await ar.json(); setAttachments(prev => [...prev, att]) }
+      setUpdateFile(null)
+    }
     setTasks(prev => prev.map(t => t.id===activeTask.id
       ? {...t, task_updates:[u,...(t.task_updates||[])]} : t))
     setActiveTask(p => p ? {...p, task_updates:[u,...(p.task_updates||[])]} : p)
@@ -591,6 +600,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       }),
     })
     const { task } = await res.json()
+    // Upload any files attached at creation
+    if (newTaskFiles.length > 0) {
+      await Promise.all(newTaskFiles.map(file => {
+        const fd = new FormData(); fd.append('file', file)
+        return fetch(`/api/tasks/${task.id}/attachments`, { method:'POST', body:fd, credentials:'include' })
+      }))
+      setNewTaskFiles([])
+    }
     const withUpdates: Task = {
       ...task,
       task_updates: form.initial_update
@@ -1356,7 +1373,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   {label:'Company',    key:'company',    opts: isKiscolOnly ? ['KISCOL'] : [...COMPANIES]},
                   {label:'Section',    key:'section',    opts:[...SECTIONS]},
                   {label:'Date',       key:'date',       opts:null},
-                  {label:'Category',   key:'category',   opts:[...CATEGORIES]},
+                  {label:'Category',   key:'category',   opts:[...CATEGORIES].filter(c => c !== 'Finance' || canSeeFinance)},
                   {label:'Responsible',key:'responsible',opts:[...PEOPLE]},
                   {label:'Payment',    key:'payment',    opts:['Non-Payment','Payment']},
                   {label:'Status',     key:'status',     opts:Object.keys(STATUS_LABELS)},
@@ -1471,6 +1488,32 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   </div>
                 )}
               </div>
+              {/* Attachments */}
+              <div style={{marginBottom:10}}>
+                <input ref={taskFileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                  style={{display:'none'}}
+                  onChange={e => {
+                    const files = Array.from(e.target.files || [])
+                    setNewTaskFiles(prev => [...prev, ...files])
+                    e.target.value = ''
+                  }}/>
+                <button type="button" onClick={()=>taskFileRef.current?.click()}
+                  style={{background:'#f9fafb',border:'1px dashed #d1d5db',borderRadius:4,padding:'6px 12px',fontSize:11,cursor:'pointer',color:'#6b7280',display:'flex',alignItems:'center',gap:6}}>
+                  📎 Attach files / photos
+                </button>
+                {newTaskFiles.length > 0 && (
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
+                    {newTaskFiles.map((f,i) => (
+                      <div key={i} style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:4,padding:'3px 8px',fontSize:11,display:'flex',alignItems:'center',gap:5}}>
+                        <span>{f.name.length > 20 ? f.name.slice(0,18)+'…' : f.name}</span>
+                        <button onClick={()=>setNewTaskFiles(prev=>prev.filter((_,j)=>j!==i))}
+                          style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:12,padding:0,lineHeight:1}}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
                 <button onClick={()=>setShowAddForm(false)} style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'6px 14px',fontSize:12,cursor:'pointer'}}>Cancel</button>
                 <button onClick={addTask} disabled={saving||!form.particulars.trim()}
@@ -2064,13 +2107,31 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     </div>
                     <div style={{borderLeft:'2px solid #d1d5db',paddingLeft:13,display:'flex',flexDirection:'column',gap:10}}>
                       {/* App-added updates (newest first) */}
-                      {panelAppUpds.map((u)=>(
-                        <div key={u.id} style={{position:'relative'}}>
-                          <div style={{position:'absolute',left:-17,top:4,width:8,height:8,borderRadius:'50%',background:'#1a3a2a',border:'2px solid white',outline:'2px solid #1a3a2a'}}/>
-                          <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2}}>{u.date}</div>
-                          <div style={{fontSize:12,color:'#374151',lineHeight:1.45}}>{u.text}</div>
-                        </div>
-                      ))}
+                      {panelAppUpds.map((u)=>{
+                        const updAtts = attachments.filter(a => a.update_id === u.id)
+                        return (
+                          <div key={u.id} style={{position:'relative'}}>
+                            <div style={{position:'absolute',left:-17,top:4,width:8,height:8,borderRadius:'50%',background:'#1a3a2a',border:'2px solid white',outline:'2px solid #1a3a2a'}}/>
+                            <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2}}>{u.date}</div>
+                            <div style={{fontSize:12,color:'#374151',lineHeight:1.45}}>{u.text}</div>
+                            {updAtts.length > 0 && (
+                              <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
+                                {updAtts.map(a => a.mime_type.startsWith('image/') ? (
+                                  <a key={a.id} href={`/api/tasks/${activeTask.id}/attachments/${a.id}/view`} target="_blank" rel="noreferrer">
+                                    <img src={`/api/tasks/${activeTask.id}/attachments/${a.id}/view`}
+                                      alt={a.name} style={{width:90,height:72,objectFit:'cover',borderRadius:5,border:'1px solid #e5e7eb',cursor:'pointer'}}/>
+                                  </a>
+                                ) : (
+                                  <a key={a.id} href={`/api/tasks/${activeTask.id}/attachments/${a.id}/view`} target="_blank" rel="noreferrer"
+                                    style={{fontSize:11,color:'#1d4ed8',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:4,padding:'3px 8px',textDecoration:'none',display:'flex',alignItems:'center',gap:4}}>
+                                    📎 {a.name.length > 22 ? a.name.slice(0,20)+'…' : a.name}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                       {/* Original updates string — no date pattern, show raw */}
                       {panelParsed.length === 0 && activeTask.updates?.trim() && (
                         <div style={{position:'relative'}}>
@@ -2099,6 +2160,28 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   </>
                 )
               })()}
+
+              {/* Task-level attachments (not tied to an update) */}
+              {attachments.filter(a => !a.update_id).length > 0 && (
+                <div style={{marginTop:14}}>
+                  <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.5px',marginBottom:6,paddingBottom:4,borderBottom:'1px solid #f3f4f6'}}>
+                    Attachments ({attachments.filter(a=>!a.update_id).length})
+                  </div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                    {attachments.filter(a => !a.update_id).map(a => a.mime_type.startsWith('image/') ? (
+                      <a key={a.id} href={`/api/tasks/${activeTask.id}/attachments/${a.id}/view`} target="_blank" rel="noreferrer">
+                        <img src={`/api/tasks/${activeTask.id}/attachments/${a.id}/view`}
+                          alt={a.name} style={{width:100,height:80,objectFit:'cover',borderRadius:6,border:'1px solid #e5e7eb',cursor:'pointer'}}/>
+                      </a>
+                    ) : (
+                      <a key={a.id} href={`/api/tasks/${activeTask.id}/attachments/${a.id}/view`} target="_blank" rel="noreferrer"
+                        style={{fontSize:11,color:'#1d4ed8',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'5px 10px',textDecoration:'none',display:'flex',alignItems:'center',gap:5}}>
+                        📎 {a.name.length > 25 ? a.name.slice(0,23)+'…' : a.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* CHANGE LOG */}
               {taskAudit.length > 0 && (() => {
@@ -2195,6 +2278,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 <textarea value={comment} onChange={e=>setComment(e.target.value)}
                   rows={3} placeholder="Add a progress note…"
                   style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'7px 8px',fontSize:12,resize:'none',fontFamily:'inherit',marginBottom:6}}/>
+                {/* Image/file attachment for this update */}
+                <input ref={updateFileRef} type="file" accept="image/*,.pdf,.doc,.docx"
+                  style={{display:'none'}}
+                  onChange={e => { setUpdateFile(e.target.files?.[0] ?? null); e.target.value = '' }}/>
+                <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:6}}>
+                  <button type="button" onClick={()=>updateFileRef.current?.click()}
+                    style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:4,padding:'4px 10px',fontSize:11,cursor:'pointer',color:'#6b7280'}}>
+                    📷 {updateFile ? updateFile.name.slice(0,22) : 'Attach photo / file'}
+                  </button>
+                  {updateFile && (
+                    <button onClick={()=>setUpdateFile(null)}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:13}}>✕</button>
+                  )}
+                </div>
                 <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
                   <button onClick={()=>setActiveTask(null)} style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer'}}>Close</button>
                   <button onClick={postUpdate} disabled={saving||!comment.trim()}
