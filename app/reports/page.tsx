@@ -12,7 +12,6 @@ export default async function ReportsPage() {
   const currentUser = session?.value ? await verifyToken(session.value) : null
 
   if (!currentUser) redirect('/login')
-  if (currentUser.role === 'staff') redirect('/tasks')
 
   const reports = await getReports()
 
