@@ -340,7 +340,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
   useEffect(() => {
     fetch('/api/mail/stats', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setMailStats(d) })
+      .then(d => { if (d?.connected) setMailStats(d) })
       .catch(() => {})
   }, [])
 
@@ -992,10 +992,10 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                     <span style={{ fontSize: 11, color: T.amber, fontWeight: 600 }}>{mailStats.unread_over_24h} unread emails older than 24h</span>
                   </div>
                 )}
-                {mailStats.critical_emails.length > 0 && (
+                {(mailStats.critical_emails ?? []).length > 0 && (
                   <div style={{ padding: '10px 16px 6px' }}>
                     <div style={{ fontSize: 9, fontWeight: 800, color: T.red, letterSpacing: '0.08em', marginBottom: 6 }}>CRITICAL EMAILS</div>
-                    {mailStats.critical_emails.slice(0, 2).map((e, i) => (
+                    {(mailStats.critical_emails ?? []).slice(0, 2).map((e, i) => (
                       <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
                         <div style={{ width: 4, height: 4, borderRadius: '50%', background: T.red, flexShrink: 0, marginTop: 4, boxShadow: `0 0 4px ${T.red}88` }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
