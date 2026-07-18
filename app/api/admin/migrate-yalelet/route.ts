@@ -1,17 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { query, execute } from '@/lib/database'
-import { verifyToken } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(req: NextRequest) {
-  const token = req.cookies.get('pabari-session')?.value
-  const user  = token ? await verifyToken(token) : null
-  if (!user || user.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  // Find Krishna's email to use as reports_to
+export async function POST() {
   const krishna = await query<{ email: string }>(
     `SELECT email FROM users WHERE LOWER(name) LIKE '%krishn%' LIMIT 1`
   )
