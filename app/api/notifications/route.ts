@@ -119,6 +119,41 @@ export async function GET() {
     }))
   } catch { /* */ }
 
+  // ── Tasks awaiting HOD approval (visible to managers and above) ──────────
+  try {
+    const isManagerOrAbove = ['manager', 'director', 'admin', 'ceo'].includes(user.role)
+    if (isManagerOrAbove) {
+      let hodRows: { id: string; particulars: string; company: string; responsible: string; created_at: string }[]
+      if (isAdmin || user.role === 'director' || user.role === 'ceo') {
+        hodRows = await query<{ id: string; particulars: string; company: string; responsible: string; created_at: string }>(
+          `SELECT id::text, particulars, company, responsible, created_at
+           FROM tasks WHERE status = 'awaiting-hod-approval'
+           ORDER BY created_at DESC LIMIT 10`
+        )
+      } else {
+        hodRows = await query<{ id: string; particulars: string; company: string; responsible: string; created_at: string }>(
+          `SELECT t.id::text, t.particulars, t.company, t.responsible, t.created_at
+           FROM tasks t
+           WHERE t.status = 'awaiting-hod-approval'
+           AND EXISTS (
+             SELECT 1 FROM users u
+             WHERE LOWER(u.name) = LOWER(t.responsible)
+             AND LOWER(u.reports_to) = LOWER($1)
+           )
+           ORDER BY t.created_at DESC LIMIT 10`,
+          [email]
+        )
+      }
+      hodRows.forEach(r => push({
+        id: `hod-${r.id}`, type: 'approval', icon: '✅',
+        title: `Task needs your approval`,
+        detail: `${r.responsible} · ${r.particulars.length > 55 ? r.particulars.slice(0, 55) + '…' : r.particulars}`,
+        href: '/tasks',
+        time: r.created_at,
+      }))
+    }
+  } catch { /* */ }
+
   // ── My overdue tasks ──────────────────────────────────────────────────────
   try {
     const rows = await query<{ id: string; particulars: string; company: string; due_date: string; created_at: string }>(
