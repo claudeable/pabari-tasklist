@@ -329,7 +329,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const effectiveName = viewAs || currentUser.name
 
   const perms = useMemo(() => ({
-    canAddTask:      effectiveRole !== 'staff',
+    canAddTask:      effectiveRole !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke',
     canDelete:       currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director'),
     canChangeStatus: effectiveRole !== 'staff',
     canHKComment:    ['admin','director'].includes(currentUser.role),
@@ -339,7 +339,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     // MY ATTENTION panel: all directors (Harshil, Benson) and admin
     showAttentionPanel: currentUser.role === 'admin' || currentUser.role === 'director',
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [currentUser.role, currentUser.department, effectiveRole, effectiveName])
+  }), [currentUser.role, currentUser.email, currentUser.department, effectiveRole, effectiveName])
 
   // ── Visible tasks (role + company access) ────────────────────────
   const _visibleTasks = useMemo(() => {
