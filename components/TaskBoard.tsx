@@ -434,19 +434,24 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return Array.from(names).sort()
   }, [tasks])
 
+  const allFinanceTasks = useMemo(
+    () => tasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired'),
+    [tasks]
+  )
+
   const dirAttention = useMemo(() => ({
     pendingReview:   visibleTasks.filter(t => t.status === 'in-review'),
     needsComment:    visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired'),
     actionRequired:  visibleTasks.filter(t => t.status === 'action-required'),
-    financeCategory: visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired'),
-  }), [visibleTasks])
+    financeCategory: canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired'),
+  }), [visibleTasks, canSeeFinance, allFinanceTasks])
 
   const filtered = useMemo(() => {
     let list = base
     if (directorFilter === 'pending-review')   list = visibleTasks.filter(t => t.status === 'in-review')
     if (directorFilter === 'needs-comment')     list = visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired')
     if (directorFilter === 'action-required')   list = visibleTasks.filter(t => t.status === 'action-required')
-    if (directorFilter === 'finance')           list = visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
+    if (directorFilter === 'finance')           list = canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
@@ -456,7 +461,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [base, visibleTasks, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, search])
+  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, search])
 
   const kpis = useMemo(() => ({
     total:    base.filter(t=>t.status!=='resolved').length,
