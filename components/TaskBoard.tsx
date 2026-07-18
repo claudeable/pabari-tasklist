@@ -3,9 +3,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import InactivityGuard from './InactivityGuard'
 import {
-  Task, TaskStatus, TaskUpdate, ApprovalType,
+  Task, TaskStatus, TaskUpdate, TaskAttachment, ApprovalType,
   STATUS_LABELS, STATUS_OPTIONS_BY_ROLE, PRIORITY_LABELS, PRIORITY_STYLE, TaskPriority,
-  COMPANIES, SECTIONS, KISCOL_SECTIONS, PEOPLE, CATEGORIES,
+  COMPANIES, SECTIONS, KISCOL_SECTIONS, PEOPLE, CATEGORIES, FINANCE_VISIBLE_EMAILS,
   SessionUser, PublicUser, Recurrence, RECURRENCE_OPTIONS,
 } from '@/types'
 
@@ -206,6 +206,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   interface AuditEntry { id:string; changed_by:string; field:string|null; old_value:string|null; new_value:string|null; changed_at:string }
   const [taskAudit, setTaskAudit] = useState<AuditEntry[]>([])
 
+  // ── Attachments ──────────────────────────────────────────────────
+  const [attachments,    setAttachments]    = useState<TaskAttachment[]>([])
+  const [newTaskFiles,   setNewTaskFiles]   = useState<File[]>([])
+  const [updateFile,     setUpdateFile]     = useState<File | null>(null)
+  const taskFileRef   = useRef<HTMLInputElement>(null)
+  const updateFileRef = useRef<HTMLInputElement>(null)
+  const canSeeFinance = FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
+
   // ── Print / PDF export ───────────────────────────────────────────
   const handlePrint = () => {
     const title = filterCompany || 'All Companies'
@@ -286,6 +294,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }, [])
 
   useEffect(() => {
+    if (!activeTask) { setAttachments([]); return }
+    fetch(`/api/tasks/${activeTask.id}/attachments`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setAttachments(Array.isArray(data) ? data : []))
+      .catch(() => setAttachments([]))
+  }, [activeTask?.id])
+
+  useEffect(() => {
     if (!activeTask) { setTaskAudit([]); return }
     fetch(`/api/tasks/${activeTask.id}/audit`, { credentials: 'include' })
       .then(r => r.json())
@@ -326,7 +342,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }), [currentUser.role, currentUser.department, effectiveRole, effectiveName])
 
   // ── Visible tasks (role + company access) ────────────────────────
-  const visibleTasks = useMemo(() => {
+  const _visibleTasks = useMemo(() => {
     // Staff always see every task assigned to them, regardless of company
     if (effectiveRole === 'staff') {
       return tasks.filter(t => nameMatch(t.responsible, effectiveName))
@@ -380,6 +396,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     }
     return accessible // director / admin see everything in their accessible companies
   }, [tasks, effectiveRole, effectiveName, currentUser.name, currentUser.companies, subordinates, teamMembers])
+
+  // Finance category restricted to whitelist
+  const visibleTasks = useMemo(
+    () => canSeeFinance
+      ? _visibleTasks
+      : _visibleTasks.filter(t => t.category !== 'Finance'),
+    [_visibleTasks, canSeeFinance]
+  )
 
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {

@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth'
 import { logActivity } from '@/lib/activityLog'
 import { getUserByEmail } from '@/lib/users'
 import { postDMMessage } from '@/lib/chat'
+import { FINANCE_VISIBLE_EMAILS } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,8 +26,14 @@ async function notifyLegal(
   }))
 }
 
-export async function GET() {
-  const tasks = await getTasks()
+export async function GET(req: NextRequest) {
+  const token = req.cookies.get('pabari-session')?.value
+  const user  = token ? await verifyToken(token) : null
+  let tasks = await getTasks()
+  // Finance tasks restricted to whitelist
+  if (!user || !FINANCE_VISIBLE_EMAILS.has((user.email || '').toLowerCase())) {
+    tasks = tasks.filter(t => t.category !== 'Finance')
+  }
   return NextResponse.json(tasks)
 }
 

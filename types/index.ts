@@ -116,10 +116,32 @@ export const CATEGORIES = [
 
 export const PEOPLE = [
   'Ahmad', 'Andu', 'Ashok', 'Benson', 'Binal', 'Duncan',
-  'Duran', 'Eng. Suresh', 'Harshil', 'Juma', 'Krishina',
+  'Duran', 'Eng. Suresh', 'Harshil', 'James', 'Juma', 'Krishina',
   'Lazarus', 'Lulie Aynalem Ewnetu', 'Mungai', 'Paul', 'Pedro',
   'Sabina', 'Simon', 'Yalelet', 'Yared',
 ] as const
+
+// Finance category is only visible to these users
+export const FINANCE_VISIBLE_EMAILS = new Set([
+  'hkotecha@kwale-group.com',
+  'pmureithi@usm.co.ke',
+  'yaynalem@usm.co.ke',
+  'rkrishnan@usm.co.ke',
+  'ateferi@kwale-group.com',
+  'admin@usm.co.ke',
+])
+
+export interface TaskAttachment {
+  id:            number
+  task_id:       string
+  update_id:     string | null
+  name:          string
+  mime_type:     string
+  size:          number
+  uploaded_by:   string
+  uploader_name: string
+  created_at:    string
+}
 
 export interface TaskUpdate {
   id:         string
