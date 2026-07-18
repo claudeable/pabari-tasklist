@@ -343,10 +343,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // ── Visible tasks (role + company access) ────────────────────────
   const _visibleTasks = useMemo(() => {
-    // Staff always see every task assigned to them, regardless of company
+    // Staff always see every task assigned to them, regardless of company.
+    // Staff with companies:['ALL'] (e.g. Finance staff) get full cross-company visibility.
     if (effectiveRole === 'staff') {
-      // yaynalem has full cross-company visibility
-      if (currentUser.email === 'yaynalem@usm.co.ke') return tasks
+      if (currentUser.companies.includes('ALL')) return tasks
       return tasks.filter(t => nameMatch(t.responsible, effectiveName))
     }
 
