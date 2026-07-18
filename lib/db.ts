@@ -200,3 +200,26 @@ export async function addUpdate(
     created_at: String(row.created_at || ''),
   }
 }
+
+export async function editUpdate(
+  updateId: string,
+  data: { text?: string; date?: string }
+): Promise<TaskUpdate | null> {
+  const fields: string[] = []
+  const values: unknown[] = []
+  if (data.text !== undefined) { fields.push(`text = $${fields.length + 2}`); values.push(data.text) }
+  if (data.date !== undefined) { fields.push(`date = $${fields.length + 2}`); values.push(data.date) }
+  if (!fields.length) return null
+  const row = await queryOne<Record<string, unknown>>(
+    `UPDATE task_updates SET ${fields.join(', ')} WHERE id = $1 RETURNING *`,
+    [updateId, ...values]
+  )
+  if (!row) return null
+  return {
+    id:         String(row.id),
+    task_id:    String(row.task_id),
+    date:       String(row.date || ''),
+    text:       String(row.text || ''),
+    created_at: String(row.created_at || ''),
+  }
+}

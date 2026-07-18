@@ -214,6 +214,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const updateFileRef = useRef<HTMLInputElement>(null)
   const canSeeFinance = FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
 
+  // ── Update editing (admin / director only) ───────────────────────
+  const [editUpdateId,   setEditUpdateId]   = useState<string | null>(null)
+  const [editUpdateText, setEditUpdateText] = useState('')
+  const canEditUpdates = currentUser.role === 'admin' || currentUser.role === 'director'
+
   // ── Print / PDF export ───────────────────────────────────────────
   const handlePrint = () => {
     const title = filterCompany || 'All Companies'
@@ -344,9 +349,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   // ── Visible tasks (role + company access) ────────────────────────
   const _visibleTasks = useMemo(() => {
     // Staff always see every task assigned to them, regardless of company.
-    // Staff with companies:['ALL'] (e.g. Finance staff) get full cross-company visibility.
+    // Staff with companies:['ALL'] or in the Finance whitelist get full cross-company visibility.
     if (effectiveRole === 'staff') {
-      if (currentUser.companies.includes('ALL')) return tasks
+      if (currentUser.companies.includes('ALL') || canSeeFinance) return tasks
       return tasks.filter(t => nameMatch(t.responsible, effectiveName))
     }
 
@@ -569,6 +574,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => prev.map(t => t.id===taskId ? {...t,status_wk:text} : t))
     setActiveTask(p => p?.id===taskId ? {...p,status_wk:text} : p)
     setSwkEditId(null); setSwkDraft('')
+  }
+
+  async function saveUpdateEdit(taskId: string, updateId: string, text: string) {
+    const res = await fetch(`/api/tasks/${taskId}/updates`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ updateId, text }),
+    })
+    if (res.ok) {
+      const { update } = await res.json()
+      const patch = (u: TaskUpdate) => u.id === updateId ? { ...u, text: update.text } : u
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, task_updates: (t.task_updates || []).map(patch) } : t))
+      setActiveTask(p => p ? { ...p, task_updates: (p.task_updates || []).map(patch) } : p)
+    }
+    setEditUpdateId(null); setEditUpdateText('')
   }
 
   async function postUpdate() {
@@ -2124,8 +2143,27 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         return (
                           <div key={u.id} style={{position:'relative'}}>
                             <div style={{position:'absolute',left:-17,top:4,width:8,height:8,borderRadius:'50%',background:'#1a3a2a',border:'2px solid white',outline:'2px solid #1a3a2a'}}/>
-                            <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2}}>{u.date}</div>
-                            <div style={{fontSize:12,color:'#374151',lineHeight:1.45}}>{u.text}</div>
+                            <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                              <span>{u.date}</span>
+                              {canEditUpdates && editUpdateId !== u.id && (
+                                <button onClick={()=>{setEditUpdateId(u.id);setEditUpdateText(u.text)}}
+                                  style={{fontSize:9,color:'#9ca3af',background:'none',border:'none',cursor:'pointer',padding:'0 2px',lineHeight:1}}>✏️</button>
+                              )}
+                            </div>
+                            {editUpdateId === u.id ? (
+                              <div>
+                                <textarea value={editUpdateText} onChange={e=>setEditUpdateText(e.target.value)} rows={3}
+                                  style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 7px',fontSize:12,resize:'vertical',fontFamily:'inherit',marginBottom:4}}/>
+                                <div style={{display:'flex',gap:5,justifyContent:'flex-end'}}>
+                                  <button onClick={()=>{setEditUpdateId(null);setEditUpdateText('')}}
+                                    style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'3px 9px',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                                  <button onClick={()=>saveUpdateEdit(activeTask.id, u.id, editUpdateText)}
+                                    style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'3px 10px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Save</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{fontSize:12,color:'#374151',lineHeight:1.45}}>{u.text}</div>
+                            )}
                             {updAtts.length > 0 && (
                               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
                                 {updAtts.map(a => a.mime_type.startsWith('image/') ? (
