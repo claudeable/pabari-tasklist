@@ -314,7 +314,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       .catch(() => setTaskAudit([]))
   }, [activeTask?.id])
 
-  const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL')
+  const isKiscolOnly = !currentUser.companies.includes('ALL') && currentUser.companies.includes('KISCOL') && !canSeeFinance
   const [form, setForm] = useState({
     company: isKiscolOnly ? 'KISCOL' : 'BYTEWISE',
     date:fmtDate(), section:'General', category:'Other',
