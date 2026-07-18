@@ -348,10 +348,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // ── Visible tasks (role + company access) ────────────────────────
   const _visibleTasks = useMemo(() => {
-    // Staff always see every task assigned to them, regardless of company.
-    // Staff with companies:['ALL'] or in the Finance whitelist get full cross-company visibility.
+    // Staff see tasks assigned to them.
+    // Finance-whitelisted staff also see all Finance category tasks across all companies.
     if (effectiveRole === 'staff') {
-      if (currentUser.companies.includes('ALL') || canSeeFinance) return tasks
+      if (canSeeFinance) {
+        return tasks.filter(t => nameMatch(t.responsible, effectiveName) || t.category === 'Finance')
+      }
       return tasks.filter(t => nameMatch(t.responsible, effectiveName))
     }
 
