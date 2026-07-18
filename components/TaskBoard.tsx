@@ -1375,7 +1375,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </div>
               <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr 1fr',gap:10,marginBottom:10}}>
                 {([
-                  {label:'Company',    key:'company',    opts: isKiscolOnly ? ['KISCOL'] : [...COMPANIES]},
+                  {label:'Company',    key:'company',    opts: (isKiscolOnly && currentUser.email !== 'yaynalem@usm.co.ke') ? ['KISCOL'] : [...COMPANIES]},
                   {label:'Section',    key:'section',    opts:[...SECTIONS]},
                   {label:'Date',       key:'date',       opts:null},
                   {label:'Category',   key:'category',   opts:[...CATEGORIES].filter(c => c !== 'Finance' || canSeeFinance)},
