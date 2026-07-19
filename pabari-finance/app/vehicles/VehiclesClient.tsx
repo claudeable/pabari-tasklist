@@ -102,6 +102,20 @@ export default function VehiclesClient({ vehicles: initial, userEmail }: { vehic
       const data = await res.json()
       if (res.ok) {
         setLogs(l => [data.log,...l])
+
+        // If a next service date was provided, update the vehicle record
+        if (logForm.next_service) {
+          const patch = await fetch(`/api/vehicles/${detail.id}`, {
+            method:'PATCH', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ service_due_date: logForm.next_service }),
+          })
+          if (patch.ok) {
+            const pdata = await patch.json()
+            setVehicles(v => v.map(x => x.id===detail.id ? pdata.vehicle : x))
+            setDetail(pdata.vehicle)
+          }
+        }
+
         setLogForm({ date:TODAY, description:'', cost:0, currency:'KES', provider:'', next_service:'' })
         setShowLogForm(false)
       }
