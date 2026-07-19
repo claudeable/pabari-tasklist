@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import type { Payment } from '@/lib/db'
 
-const COMPANIES  = ['USM','KISCOL','PABARI GARAGE','PABARI HARDWARE','USM INSURANCE','FARMTRAC','BETA HEALTHCARE','AGRIMED','PABARI INDUSTRIES','PABARI INVESTMENTS','KWALE GROUP','AFRICA HORIZONS','PABARI FOUNDATION','PABARI REAL ESTATE','ILUMET','FARMVET','FARMAGRO']
+const COMPANIES  = ['BERLIN_BNK','BYTEWISE','DR.PHARMA','EPPL','EURO TOWERS','GHPL','IIGENTRA','KISCOL','MALEE','MALI CREDIT','MAXITOWER','MERCURY','PDL','PIL','UNIFRESH','USM','WELWYN']
 const METHODS    = ['bank','mpesa','cash','cheque','card','rtgs','swift']
 const STATUSES   = ['pending','confirmed','failed']
 const CURRENCIES = ['KES','USD','EUR','GBP','TZS','UGX']

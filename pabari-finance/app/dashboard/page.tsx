@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth'
 import { getFinanceSummary, getFinanceTasks, getInvoices, getPayments } from '@/lib/db'
 import Nav from '@/components/Nav'
 
-const COMPANIES = ['USM','KISCOL','PABARI GARAGE','PABARI HARDWARE','USM INSURANCE','FARMTRAC','BETA HEALTHCARE','AGRIMED','PABARI INDUSTRIES','PABARI INVESTMENTS','KWALE GROUP','AFRICA HORIZONS','PABARI FOUNDATION','PABARI REAL ESTATE','ILUMET','FARMVET','FARMAGRO']
+const COMPANIES = ['BERLIN_BNK','BYTEWISE','DR.PHARMA','EPPL','EURO TOWERS','GHPL','IIGENTRA','KISCOL','MALEE','MALI CREDIT','MAXITOWER','MERCURY','PDL','PIL','UNIFRESH','USM','WELWYN']
 
 function fmtK(n: number) {
   if (n >= 1_000_000) return `${(n/1_000_000).toFixed(1)}M`
