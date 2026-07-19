@@ -318,61 +318,64 @@ export default function VehiclesClient({ vehicles: initial, userEmail }: { vehic
                 </div>
 
                 {!isCollapsed && (
-                  <div style={{ overflowX:'auto' }}>
-                    <table>
-                      <thead><tr>
-                        <th>Plate</th>
-                        <th>Make / Model</th>
-                        <th>Driver</th>
-                        <th>Insurance</th>
-                        <th>Inspection</th>
-                        <th>Road Lic.</th>
-                        <th>Driver Lic.</th>
-                        <th>PSV Lic.</th>
-                        <th>Service Due</th>
-                        <th style={{ textAlign:'right' }}>KM</th>
-                        <th>Status</th>
-                        <th></th>
-                      </tr></thead>
-                      <tbody>
-                        {list.map(v => {
-                          const svcDays = daysUntil(v.service_due_date)
-                          return (
-                            <tr key={v.id} style={{ cursor:'pointer' }} onClick={() => openDetail(v)}>
-                              <td style={{ fontWeight:700, fontFamily:'monospace', fontSize:13, whiteSpace:'nowrap' }}>{v.reg_plate}</td>
-                              <td style={{ fontSize:12 }}>{v.make} {v.model}{v.year ? ` (${v.year})` : ''}</td>
-                              <td style={{ fontSize:12 }}>{v.assigned_driver||'—'}</td>
-                              {complianceFields.slice(0,4).map(({ key }) => {
-                                const days = daysUntil(v[key] as string|null)
-                                const val  = v[key] as string|null
-                                return (
-                                  <td key={key} style={{ fontSize:11, whiteSpace:'nowrap', color: expiryColor(days), fontWeight: days!==null&&days<=30?700:400 }}>
-                                    {val||'—'}{expiryIcon(days)}
-                                  </td>
-                                )
-                              })}
-                              {/* PSV */}
-                              {(() => {
-                                const days = daysUntil(v.psv_license_expiry)
-                                return <td style={{ fontSize:11, whiteSpace:'nowrap', color:expiryColor(days), fontWeight:days!==null&&days<=30?700:400 }}>{v.psv_license_expiry||'—'}{expiryIcon(days)}</td>
-                              })()}
-                              <td style={{ fontSize:11, whiteSpace:'nowrap', color: svcDays!==null&&svcDays<=30?'var(--warning)':'var(--muted)', fontWeight: svcDays!==null&&svcDays<=30?700:400 }}>
-                                {v.service_due_date||'—'}{svcDays!==null&&svcDays<=30?' 🔧':''}
-                              </td>
-                              <td style={{ textAlign:'right', fontSize:12 }}>{fmt(v.mileage)}</td>
-                              <td><span className={`badge ${STATUS_BADGE[v.status]??'badge-gray'}`}>{v.status}</span></td>
-                              <td onClick={e => e.stopPropagation()}>
-                                <div style={{ display:'flex', gap:4 }}>
-                                  <button className="btn btn-ghost btn-xs" onClick={() => openEdit(v)}>Edit</button>
-                                  <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(v.id)}>Del</button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom:'2px solid var(--border)' }}>
+                        {['Plate','Make / Model','Driver','Compliance','Service Due','KM','Status',''].map((h,i) => (
+                          <th key={i} style={{ padding:'8px 14px', textAlign: h==='KM'?'right':'left', fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.5px', whiteSpace:'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map(v => {
+                        const svcDays = daysUntil(v.service_due_date)
+                        const dots = [
+                          { abbr:'INS', label:'Insurance',       val: v.insurance_expiry },
+                          { abbr:'TLB', label:'Inspection/TLB',  val: v.inspection_expiry },
+                          { abbr:'RD',  label:'Road License',    val: v.road_license_expiry },
+                          { abbr:'DRV', label:'Driver License',  val: v.driver_license_expiry },
+                          { abbr:'PSV', label:'PSV License',     val: v.psv_license_expiry },
+                        ]
+                        return (
+                          <tr key={v.id} style={{ cursor:'pointer', borderBottom:'1px solid var(--border)' }}
+                            onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background='var(--bg)'}
+                            onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background=''}
+                            onClick={() => openDetail(v)}>
+                            <td style={{ padding:'10px 14px', fontWeight:700, fontFamily:'monospace', fontSize:13, whiteSpace:'nowrap' }}>{v.reg_plate}</td>
+                            <td style={{ padding:'10px 14px' }}>
+                              <div style={{ fontWeight:500, fontSize:13 }}>{v.make} {v.model}</div>
+                              {v.year && <div style={{ fontSize:11, color:'var(--muted)' }}>{v.year} · {v.fuel_type}</div>}
+                            </td>
+                            <td style={{ padding:'10px 14px', fontSize:13, whiteSpace:'nowrap' }}>{v.assigned_driver||<span style={{ color:'var(--muted)' }}>—</span>}</td>
+                            <td style={{ padding:'10px 14px' }}>
+                              <div style={{ display:'flex', gap:4 }}>
+                                {dots.map(({ abbr, label, val }) => {
+                                  const d   = daysUntil(val)
+                                  const bg  = !val ? '#f1f5f9' : d! < 0 ? '#fee2e2' : d! <= 30 ? '#fef3c7' : '#dcfce7'
+                                  const clr = !val ? '#94a3b8' : d! < 0 ? '#dc2626' : d! <= 30 ? '#92400e' : '#15803d'
+                                  const tip = val ? `${label}: ${val}${d! < 0 ? ' — EXPIRED' : d! <= 30 ? ` — ${d}d left` : ''}` : `${label}: not set`
+                                  return <span key={abbr} title={tip} style={{ padding:'2px 6px', borderRadius:4, fontSize:10, fontWeight:700, background:bg, color:clr, letterSpacing:'.3px' }}>{abbr}</span>
+                                })}
+                              </div>
+                            </td>
+                            <td style={{ padding:'10px 14px', whiteSpace:'nowrap', fontSize:12,
+                              color: v.service_due_date && svcDays!<=30 ? 'var(--warning)' : 'var(--muted)',
+                              fontWeight: v.service_due_date && svcDays!<=30 ? 700 : 400 }}>
+                              {v.service_due_date||'—'}{v.service_due_date && svcDays!<=30 ? ' 🔧' : ''}
+                            </td>
+                            <td style={{ padding:'10px 14px', textAlign:'right', fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>{fmt(v.mileage)}</td>
+                            <td style={{ padding:'10px 14px' }}><span className={`badge ${STATUS_BADGE[v.status]??'badge-gray'}`}>{v.status}</span></td>
+                            <td style={{ padding:'10px 14px' }} onClick={e => e.stopPropagation()}>
+                              <div style={{ display:'flex', gap:4 }}>
+                                <button className="btn btn-ghost btn-xs" onClick={() => openEdit(v)}>Edit</button>
+                                <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(v.id)}>Del</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 )}
               </div>
             )
