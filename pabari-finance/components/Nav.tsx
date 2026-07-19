@@ -9,6 +9,8 @@ const LINKS = [
   { href: '/invoices',  label: 'Invoices & LPOs', icon: '📄' },
   { href: '/payments',  label: 'Payments',        icon: '💸' },
   { href: '/budgets',   label: 'Budgets',         icon: '📈' },
+  { href: '/assets',    label: 'Assets',          icon: '🏗️' },
+  { href: '/vehicles',  label: 'Fleet & Vehicles',icon: '🚗' },
 ]
 
 const MAIN_APP_URL = 'https://pabari-tasklist-production.up.railway.app'

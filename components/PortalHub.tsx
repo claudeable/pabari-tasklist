@@ -68,9 +68,8 @@ const systems = [
   { key:'tasks',    icon:'✓',  iconBg:'#dbeafe', iconColor:'#1d4ed8', label:'Task Management',     href:'/tasks',     detail:'Pending · Assignments · Deadlines' },
   { key:'forms',    icon:'📋', iconBg:'#fef3c7', iconColor:'#b45309', label:'Forms',               href:'/forms',     detail:'Leave Requests · Petty Cash' },
   { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',  detail:'Milestones · Gantt · Budget',   projectsOnly:true },
-  { key:'finance',  icon:'💳', iconBg:'#ecfdf5', iconColor:'#059669', label:'Finance',             href:'/finance',   detail:'LPO · Delivery Notes',     projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents', detail:'Upload · Folders · View',        adminOnly:true },
-  { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',   detail:'Contacts · Directory · Search' },
+  { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',   detail:'Contacts · Directory · Search', harshilOnly:true },
   { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security', detail:'Threats · IP Blocking',     superAdminOnly:true },
 ]
 
@@ -178,14 +177,12 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
 
   // ── Visible systems ──────────────────────────────────────────────────────────
   const visibleSystems = systems.filter(sys => {
-    const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean }
+    const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean; harshilOnly?:boolean }
+    const firstNameLower = currentUser.name.toLowerCase().split(' ')[0]
     if (s.superAdminOnly) return currentUser.role === 'admin'
     if (s.adminOnly) return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
-    if (s.projectsOnly) {
-      const f = currentUser.name.toLowerCase().split(' ')[0]
-      const FINANCE_EMAILS = ['rkrishnan@usm.co.ke', 'yaynalem@usm.co.ke']
-      return currentUser.role === 'admin' || f === 'harshil' || f === 'benson' || FINANCE_EMAILS.includes(currentUser.email)
-    }
+    if (s.harshilOnly) return currentUser.role === 'admin' || firstNameLower === 'harshil'
+    if (s.projectsOnly) return currentUser.role === 'admin' || firstNameLower === 'harshil' || firstNameLower === 'benson'
     return true
   })
 
