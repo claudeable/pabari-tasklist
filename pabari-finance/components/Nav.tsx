@@ -4,14 +4,16 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 
 const LINKS = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/tasks',     label: 'Finance Tasks', icon: '✅' },
-  { href: '/invoices',  label: 'Invoices', icon: '📄' },
-  { href: '/payments',  label: 'Payments', icon: '💸' },
-  { href: '/budgets',   label: 'Budgets', icon: '📈' },
+  { href: '/dashboard', label: 'Dashboard',       icon: '📊' },
+  { href: '/tasks',     label: 'Finance Tasks',   icon: '✅' },
+  { href: '/invoices',  label: 'Invoices & LPOs', icon: '📄' },
+  { href: '/payments',  label: 'Payments',        icon: '💸' },
+  { href: '/budgets',   label: 'Budgets',         icon: '📈' },
 ]
 
-export default function Nav({ userName }: { userName: string }) {
+const MAIN_APP_URL = 'https://pabari-tasklist-production.up.railway.app'
+
+export default function Nav({ userName, userEmail }: { userName: string; userEmail: string }) {
   const path = usePathname()
   const router = useRouter()
 
@@ -21,46 +23,47 @@ export default function Nav({ userName }: { userName: string }) {
   }
 
   return (
-    <nav style={{
-      width: 220, minHeight: '100vh', background: '#14532d',
-      display: 'flex', flexDirection: 'column', flexShrink: 0,
-    }}>
-      <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid #166534' }}>
-        <div style={{ fontSize: 20, marginBottom: 4 }}>💰</div>
-        <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>Pabari Finance</div>
-        <div style={{ color: '#86efac', fontSize: 12, marginTop: 2 }}>{userName}</div>
+    <nav className="nav">
+      {/* Logo */}
+      <div className="nav-logo">
+        <span className="nav-logo-icon">💰</span>
+        <div className="nav-logo-title">Finance Portal</div>
+        <div className="nav-logo-sub">Pabari Group</div>
       </div>
 
-      <div style={{ flex: 1, padding: '12px 8px' }}>
+      {/* Links */}
+      <div className="nav-links">
+        <div className="nav-section-label">Finance</div>
         {LINKS.map(l => {
           const active = path === l.href || (l.href !== '/dashboard' && path.startsWith(l.href))
           return (
-            <Link
-              key={l.href}
-              href={l.href}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, marginBottom: 2,
-                color: active ? '#fff' : '#86efac',
-                background: active ? 'rgba(255,255,255,.12)' : 'transparent',
-                fontWeight: active ? 600 : 400,
-                transition: 'background .15s',
-              }}
-            >
-              <span>{l.icon}</span>
-              <span style={{ fontSize: 13 }}>{l.label}</span>
+            <Link key={l.href} href={l.href} className={`nav-link${active ? ' active' : ''}`}>
+              <span className="nav-link-icon">{l.icon}</span>
+              {l.label}
             </Link>
           )
         })}
+
+        <div className="nav-section-label" style={{ marginTop: 20 }}>Switch Portal</div>
+        <a href={MAIN_APP_URL} target="_blank" rel="noopener noreferrer" className="nav-ext-link">
+          <span className="nav-link-icon">🗂️</span>
+          Task Board ↗
+        </a>
       </div>
 
-      <div style={{ padding: '12px 8px', borderTop: '1px solid #166534' }}>
+      {/* Footer */}
+      <div className="nav-footer">
+        <div className="nav-user">
+          <div className="nav-user-name">{userName}</div>
+          <div className="nav-user-email">{userEmail}</div>
+        </div>
         <button
           onClick={logout}
           style={{
-            width: '100%', padding: '9px 12px', borderRadius: 6,
-            background: 'transparent', color: '#86efac', display: 'flex',
-            alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 10,
+            width: '100%', padding: '8px 10px', borderRadius: 6,
+            background: 'transparent', color: '#fca5a5',
+            fontSize: 13, cursor: 'pointer', border: 'none',
           }}
         >
           <span>🚪</span> Sign Out

@@ -12,9 +12,9 @@ export default async function TasksPage() {
 
   const tasks = await getFinanceTasks()
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Nav userName={user.name} />
-      <main style={{ flex: 1, padding: '32px 36px' }}>
+    <div className="layout">
+      <Nav userName={user.name} userEmail={user.email} />
+      <main className="main-content">
         <FinanceTasksClient tasks={tasks} />
       </main>
     </div>

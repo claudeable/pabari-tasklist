@@ -12,9 +12,9 @@ export default async function InvoicesPage() {
 
   const invoices = await getInvoices()
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Nav userName={user.name} />
-      <main style={{ flex: 1, padding: '32px 36px' }}>
+    <div className="layout">
+      <Nav userName={user.name} userEmail={user.email} />
+      <main className="main-content">
         <InvoicesClient invoices={invoices} userEmail={user.email} />
       </main>
     </div>

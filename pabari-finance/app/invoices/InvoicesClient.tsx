@@ -3,23 +3,27 @@
 import { useState, useMemo } from 'react'
 import type { Invoice } from '@/lib/db'
 
-const COMPANIES = ['USM','KISCOL','PABARI GARAGE','PABARI HARDWARE','USM INSURANCE','FARMTRAC','BETA HEALTHCARE','AGRIMED','PABARI INDUSTRIES','PABARI INVESTMENTS','KWALE GROUP','AFRICA HORIZONS','PABARI FOUNDATION','PABARI REAL ESTATE','ILUMET','FARMVET','FARMAGRO']
-const TYPES     = ['invoice','bill','receipt','lpo']
-const STATUSES  = ['draft','sent','approved','paid','overdue','cancelled']
-const CURRENCIES = ['KES','USD','EUR','GBP']
+const COMPANIES  = ['USM','KISCOL','PABARI GARAGE','PABARI HARDWARE','USM INSURANCE','FARMTRAC','BETA HEALTHCARE','AGRIMED','PABARI INDUSTRIES','PABARI INVESTMENTS','KWALE GROUP','AFRICA HORIZONS','PABARI FOUNDATION','PABARI REAL ESTATE','ILUMET','FARMVET','FARMAGRO']
+const TYPES      = ['invoice','bill','receipt','lpo','credit-note','debit-note']
+const STATUSES   = ['draft','sent','approved','paid','overdue','cancelled']
+const CURRENCIES = ['KES','USD','EUR','GBP','TZS','UGX']
 
-const STATUS_CLASS: Record<string, string> = {
-  draft: 'badge-gray', sent: 'badge-blue', approved: 'badge-yellow',
-  paid: 'badge-green', overdue: 'badge-red', cancelled: 'badge-gray',
+const STATUS_BADGE: Record<string,string> = {
+  draft:'badge-gray', sent:'badge-blue', approved:'badge-purple',
+  paid:'badge-green', overdue:'badge-red', cancelled:'badge-gray',
+}
+const TYPE_ICON: Record<string,string> = {
+  invoice:'🧾', bill:'📋', receipt:'✅', lpo:'📦', 'credit-note':'↩️', 'debit-note':'↪️',
 }
 
-function fmt(n: number) { return n.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
-
-const EMPTY: Partial<Invoice> = {
-  ref_no: '', type: 'invoice', company: '', counterpart: '', description: '',
-  amount: 0, currency: 'KES', issue_date: new Date().toISOString().slice(0, 10),
-  due_date: '', status: 'draft', notes: '',
+function fmt(n: number)  { return n.toLocaleString('en-KE', { minimumFractionDigits:2, maximumFractionDigits:2 }) }
+function fmtS(n: number) {
+  if (n>=1_000_000) return `${(n/1_000_000).toFixed(1)}M`
+  if (n>=1_000)     return `${(n/1_000).toFixed(0)}K`
+  return fmt(n)
 }
+
+const EMPTY: Partial<Invoice> = { ref_no:'', type:'invoice', company:'', counterpart:'', description:'', amount:0, currency:'KES', issue_date: new Date().toISOString().slice(0,10), due_date:'', status:'draft', notes:'' }
 
 export default function InvoicesClient({ invoices: initial, userEmail }: { invoices: Invoice[]; userEmail: string }) {
   const [invoices, setInvoices] = useState(initial)
@@ -39,167 +43,212 @@ export default function InvoicesClient({ invoices: initial, userEmail }: { invoi
     if (companyF && inv.company !== companyF) return false
     if (search) {
       const q = search.toLowerCase()
-      return inv.ref_no.toLowerCase().includes(q) || inv.counterpart.toLowerCase().includes(q) || inv.description.toLowerCase().includes(q)
+      return inv.ref_no.toLowerCase().includes(q) || inv.counterpart.toLowerCase().includes(q) || inv.company.toLowerCase().includes(q) || inv.description.toLowerCase().includes(q)
     }
     return true
   }), [invoices, search, statusF, typeF, companyF])
 
-  const totals = useMemo(() => ({
-    total: filtered.reduce((a, b) => a + b.amount, 0),
-    paid:  filtered.filter(i => i.status === 'paid').reduce((a, b) => a + b.amount, 0),
+  const stats = useMemo(() => ({
+    total:   filtered.reduce((a,b) => a+b.amount, 0),
+    paid:    filtered.filter(i => i.status==='paid').reduce((a,b) => a+b.amount, 0),
+    overdue: filtered.filter(i => i.status==='overdue').reduce((a,b) => a+b.amount, 0),
   }), [filtered])
 
-  function openNew() { setForm(EMPTY); setEditing(null); setError(''); setShowForm(true) }
-  function openEdit(inv: Invoice) { setForm({ ...inv }); setEditing(inv); setError(''); setShowForm(true) }
+  const statusCounts = useMemo(() => {
+    const c: Record<string,number> = {}
+    for (const inv of invoices) c[inv.status] = (c[inv.status]||0)+1
+    return c
+  }, [invoices])
+
+  function openNew()            { setForm(EMPTY); setEditing(null); setError(''); setShowForm(true) }
+  function openEdit(inv: Invoice) { setForm({...inv}); setEditing(inv); setError(''); setShowForm(true) }
+  function set(k: string, v: unknown) { setForm(p => ({...p,[k]:v})) }
 
   async function saveForm() {
     setSaving(true); setError('')
     try {
-      const url    = editing ? `/api/invoices/${editing.id}` : '/api/invoices'
-      const method = editing ? 'PATCH' : 'POST'
-      const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-      const data   = await res.json()
-      if (!res.ok) { setError(data.error || 'Failed'); return }
-      if (editing) {
-        setInvoices(prev => prev.map(i => i.id === editing.id ? data.invoice : i))
-      } else {
-        setInvoices(prev => [data.invoice, ...prev])
-      }
+      const url = editing ? `/api/invoices/${editing.id}` : '/api/invoices'
+      const res = await fetch(url, { method: editing?'PATCH':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error||'Failed'); return }
+      if (editing) setInvoices(p => p.map(i => i.id===editing.id ? data.invoice : i))
+      else         setInvoices(p => [data.invoice,...p])
       setShowForm(false)
     } catch { setError('Network error') }
     finally { setSaving(false) }
   }
 
-  async function deleteInv(id: number) {
+  async function del(id: number) {
     if (!confirm('Delete this invoice?')) return
-    const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' })
-    if (res.ok) setInvoices(prev => prev.filter(i => i.id !== id))
+    const res = await fetch(`/api/invoices/${id}`, { method:'DELETE' })
+    if (res.ok) setInvoices(p => p.filter(i => i.id!==id))
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div className="page-header">
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Invoices & Documents</h1>
-          <p style={{ color: 'var(--muted)', marginTop: 4 }}>
-            {filtered.length} records · Total KES {fmt(totals.total)} · Paid KES {fmt(totals.paid)}
-          </p>
+          <h1 className="page-title">Invoices & Documents</h1>
+          <p className="page-sub">{invoices.length} records across all companies</p>
         </div>
-        <button className="btn btn-primary" onClick={openNew}>+ New Invoice</button>
+        <button className="btn btn-primary" onClick={openNew}>+ New Document</button>
+      </div>
+
+      {/* Summary */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
+        {[
+          { label:'Total Value', value:`KES ${fmtS(stats.total)}`, full:fmt(stats.total), color:'var(--info)', icon:'🧾' },
+          { label:'Paid', value:`KES ${fmtS(stats.paid)}`, full:fmt(stats.paid), color:'var(--primary)', icon:'✅' },
+          { label:'Overdue', value:`KES ${fmtS(stats.overdue)}`, full:fmt(stats.overdue), color:'var(--danger)', icon:'⚠️' },
+        ].map(s => (
+          <div key={s.label} className="card" style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:14 }} title={`KES ${s.full}`}>
+            <span style={{ fontSize:26 }}>{s.icon}</span>
+            <div>
+              <div style={{ fontSize:11, color:'var(--muted)', fontWeight:600, textTransform:'uppercase' }}>{s.label}</div>
+              <div style={{ fontSize:18, fontWeight:700, color:s.color, marginTop:2 }}>{s.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Status chips */}
+      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+        {Object.entries(statusCounts).map(([s,n]) => (
+          <button key={s} onClick={() => setStatusF(statusF===s?'':s)} style={{
+            padding:'4px 12px', borderRadius:999, border:`1px solid ${statusF===s?'var(--primary)':'var(--border)'}`,
+            background:statusF===s?'var(--primary-light)':'var(--surface)', cursor:'pointer',
+            fontSize:12, fontWeight:600, color:statusF===s?'var(--primary)':'var(--muted)',
+            display:'flex', alignItems:'center', gap:6,
+          }}>
+            <span className={`badge ${STATUS_BADGE[s]??'badge-gray'}`} style={{ fontSize:10, padding:'1px 6px' }}>{s}</span>{n}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <input type="text" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: 220 }} />
-        <select value={typeF}    onChange={e => setTypeF(e.target.value)}    style={{ width: 130 }}>
+      <div className="filter-bar">
+        <input className="filter-input" type="text" placeholder="🔍  Search ref, counterpart, company…" value={search} onChange={e => setSearch(e.target.value)} style={{ minWidth:240 }} />
+        <select className="filter-select" value={typeF} onChange={e => setTypeF(e.target.value)}>
           <option value="">All types</option>
-          {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {TYPES.map(t => <option key={t} value={t}>{TYPE_ICON[t]} {t}</option>)}
         </select>
-        <select value={statusF}  onChange={e => setStatusF(e.target.value)}  style={{ width: 140 }}>
+        <select className="filter-select" value={statusF} onChange={e => setStatusF(e.target.value)}>
           <option value="">All statuses</option>
           {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={companyF} onChange={e => setCompanyF(e.target.value)} style={{ width: 160 }}>
+        <select className="filter-select" value={companyF} onChange={e => setCompanyF(e.target.value)}>
           <option value="">All companies</option>
           {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         {(search||typeF||statusF||companyF) && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setTypeF(''); setStatusF(''); setCompanyF('') }}>Clear</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setTypeF(''); setStatusF(''); setCompanyF('') }}>✕ Clear</button>
         )}
       </div>
 
       {/* Table */}
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid var(--border)' }}>
-              {['Ref No','Type','Company','Counterpart','Amount','Status','Issue Date','Due Date',''].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+      <div className="card table-wrap">
+        <table>
+          <thead><tr>
+            <th>Ref No</th><th>Type</th><th>Company</th><th>Counterpart</th>
+            <th>Description</th><th style={{ textAlign:'right' }}>Amount</th>
+            <th>Status</th><th>Issue Date</th><th>Due Date</th><th></th>
+          </tr></thead>
           <tbody>
             {filtered.map(inv => (
-              <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13 }}>{inv.ref_no}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12 }}><span className="badge badge-gray">{inv.type}</span></td>
-                <td style={{ padding: '10px 14px', fontSize: 13 }}>{inv.company}</td>
-                <td style={{ padding: '10px 14px', fontSize: 13 }}>{inv.counterpart}</td>
-                <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600 }}>{inv.currency} {fmt(inv.amount)}</td>
-                <td style={{ padding: '10px 14px' }}><span className={`badge ${STATUS_CLASS[inv.status]??'badge-gray'}`}>{inv.status}</span></td>
-                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>{inv.issue_date}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12, color: inv.status==='overdue'?'#dc2626':'var(--muted)' }}>{inv.due_date || '—'}</td>
-                <td style={{ padding: '10px 14px' }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(inv)}>Edit</button>
-                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#dc2626' }} onClick={() => deleteInv(inv.id)}>Del</button>
+              <tr key={inv.id}>
+                <td style={{ fontWeight:600 }}>{inv.ref_no}</td>
+                <td>{TYPE_ICON[inv.type]||''} <span style={{ fontSize:12 }}>{inv.type}</span></td>
+                <td><span className="co-tag">{inv.company}</span></td>
+                <td>{inv.counterpart}</td>
+                <td style={{ color:'var(--muted)', maxWidth:180 }}>
+                  <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inv.description||'—'}</div>
+                </td>
+                <td style={{ textAlign:'right', fontWeight:600, whiteSpace:'nowrap' }}>{inv.currency} {fmt(inv.amount)}</td>
+                <td><span className={`badge ${STATUS_BADGE[inv.status]??'badge-gray'}`}>{inv.status}</span></td>
+                <td style={{ fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>{inv.issue_date}</td>
+                <td style={{ fontSize:12, whiteSpace:'nowrap', color:inv.status==='overdue'?'var(--danger)':'var(--muted)', fontWeight:inv.status==='overdue'?600:400 }}>{inv.due_date||'—'}</td>
+                <td>
+                  <div style={{ display:'flex', gap:4 }}>
+                    <button className="btn btn-ghost btn-xs" onClick={() => openEdit(inv)}>Edit</button>
+                    <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(inv.id)}>Del</button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No invoices</td></tr>
-            )}
+            {filtered.length===0 && <tr><td colSpan={10} className="table-empty">No documents match your filters</td></tr>}
           </tbody>
         </table>
       </div>
 
-      {/* Form modal */}
+      {/* Modal */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-             onClick={e => { if (e.target === e.currentTarget) setShowForm(false) }}>
-          <div className="card" style={{ width: 600, maxHeight: '90vh', overflowY: 'auto', padding: 28 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>{editing ? 'Edit Invoice' : 'New Invoice'}</h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              {[
-                { label: 'Ref No *', key: 'ref_no', type: 'text' },
-                { label: 'Counterpart / Vendor *', key: 'counterpart', type: 'text' },
-                { label: 'Amount *', key: 'amount', type: 'number' },
-                { label: 'Issue Date *', key: 'issue_date', type: 'date' },
-                { label: 'Due Date', key: 'due_date', type: 'date' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>{f.label}</label>
-                  <input
-                    type={f.type}
-                    value={String((form as Record<string, unknown>)[f.key] ?? '')}
-                    onChange={e => setForm(p => ({ ...p, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))}
-                  />
+        <div className="modal-backdrop" onClick={e => { if (e.target===e.currentTarget) setShowForm(false) }}>
+          <div className="modal modal-lg">
+            <div className="modal-header">
+              <span className="modal-title">{editing?'Edit Document':'New Document'}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Ref No *</label>
+                  <input className="form-input" value={form.ref_no||''} onChange={e => set('ref_no',e.target.value)} placeholder="e.g. INV-2026-001" />
                 </div>
-              ))}
-
-              {[
-                { label: 'Type *', key: 'type', opts: TYPES },
-                { label: 'Company *', key: 'company', opts: COMPANIES },
-                { label: 'Currency', key: 'currency', opts: CURRENCIES },
-                { label: 'Status *', key: 'status', opts: STATUSES },
-              ].map(f => (
-                <div key={f.key}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>{f.label}</label>
-                  <select value={String((form as Record<string, unknown>)[f.key] ?? '')} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}>
-                    <option value="">Select…</option>
-                    {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
+                <div className="form-group">
+                  <label className="form-label">Counterpart / Vendor *</label>
+                  <input className="form-input" value={form.counterpart||''} onChange={e => set('counterpart',e.target.value)} placeholder="Vendor or client name" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Type *</label>
+                  <select className="form-select" value={form.type||'invoice'} onChange={e => set('type',e.target.value)}>
+                    {TYPES.map(t => <option key={t} value={t}>{TYPE_ICON[t]} {t}</option>)}
                   </select>
                 </div>
-              ))}
+                <div className="form-group">
+                  <label className="form-label">Company *</label>
+                  <select className="form-select" value={form.company||''} onChange={e => set('company',e.target.value)}>
+                    <option value="">Select company…</option>
+                    {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Amount *</label>
+                  <input className="form-input" type="number" min="0" step="0.01" value={form.amount||0} onChange={e => set('amount',Number(e.target.value))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Currency</label>
+                  <select className="form-select" value={form.currency||'KES'} onChange={e => set('currency',e.target.value)}>
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Issue Date *</label>
+                  <input className="form-input" type="date" value={form.issue_date||''} onChange={e => set('issue_date',e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Due Date</label>
+                  <input className="form-input" type="date" value={form.due_date||''} onChange={e => set('due_date',e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Status *</label>
+                  <select className="form-select" value={form.status||'draft'} onChange={e => set('status',e.target.value)}>
+                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="form-group form-full">
+                  <label className="form-label">Description</label>
+                  <input className="form-input" value={form.description||''} onChange={e => set('description',e.target.value)} placeholder="Brief description of goods/services" />
+                </div>
+                <div className="form-group form-full">
+                  <label className="form-label">Notes</label>
+                  <textarea className="form-textarea" value={form.notes||''} onChange={e => set('notes',e.target.value)} placeholder="Additional notes…" />
+                </div>
+              </div>
+              {error && <div style={{ color:'var(--danger)', fontSize:13, marginTop:12 }}>{error}</div>}
             </div>
-
-            <div style={{ marginTop: 14 }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>Description</label>
-              <textarea rows={2} value={form.description ?? ''} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>Notes</label>
-              <textarea rows={2} value={form.notes ?? ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
-            </div>
-
-            {error && <div style={{ color: '#dc2626', fontSize: 13, marginTop: 12 }}>{error}</div>}
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveForm} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveForm} disabled={saving}>{saving?'Saving…':editing?'Save Changes':'Create Document'}</button>
             </div>
           </div>
         </div>

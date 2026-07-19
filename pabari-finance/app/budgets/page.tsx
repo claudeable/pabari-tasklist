@@ -12,10 +12,10 @@ export default async function BudgetsPage() {
 
   const budgets = await getBudgets()
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Nav userName={user.name} />
-      <main style={{ flex: 1, padding: '32px 36px' }}>
-        <BudgetsClient budgets={budgets} />
+    <div className="layout">
+      <Nav userName={user.name} userEmail={user.email} />
+      <main className="main-content">
+        <BudgetsClient budgets={budgets} userEmail={user.email} />
       </main>
     </div>
   )
