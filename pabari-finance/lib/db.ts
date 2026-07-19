@@ -1,8 +1,14 @@
 import { query, execute } from './database'
 
-// ── Ensure tables exist ───────────────────────────────────────────────────────
+// ── Ensure tables exist (singleton — runs only once per process) ──────────────
 
-export async function ensureTables() {
+let _ready: Promise<void> | null = null
+export function ensureTables(): Promise<void> {
+  if (!_ready) _ready = _createTables().catch(err => { _ready = null; throw err })
+  return _ready
+}
+
+async function _createTables() {
   await execute(`
     CREATE TABLE IF NOT EXISTS fin_invoices (
       id          SERIAL PRIMARY KEY,
@@ -54,6 +60,68 @@ export async function ensureTables() {
       created_by  TEXT NOT NULL,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(company, category, period)
+    )
+  `)
+
+  await execute(`
+    CREATE TABLE IF NOT EXISTS fin_assets (
+      id            SERIAL PRIMARY KEY,
+      asset_no      TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      type          TEXT NOT NULL DEFAULT 'equipment',
+      company       TEXT NOT NULL,
+      location      TEXT NOT NULL DEFAULT '',
+      department    TEXT NOT NULL DEFAULT '',
+      assigned_to   TEXT NOT NULL DEFAULT '',
+      purchase_date DATE,
+      purchase_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+      current_value NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency      TEXT NOT NULL DEFAULT 'KES',
+      status        TEXT NOT NULL DEFAULT 'active',
+      serial_no     TEXT NOT NULL DEFAULT '',
+      notes         TEXT NOT NULL DEFAULT '',
+      created_by    TEXT NOT NULL,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+
+  await execute(`
+    CREATE TABLE IF NOT EXISTS fin_vehicles (
+      id              SERIAL PRIMARY KEY,
+      asset_id        INT REFERENCES fin_assets(id) ON DELETE SET NULL,
+      reg_plate       TEXT NOT NULL,
+      make            TEXT NOT NULL DEFAULT '',
+      model           TEXT NOT NULL DEFAULT '',
+      year            INT,
+      company         TEXT NOT NULL,
+      assigned_driver TEXT NOT NULL DEFAULT '',
+      fuel_type       TEXT NOT NULL DEFAULT 'petrol',
+      mileage         INT NOT NULL DEFAULT 0,
+      insurance_expiry DATE,
+      service_due_date DATE,
+      service_due_km  INT,
+      status          TEXT NOT NULL DEFAULT 'active',
+      notes           TEXT NOT NULL DEFAULT '',
+      created_by      TEXT NOT NULL,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+
+  await execute(`
+    CREATE TABLE IF NOT EXISTS fin_maintenance (
+      id           SERIAL PRIMARY KEY,
+      asset_id     INT REFERENCES fin_assets(id) ON DELETE CASCADE,
+      vehicle_id   INT REFERENCES fin_vehicles(id) ON DELETE CASCADE,
+      date         DATE NOT NULL DEFAULT CURRENT_DATE,
+      description  TEXT NOT NULL,
+      cost         NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency     TEXT NOT NULL DEFAULT 'KES',
+      provider     TEXT NOT NULL DEFAULT '',
+      next_service DATE,
+      created_by   TEXT NOT NULL,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
 }
