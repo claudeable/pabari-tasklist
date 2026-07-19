@@ -175,6 +175,8 @@ export default function VehiclesClient({ vehicles: initial, userEmail }: { vehic
     }
   }, [vehicles])
 
+  const canEdit = userEmail === 'hkotecha@kwale-group.com'
+
   function openNew()            { setForm({...EMPTY}); setEditing(null); setError(''); setShowForm(true) }
   function openEdit(v: Vehicle) { setForm({...v, psv_license_expiry: v.psv_license_expiry??'', driver_license_expiry: v.driver_license_expiry??'', inspection_expiry: v.inspection_expiry??'', road_license_expiry: v.road_license_expiry??'' }); setEditing(v); setError(''); setShowForm(true) }
   function set(k: string, val: unknown) { setForm(p => ({...p,[k]:val})) }
@@ -253,7 +255,7 @@ export default function VehiclesClient({ vehicles: initial, userEmail }: { vehic
         <div style={{ display:'flex', gap:8 }}>
           <button className="btn btn-secondary" onClick={() => exportCSV(filtered)} title="Download Excel/CSV">📥 Excel</button>
           <button className="btn btn-secondary" onClick={() => exportPDF(filtered)} title="Print / Save PDF">🖨️ PDF</button>
-          <button className="btn btn-primary" onClick={openNew}>+ Add Vehicle</button>
+          {canEdit && <button className="btn btn-primary" onClick={openNew}>+ Add Vehicle</button>}
         </div>
       </div>
 
@@ -366,10 +368,12 @@ export default function VehiclesClient({ vehicles: initial, userEmail }: { vehic
                             <td style={{ padding:'10px 14px', textAlign:'right', fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>{fmt(v.mileage)}</td>
                             <td style={{ padding:'10px 14px' }}><span className={`badge ${STATUS_BADGE[v.status]??'badge-gray'}`}>{v.status}</span></td>
                             <td style={{ padding:'10px 14px' }} onClick={e => e.stopPropagation()}>
-                              <div style={{ display:'flex', gap:4 }}>
-                                <button className="btn btn-ghost btn-xs" onClick={() => openEdit(v)}>Edit</button>
-                                <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(v.id)}>Del</button>
-                              </div>
+                              {canEdit && (
+                                <div style={{ display:'flex', gap:4 }}>
+                                  <button className="btn btn-ghost btn-xs" onClick={() => openEdit(v)}>Edit</button>
+                                  <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(v.id)}>Del</button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )
@@ -506,7 +510,7 @@ export default function VehiclesClient({ vehicles: initial, userEmail }: { vehic
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => { openEdit(detail); setDetail(null) }}>Edit Vehicle</button>
+              {canEdit && <button className="btn btn-secondary" onClick={() => { openEdit(detail); setDetail(null) }}>Edit Vehicle</button>}
               <button className="btn btn-ghost" onClick={() => setDetail(null)}>Close</button>
             </div>
           </div>

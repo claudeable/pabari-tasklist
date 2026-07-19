@@ -116,6 +116,8 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
   }, [filtered])
 
   function toggleCollapse(co: string) { setCollapsed(c => ({...c,[co]:!c[co]})) }
+  const canEdit = userEmail === 'hkotecha@kwale-group.com'
+
   function openNew()            { setForm({...EMPTY}); setEditing(null); setError(''); setShowForm(true) }
   function openEdit(a: Asset)   { setForm({...a}); setEditing(a); setError(''); setShowForm(true) }
   function set(k: string, v: unknown) { setForm(p => ({...p,[k]:v})) }
@@ -175,7 +177,7 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
           <button className={`btn ${view==='grid' ?'btn-secondary':'btn-ghost'}`} onClick={() => setView('grid')}>⊞ Grid</button>
           <button className="btn btn-secondary" onClick={() => exportAssetsCSV(filtered)} title="Download Excel/CSV">📥 Excel</button>
           <button className="btn btn-secondary" onClick={() => exportAssetsPDF(filtered)} title="Print / Save PDF">🖨️ PDF</button>
-          <button className="btn btn-primary" onClick={openNew}>+ Add Asset</button>
+          {canEdit && <button className="btn btn-primary" onClick={openNew}>+ Add Asset</button>}
         </div>
       </div>
 
@@ -257,10 +259,12 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
                               <td style={{ textAlign:'right', fontWeight:600 }}>{a.currency} {fmt(a.current_value)}</td>
                               <td><span className={`badge ${STATUS_BADGE[a.status]??'badge-gray'}`}>{a.status}</span></td>
                               <td onClick={e => e.stopPropagation()}>
-                                <div style={{ display:'flex', gap:4 }}>
-                                  <button className="btn btn-ghost btn-xs" onClick={() => openEdit(a)}>Edit</button>
-                                  <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(a.id)}>Del</button>
-                                </div>
+                                {canEdit && (
+                                  <div style={{ display:'flex', gap:4 }}>
+                                    <button className="btn btn-ghost btn-xs" onClick={() => openEdit(a)}>Edit</button>
+                                    <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(a.id)}>Del</button>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -298,10 +302,12 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
                   <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600 }}>Current Value</div>
                   <div style={{ fontWeight:700, color:'var(--primary)' }}>{a.currency} {fmtS(a.current_value)}</div>
                 </div>
-                <div style={{ display:'flex', gap:4 }} onClick={e => e.stopPropagation()}>
-                  <button className="btn btn-ghost btn-xs" onClick={() => openEdit(a)}>Edit</button>
-                  <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(a.id)}>Del</button>
-                </div>
+                {canEdit && (
+                  <div style={{ display:'flex', gap:4 }} onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-ghost btn-xs" onClick={() => openEdit(a)}>Edit</button>
+                    <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(a.id)}>Del</button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -409,7 +415,7 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => { openEdit(detail); setDetail(null) }}>Edit Asset</button>
+              {canEdit && <button className="btn btn-secondary" onClick={() => { openEdit(detail); setDetail(null) }}>Edit Asset</button>}
               <button className="btn btn-ghost" onClick={() => setDetail(null)}>Close</button>
             </div>
           </div>
