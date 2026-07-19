@@ -109,6 +109,12 @@ async function _createTables() {
     )
   `)
 
+  // Add compliance columns to fin_vehicles if upgrading an existing table
+  await execute(`ALTER TABLE fin_vehicles ADD COLUMN IF NOT EXISTS inspection_expiry DATE`)
+  await execute(`ALTER TABLE fin_vehicles ADD COLUMN IF NOT EXISTS road_license_expiry DATE`)
+  await execute(`ALTER TABLE fin_vehicles ADD COLUMN IF NOT EXISTS driver_license_expiry DATE`)
+  await execute(`ALTER TABLE fin_vehicles ADD COLUMN IF NOT EXISTS psv_license_expiry DATE`)
+
   await execute(`
     CREATE TABLE IF NOT EXISTS fin_maintenance (
       id           SERIAL PRIMARY KEY,
@@ -474,46 +480,55 @@ export async function deleteAsset(id: number): Promise<boolean> {
 // ── Vehicles ──────────────────────────────────────────────────────────────────
 
 export interface Vehicle {
-  id:               number
-  asset_id:         number | null
-  reg_plate:        string
-  make:             string
-  model:            string
-  year:             number | null
-  company:          string
-  assigned_driver:  string
-  fuel_type:        string
-  mileage:          number
-  insurance_expiry: string | null
-  service_due_date: string | null
-  service_due_km:   number | null
-  status:           string
-  notes:            string
-  created_by:       string
-  created_at:       string
-  updated_at:       string
+  id:                    number
+  asset_id:              number | null
+  reg_plate:             string
+  make:                  string
+  model:                 string
+  year:                  number | null
+  company:               string
+  assigned_driver:       string
+  fuel_type:             string
+  mileage:               number
+  insurance_expiry:      string | null
+  inspection_expiry:     string | null
+  road_license_expiry:   string | null
+  driver_license_expiry: string | null
+  psv_license_expiry:    string | null
+  service_due_date:      string | null
+  service_due_km:        number | null
+  status:                string
+  notes:                 string
+  created_by:            string
+  created_at:            string
+  updated_at:            string
 }
 
 function rowToVehicle(r: Record<string,unknown>): Vehicle {
+  const d = (k: string) => r[k] ? String(r[k]).slice(0,10) : null
   return {
-    id:               Number(r.id),
-    asset_id:         r.asset_id ? Number(r.asset_id) : null,
-    reg_plate:        String(r.reg_plate),
-    make:             String(r.make||''),
-    model:            String(r.model||''),
-    year:             r.year ? Number(r.year) : null,
-    company:          String(r.company),
-    assigned_driver:  String(r.assigned_driver||''),
-    fuel_type:        String(r.fuel_type||'petrol'),
-    mileage:          Number(r.mileage||0),
-    insurance_expiry: r.insurance_expiry ? String(r.insurance_expiry).slice(0,10) : null,
-    service_due_date: r.service_due_date ? String(r.service_due_date).slice(0,10) : null,
-    service_due_km:   r.service_due_km ? Number(r.service_due_km) : null,
-    status:           String(r.status),
-    notes:            String(r.notes||''),
-    created_by:       String(r.created_by),
-    created_at:       String(r.created_at),
-    updated_at:       String(r.updated_at),
+    id:                    Number(r.id),
+    asset_id:              r.asset_id ? Number(r.asset_id) : null,
+    reg_plate:             String(r.reg_plate),
+    make:                  String(r.make||''),
+    model:                 String(r.model||''),
+    year:                  r.year ? Number(r.year) : null,
+    company:               String(r.company),
+    assigned_driver:       String(r.assigned_driver||''),
+    fuel_type:             String(r.fuel_type||'petrol'),
+    mileage:               Number(r.mileage||0),
+    insurance_expiry:      d('insurance_expiry'),
+    inspection_expiry:     d('inspection_expiry'),
+    road_license_expiry:   d('road_license_expiry'),
+    driver_license_expiry: d('driver_license_expiry'),
+    psv_license_expiry:    d('psv_license_expiry'),
+    service_due_date:      d('service_due_date'),
+    service_due_km:        r.service_due_km ? Number(r.service_due_km) : null,
+    status:                String(r.status),
+    notes:                 String(r.notes||''),
+    created_by:            String(r.created_by),
+    created_at:            String(r.created_at),
+    updated_at:            String(r.updated_at),
   }
 }
 
@@ -530,16 +545,25 @@ export async function getVehicles(filters?: { company?: string; status?: string 
 export async function createVehicle(data: Omit<Vehicle,'id'|'created_at'|'updated_at'>): Promise<Vehicle> {
   await ensureTables()
   const rows = await query<Record<string,unknown>>(
-    `INSERT INTO fin_vehicles (asset_id,reg_plate,make,model,year,company,assigned_driver,fuel_type,mileage,insurance_expiry,service_due_date,service_due_km,status,notes,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [data.asset_id||null,data.reg_plate,data.make,data.model,data.year||null,data.company,data.assigned_driver,data.fuel_type,data.mileage,data.insurance_expiry||null,data.service_due_date||null,data.service_due_km||null,data.status,data.notes,data.created_by]
+    `INSERT INTO fin_vehicles
+       (asset_id,reg_plate,make,model,year,company,assigned_driver,fuel_type,mileage,
+        insurance_expiry,inspection_expiry,road_license_expiry,driver_license_expiry,psv_license_expiry,
+        service_due_date,service_due_km,status,notes,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+    [data.asset_id||null, data.reg_plate, data.make, data.model, data.year||null,
+     data.company, data.assigned_driver, data.fuel_type, data.mileage,
+     data.insurance_expiry||null, data.inspection_expiry||null,
+     data.road_license_expiry||null, data.driver_license_expiry||null, data.psv_license_expiry||null,
+     data.service_due_date||null, data.service_due_km||null, data.status, data.notes, data.created_by]
   )
   return rowToVehicle(rows[0])
 }
 
 export async function updateVehicle(id: number, data: Partial<Omit<Vehicle,'id'|'created_at'>>): Promise<Vehicle|null> {
   await ensureTables()
-  const allowed = ['reg_plate','make','model','year','company','assigned_driver','fuel_type','mileage','insurance_expiry','service_due_date','service_due_km','status','notes','asset_id']
+  const allowed = ['reg_plate','make','model','year','company','assigned_driver','fuel_type','mileage',
+    'insurance_expiry','inspection_expiry','road_license_expiry','driver_license_expiry','psv_license_expiry',
+    'service_due_date','service_due_km','status','notes','asset_id']
   const fields = Object.keys(data).filter(k => allowed.includes(k))
   if (!fields.length) return null
   const set = fields.map((f,i) => `${f} = $${i+2}`).join(', ')

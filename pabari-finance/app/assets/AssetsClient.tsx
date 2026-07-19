@@ -19,6 +19,51 @@ function fmtS(n: number) {
 }
 
 const TODAY = new Date().toISOString().slice(0,10)
+
+function exportAssetsCSV(assets: Asset[]) {
+  const headers = ['Asset No','Name','Type','Company','Location','Department','Assigned To','Serial No','Purchase Date','Currency','Purchase Cost','Current Value','Status','Notes']
+  const rows = assets.map(a => [
+    a.asset_no, a.name, a.type, a.company, a.location, a.department,
+    a.assigned_to, a.serial_no, a.purchase_date??'', a.currency,
+    a.purchase_cost, a.current_value, a.status, a.notes,
+  ])
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a'); a.href = url
+  a.download = `asset-directory-${TODAY}.csv`; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function exportAssetsPDF(assets: Asset[]) {
+  const byCompany: Record<string, Asset[]> = {}
+  for (const a of assets) { (byCompany[a.company] ??= []).push(a) }
+  const rows = Object.entries(byCompany).map(([co, list]) => `
+    <tr style="background:#f0fdf4"><td colspan="8" style="padding:7px 10px;font-weight:700;font-size:12px;color:#14532d;border-bottom:2px solid #16a34a">
+      ${co} — ${list.length} asset${list.length!==1?'s':''} &nbsp;|&nbsp; Total value: KES ${list.reduce((s,a)=>s+a.current_value,0).toLocaleString('en-KE',{maximumFractionDigits:0})}
+    </td></tr>
+    ${list.map(a => `<tr>
+      <td style="font-family:monospace;font-size:10px">${a.asset_no}</td>
+      <td>${a.name}</td>
+      <td>${a.type}</td>
+      <td>${a.location||'—'}</td>
+      <td>${a.assigned_to||'—'}</td>
+      <td style="text-align:right">${a.currency} ${a.current_value.toLocaleString('en-KE',{maximumFractionDigits:0})}</td>
+      <td style="text-align:right">${a.currency} ${a.purchase_cost.toLocaleString('en-KE',{maximumFractionDigits:0})}</td>
+      <td><span style="padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;background:${a.status==='active'?'#dcfce7':a.status==='maintenance'?'#fef3c7':'#fee2e2'};color:${a.status==='active'?'#15803d':a.status==='maintenance'?'#92400e':'#991b1b'}">${a.status}</span></td>
+    </tr>`).join('')}
+  `).join('')
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Asset Directory</title>
+  <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}h1{font-size:18px;color:#14532d;margin-bottom:4px}.sub{font-size:11px;color:#6b7280;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#14532d;color:#fff;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px}td{padding:5px 8px;border-bottom:1px solid #e5e7eb;vertical-align:middle}@media print{body{margin:10px}}</style>
+  </head><body>
+  <h1>Asset Directory</h1>
+  <div class="sub">Generated ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})} | ${assets.length} assets total</div>
+  <table><thead><tr><th>Asset No</th><th>Name</th><th>Type</th><th>Location</th><th>Assigned To</th><th style="text-align:right">Current Value</th><th style="text-align:right">Cost</th><th>Status</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+  <script>window.onload=()=>window.print()</script></body></html>`
+  const win = window.open('','_blank'); win?.document.write(html); win?.document.close()
+}
+
 const EMPTY: Partial<Asset> = {
   asset_no:'', name:'', type:'Equipment', company:'', location:'', department:'',
   assigned_to:'', purchase_date:TODAY, purchase_cost:0, current_value:0,
@@ -32,6 +77,7 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
   const [statusF, setStatusF]   = useState('')
   const [companyF, setCompanyF] = useState('')
   const [view, setView]         = useState<'table'|'grid'>('table')
+  const [collapsed, setCollapsed] = useState<Record<string,boolean>>({})
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing]   = useState<Asset | null>(null)
   const [form, setForm]         = useState<Partial<Asset>>(EMPTY)
@@ -63,6 +109,13 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
     cost:       assets.reduce((s,a) => s+a.purchase_cost, 0),
   }), [assets])
 
+  const byCompany = useMemo(() => {
+    const map: Record<string, Asset[]> = {}
+    for (const a of filtered) { (map[a.company] ??= []).push(a) }
+    return map
+  }, [filtered])
+
+  function toggleCollapse(co: string) { setCollapsed(c => ({...c,[co]:!c[co]})) }
   function openNew()            { setForm({...EMPTY}); setEditing(null); setError(''); setShowForm(true) }
   function openEdit(a: Asset)   { setForm({...a}); setEditing(a); setError(''); setShowForm(true) }
   function set(k: string, v: unknown) { setForm(p => ({...p,[k]:v})) }
@@ -120,6 +173,8 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
         <div style={{ display:'flex', gap:8 }}>
           <button className={`btn ${view==='table'?'btn-secondary':'btn-ghost'}`} onClick={() => setView('table')}>☰ Table</button>
           <button className={`btn ${view==='grid' ?'btn-secondary':'btn-ghost'}`} onClick={() => setView('grid')}>⊞ Grid</button>
+          <button className="btn btn-secondary" onClick={() => exportAssetsCSV(filtered)} title="Download Excel/CSV">📥 Excel</button>
+          <button className="btn btn-secondary" onClick={() => exportAssetsPDF(filtered)} title="Print / Save PDF">🖨️ PDF</button>
           <button className="btn btn-primary" onClick={openNew}>+ Add Asset</button>
         </div>
       </div>
@@ -162,39 +217,62 @@ export default function AssetsClient({ assets: initial, userEmail }: { assets: A
         )}
       </div>
 
-      {/* Table view */}
+      {/* Table view — grouped by company */}
       {view==='table' && (
-        <div className="card table-wrap">
-          <table>
-            <thead><tr>
-              <th>Asset No</th><th>Name</th><th>Type</th><th>Company</th>
-              <th>Location</th><th>Assigned To</th>
-              <th style={{ textAlign:'right' }}>Current Value</th>
-              <th>Status</th><th></th>
-            </tr></thead>
-            <tbody>
-              {filtered.map(a => (
-                <tr key={a.id} style={{ cursor:'pointer' }} onClick={() => openDetail(a)}>
-                  <td style={{ fontFamily:'monospace', fontSize:12, color:'var(--muted)' }}>{a.asset_no}</td>
-                  <td style={{ fontWeight:600 }}>{a.name}</td>
-                  <td style={{ whiteSpace:'nowrap' }}>{TYPE_ICON[a.type]||''} <span style={{ fontSize:12 }}>{a.type}</span></td>
-                  <td><span className="co-tag">{a.company}</span></td>
-                  <td style={{ fontSize:12, color:'var(--muted)' }}>{a.location||'—'}</td>
-                  <td style={{ fontSize:12 }}>{a.assigned_to||'—'}</td>
-                  <td style={{ textAlign:'right', fontWeight:600 }}>{a.currency} {fmt(a.current_value)}</td>
-                  <td><span className={`badge ${STATUS_BADGE[a.status]??'badge-gray'}`}>{a.status}</span></td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <div style={{ display:'flex', gap:4 }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => openEdit(a)}>Edit</button>
-                      <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(a.id)}>Del</button>
+        Object.keys(byCompany).length === 0 ? (
+          <div className="card" style={{ padding:48, textAlign:'center', color:'var(--muted)' }}>No assets match your filters</div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {Object.entries(byCompany).map(([co, list]) => {
+              const isCollapsed = collapsed[co]
+              const coValue = list.reduce((s,a) => s+a.current_value, 0)
+              return (
+                <div key={co} className="card" style={{ overflow:'hidden' }}>
+                  <div
+                    onClick={() => toggleCollapse(co)}
+                    style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', background:'var(--primary-light)', borderBottom:isCollapsed?'none':'1px solid var(--border)', cursor:'pointer', userSelect:'none' }}
+                  >
+                    <span style={{ fontSize:13, fontWeight:700, color:'var(--primary)', flex:1 }}>{co}</span>
+                    <span style={{ fontSize:12, color:'var(--muted)' }}>{list.length} asset{list.length!==1?'s':''}</span>
+                    <span style={{ fontSize:12, color:'var(--primary)', fontWeight:600 }}>KES {fmt(coValue)}</span>
+                    <span style={{ fontSize:12, color:'var(--muted)' }}>{isCollapsed ? '▶' : '▼'}</span>
+                  </div>
+                  {!isCollapsed && (
+                    <div style={{ overflowX:'auto' }}>
+                      <table>
+                        <thead><tr>
+                          <th>Asset No</th><th>Name</th><th>Type</th>
+                          <th>Location</th><th>Assigned To</th>
+                          <th style={{ textAlign:'right' }}>Current Value</th>
+                          <th>Status</th><th></th>
+                        </tr></thead>
+                        <tbody>
+                          {list.map(a => (
+                            <tr key={a.id} style={{ cursor:'pointer' }} onClick={() => openDetail(a)}>
+                              <td style={{ fontFamily:'monospace', fontSize:12, color:'var(--muted)' }}>{a.asset_no}</td>
+                              <td style={{ fontWeight:600 }}>{a.name}</td>
+                              <td style={{ whiteSpace:'nowrap' }}>{TYPE_ICON[a.type]||''} <span style={{ fontSize:12 }}>{a.type}</span></td>
+                              <td style={{ fontSize:12, color:'var(--muted)' }}>{a.location||'—'}</td>
+                              <td style={{ fontSize:12 }}>{a.assigned_to||'—'}</td>
+                              <td style={{ textAlign:'right', fontWeight:600 }}>{a.currency} {fmt(a.current_value)}</td>
+                              <td><span className={`badge ${STATUS_BADGE[a.status]??'badge-gray'}`}>{a.status}</span></td>
+                              <td onClick={e => e.stopPropagation()}>
+                                <div style={{ display:'flex', gap:4 }}>
+                                  <button className="btn btn-ghost btn-xs" onClick={() => openEdit(a)}>Edit</button>
+                                  <button className="btn btn-xs" style={{ background:'var(--danger-light)', color:'var(--danger)' }} onClick={() => del(a.id)}>Del</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length===0 && <tr><td colSpan={9} className="table-empty">No assets match your filters</td></tr>}
-            </tbody>
-          </table>
-        </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
       )}
 
       {/* Grid view */}
