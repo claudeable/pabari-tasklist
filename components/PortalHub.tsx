@@ -67,11 +67,13 @@ const ACTION_FEED: Record<string, string> = {
 const systems = [
   { key:'tasks',    icon:'✓',  iconBg:'#dbeafe', iconColor:'#1d4ed8', label:'Task Management',     href:'/tasks',            detail:'Pending · Assignments · Deadlines' },
   { key:'forms',    icon:'📋', iconBg:'#fef3c7', iconColor:'#b45309', label:'Forms',               href:'/forms',            detail:'Leave Requests · Petty Cash' },
-  { key:'assets',   icon:'🗂️', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Asset Directory',     href:'/asset-directory',  detail:'Assets · Fleet · Compliance', assetsOnly:true },
-  { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',         detail:'Milestones · Gantt · Budget',   projectsOnly:true },
+  { key:'finance',  icon:'💳', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Finance',             href:'/finance',          detail:'Invoices · Payments · Budgets',  financeOnly:true },
+  { key:'delivery', icon:'📦', iconBg:'#fef3c7', iconColor:'#b45309', label:'Delivery Notes',      href:'/delivery-notes',   detail:'Create · Track · Export',        yaleletOnly:true },
+  { key:'assets',   icon:'🗂️', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Asset Directory',     href:'/asset-directory',  detail:'Assets · Fleet · Compliance',    assetsOnly:true },
+  { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',         detail:'Milestones · Gantt · Budget',    projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents',        detail:'Upload · Folders · View',        adminOnly:true },
-  { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',          detail:'Contacts · Directory · Search', harshilOnly:true },
-  { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security',   detail:'Threats · IP Blocking',         superAdminOnly:true },
+  { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',          detail:'Contacts · Directory · Search',  harshilOnly:true },
+  { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security',   detail:'Threats · IP Blocking',          superAdminOnly:true },
 ]
 
 function buildSessions(entries: ActivityEntry[]): Session[] {
@@ -177,22 +179,26 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
   }, [isDirector]) // eslint-disable-line
 
   // ── Visible systems ──────────────────────────────────────────────────────────
-  const ASSET_USERS = ['harshil', 'paul', 'krishna', 'yalelet']
+  const ASSET_USERS    = ['harshil', 'paul', 'krishna', 'yalelet']
+  const FINANCE_USERS  = ['harshil', 'yalelet']
 
   const visibleSystems = systems.filter(sys => {
-    const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean; harshilOnly?:boolean; assetsOnly?:boolean }
+    const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean; harshilOnly?:boolean; assetsOnly?:boolean; financeOnly?:boolean; yaleletOnly?:boolean }
     const firstNameLower = currentUser.name.toLowerCase().split(' ')[0]
     if (s.superAdminOnly) return currentUser.role === 'admin'
-    if (s.adminOnly) return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
-    if (s.harshilOnly) return currentUser.role === 'admin' || firstNameLower === 'harshil'
-    if (s.projectsOnly) return currentUser.role === 'admin' || firstNameLower === 'harshil' || firstNameLower === 'benson'
-    if (s.assetsOnly) return currentUser.role === 'admin' || ASSET_USERS.includes(firstNameLower)
+    if (s.adminOnly)      return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
+    if (s.harshilOnly)    return currentUser.role === 'admin' || firstNameLower === 'harshil'
+    if (s.projectsOnly)   return currentUser.role === 'admin' || firstNameLower === 'harshil' || firstNameLower === 'benson'
+    if (s.assetsOnly)     return currentUser.role === 'admin' || ASSET_USERS.includes(firstNameLower)
+    if (s.financeOnly)    return currentUser.role === 'admin' || FINANCE_USERS.includes(firstNameLower)
+    if (s.yaleletOnly)    return currentUser.role === 'admin' || firstNameLower === 'yalelet'
     return true
   })
 
   const isHK = currentUser.role === 'admin' || (currentUser.role === 'director' && firstName.toLowerCase() === 'harshil')
   // Only admin, Harshil, and Benson see activity log, recent activity, and quick actions
-  const canSeeActivity = currentUser.role === 'admin' || firstName.toLowerCase() === 'harshil' || firstName.toLowerCase() === 'benson' || firstName.toLowerCase() === 'yalelet'
+  const canSeeActivity = currentUser.role === 'admin' || firstName.toLowerCase() === 'harshil' || firstName.toLowerCase() === 'benson'
+  const canSeeFinance  = canSeeActivity || firstName.toLowerCase() === 'yalelet'
   const hasAttention = (dash?.approvalsWaiting ?? 0) > 0 || (dash?.overdueTasks ?? 0) > 0 || (dash?.highPriorityTasks?.length ?? 0) > 0 || (isHK && (dash?.needsHkComment ?? 0) > 0)
 
   // ── Styles ───────────────────────────────────────────────────────────────────
@@ -277,7 +283,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
       </div>
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
-      <div style={{ maxWidth:1200, margin:'0 auto', padding: isMobile ? '16px 12px' : '24px 32px', display:'grid', gridTemplateColumns: isMobile ? '1fr' : canSeeActivity ? '1fr 340px' : '1fr', gap:20, alignItems:'start' }}>
+      <div style={{ maxWidth:1200, margin:'0 auto', padding: isMobile ? '16px 12px' : '24px 32px', display:'grid', gridTemplateColumns: isMobile ? '1fr' : canSeeFinance ? '1fr 340px' : '1fr', gap:20, alignItems:'start' }}>
 
         {/* LEFT COLUMN */}
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -472,8 +478,8 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
           )}
         </div>
 
-        {/* RIGHT COLUMN — only admin / Harshil / Benson */}
-        {canSeeActivity && <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+        {/* RIGHT COLUMN — admin / Harshil / Benson / Yalelet */}
+        {canSeeFinance && <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
           {/* ── FINANCE SNAPSHOT ────────────────────────────────────────── */}
           {dash?.financeStats ? (
