@@ -192,7 +192,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
 
   const isHK = currentUser.role === 'admin' || (currentUser.role === 'director' && firstName.toLowerCase() === 'harshil')
   // Only admin, Harshil, and Benson see activity log, recent activity, and quick actions
-  const canSeeActivity = currentUser.role === 'admin' || firstName.toLowerCase() === 'harshil' || firstName.toLowerCase() === 'benson'
+  const canSeeActivity = currentUser.role === 'admin' || firstName.toLowerCase() === 'harshil' || firstName.toLowerCase() === 'benson' || firstName.toLowerCase() === 'yalelet'
   const hasAttention = (dash?.approvalsWaiting ?? 0) > 0 || (dash?.overdueTasks ?? 0) > 0 || (dash?.highPriorityTasks?.length ?? 0) > 0 || (isHK && (dash?.needsHkComment ?? 0) > 0)
 
   // ── Styles ───────────────────────────────────────────────────────────────────

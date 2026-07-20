@@ -176,7 +176,7 @@ export async function GET() {
 
   // ── Finance stats (admin/harshil/benson) ─────────────────────────────────────
   let financeStats: { draft: number; sent: number; overdue: number } | null = null
-  const canSeeFinance = isAdmin || firstName === 'harshil' || firstName === 'benson'
+  const canSeeFinance = isAdmin || firstName === 'harshil' || firstName === 'benson' || firstName === 'yalelet'
   if (canSeeFinance) {
     try {
       const rows = await query<{ status: string; count: string }>(
