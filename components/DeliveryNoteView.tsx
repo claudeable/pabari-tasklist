@@ -174,7 +174,7 @@ function MercuryTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[]
 // ── BYTEWISE TEMPLATE ─────────────────────────────────────────────────────────
 function BytewiseTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[] }) {
   const rows = [...items] as BytewiseItem[]
-  while (rows.length < 8) rows.push({ item_code:'', description:'', unit:'' })
+  while (rows.length < 8) rows.push({ item_code:'', description:'', qty:'' })
 
   return (
     <div style={{ padding:'28px 32px 36px', fontFamily:'Arial,Helvetica,sans-serif', fontSize:12, color:'#000', lineHeight:1.4 }}>
@@ -182,18 +182,8 @@ function BytewiseTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:16 }}>
         <div>
           {/* ByteWISE logo */}
-          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-            <svg width="36" height="36" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-              <rect width="64" height="64" rx="6" fill="#1a5c3a"/>
-              <ellipse cx="32" cy="20" rx="10" ry="14" fill="#4ade80" opacity="0.9"/>
-              <ellipse cx="22" cy="30" rx="8" ry="12" fill="#86efac" opacity="0.7"/>
-              <path d="M20 44 Q32 52 44 44" stroke="white" strokeWidth="2.5" fill="none"/>
-              <text x="32" y="56" textAnchor="middle" fontSize="8" fontWeight="900" fill="white">ByteWISE</text>
-            </svg>
-            <div>
-              <span style={{ fontWeight:900, fontSize:18, color:'#1a5c3a' }}>Byte</span><span style={{ fontWeight:900, fontSize:18, color:'#111' }}>WISE</span>
-            </div>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/bytewise-logo.png" alt="ByteWISE" style={{ height:80, width:'auto', display:'block', marginBottom:6 }} />
           <div style={{ fontWeight:700, fontSize:11, color:'#111' }}>BYTEWISE LIMITED</div>
           <div style={{ fontSize:10, color:'#444' }}>P.O. BOX: 63416-00619 NAIROBI KENYA</div>
         </div>
