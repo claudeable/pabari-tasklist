@@ -84,8 +84,8 @@ export default function DeliveryNoteView({ id, currentUser }: { id: string; curr
         @media print {
           .no-print { display: none !important; }
           .no-print-bg { background: white !important; padding: 0 !important; }
-          body { margin: 0; }
-          @page { margin: 10mm 12mm; size: A4; }
+          body { margin: 0; padding: 0; }
+          @page { margin: 0; size: A4; }
         }
         @media screen { .print-only { display: none !important; } }
       `}</style>
