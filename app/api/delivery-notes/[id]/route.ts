@@ -29,12 +29,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   try {
     const body = await req.json()
-    const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks } = body
+    const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, issuing_company, gate_pass_number } = body
     if (!note_number?.trim()) return NextResponse.json({ error: 'Delivery Note No is required' }, { status: 400 })
     await execute(
       `UPDATE delivery_notes SET note_number=$1, to_company=$2, order_no=$3, delivery_date=$4,
-       vehicle_no=$5, driver_name=$6, driver_id=$7, items=$8, remarks=$9 WHERE id=$10`,
-      [note_number.trim(), to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', params.id]
+       vehicle_no=$5, driver_name=$6, driver_id=$7, items=$8, remarks=$9, issuing_company=$10, gate_pass_number=$11 WHERE id=$12`,
+      [note_number.trim(), to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', issuing_company ?? 'mercury', gate_pass_number ?? '', params.id]
     )
     return NextResponse.json({ ok: true })
   } catch (e) {
