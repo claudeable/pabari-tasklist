@@ -222,7 +222,7 @@ function BytewiseTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[
           <th style={{ border:'1px solid #000', padding:'7px 10px', fontWeight:700, textAlign:'center', width:36, fontSize:11 }}>S.No</th>
           <th style={{ border:'1px solid #000', padding:'7px 10px', fontWeight:700, textAlign:'center', width:110, fontSize:11 }}>Item Code</th>
           <th style={{ border:'1px solid #000', padding:'7px 10px', fontWeight:700, textAlign:'center', fontSize:11 }}>Description</th>
-          <th style={{ border:'1px solid #000', padding:'7px 10px', fontWeight:700, textAlign:'center', width:70, fontSize:11 }}>Unit</th>
+          <th style={{ border:'1px solid #000', padding:'7px 10px', fontWeight:700, textAlign:'center', width:70, fontSize:11 }}>Qty</th>
         </tr></thead>
         <tbody>
           {rows.map((row, i) => (
@@ -230,7 +230,7 @@ function BytewiseTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[
               <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26, color:'#666' }}>{i+1}</td>
               <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.item_code??''}</td>
               <td style={{ border:'1px solid #000', padding:'6px 10px', height:26 }}>{row.description}</td>
-              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.unit??''}</td>
+              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.qty??''}</td>
             </tr>
           ))}
         </tbody>

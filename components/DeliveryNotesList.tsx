@@ -5,7 +5,7 @@ import { SessionUser } from '@/types'
 
 type IssuingCompany = 'mercury' | 'bytewise'
 
-interface AnyItem { qty?: string; description: string; item_code?: string; unit?: string }
+interface AnyItem { qty?: string; description: string; item_code?: string }
 type MercuryItem  = AnyItem
 type BytewiseItem = AnyItem
 
@@ -34,15 +34,15 @@ interface Customer {
 const TODAY = new Date().toISOString().slice(0, 10)
 
 const GOODS_OPTIONS: Record<IssuingCompany, string[]> = {
-  mercury:  ['25kg Biriyani Rice'],
-  bytewise: [],
+  mercury:  ['Soya Beans 50kg', 'Sugar 50kg', 'Biriyani Rice 25kg', '2kg Sugar Bales', '1kg Sugar Bales'],
+  bytewise: ['Soya Beans 50kg', 'Sugar 50kg', 'Biriyani Rice 25kg', '2kg Sugar Bales', '1kg Sugar Bales'],
 }
 
 const CO_LABEL: Record<IssuingCompany, string> = { mercury: 'Mercury Agencies Limited', bytewise: 'Bytewise Limited' }
 const CO_BADGE_BG: Record<IssuingCompany, string> = { mercury: '#3D2314', bytewise: '#1a3a2a' }
 
 function emptyMercuryItems(): MercuryItem[]  { return [{qty:'',description:''},{qty:'',description:''},{qty:'',description:''}] }
-function emptyBytewiseItems(): BytewiseItem[] { return [{item_code:'',description:'',unit:''},{item_code:'',description:'',unit:''},{item_code:'',description:'',unit:''}] }
+function emptyBytewiseItems(): BytewiseItem[] { return [{item_code:'',description:'',qty:''},{item_code:'',description:'',qty:''},{item_code:'',description:'',qty:''}] }
 
 function emptyForm(co: IssuingCompany) {
   return {
@@ -109,7 +109,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
     setForm(f => { const items = [...f.items] as AnyItem[]; items[i] = { ...items[i], [field]: val }; return { ...f, items } })
   }
   function addRow() {
-    setForm(f => ({ ...f, items: [...f.items, issuingCo === 'bytewise' ? {item_code:'',description:'',unit:''} : {qty:'',description:''}] as AnyItem[] }))
+    setForm(f => ({ ...f, items: [...f.items, issuingCo === 'bytewise' ? {item_code:'',description:'',qty:''} : {qty:'',description:''}] as AnyItem[] }))
   }
   function removeRow(i: number) { setForm(f => ({ ...f, items: f.items.filter((_,idx) => idx!==i) })) }
 
@@ -447,7 +447,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                   })}
                 </>) : (<>
                   <div style={{ display:'grid', gridTemplateColumns:'40px 120px 1fr 80px 32px', background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
-                    {['S.No','Item Code','Description','Unit',''].map(h=><div key={h} style={{ padding:'8px 10px', fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' }}>{h}</div>)}
+                    {['S.No','Item Code','Description','Qty',''].map(h=><div key={h} style={{ padding:'8px 10px', fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' }}>{h}</div>)}
                   </div>
                   {form.items.map((item, i) => {
                     const b = item as BytewiseItem
@@ -456,9 +456,10 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                         <div style={{ padding:'9px 10px', fontSize:13, color:'#9ca3af', borderRight:'1px solid #f3f4f6', display:'flex', alignItems:'center' }}>{i+1}</div>
                         <input value={b.item_code??''} onChange={e=>setItem(i,'item_code',e.target.value)} placeholder="Code"
                           style={{ padding:'9px 10px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent' }} />
-                        <input value={b.description} onChange={e=>setItem(i,'description',e.target.value)} placeholder="Description"
-                          style={{ padding:'9px 10px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent', width:'100%', boxSizing:'border-box' }} />
-                        <input value={b.unit??''} onChange={e=>setItem(i,'unit',e.target.value)} placeholder="e.g. bags"
+                        <div style={{ borderRight:'1px solid #f3f4f6' }}>
+                          <GoodsSelect value={b.description} onChange={v=>setItem(i,'description',v)} options={GOODS_OPTIONS[issuingCo]} />
+                        </div>
+                        <input value={b.qty??''} onChange={e=>setItem(i,'qty',e.target.value)} placeholder="Qty"
                           style={{ padding:'9px 10px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent' }} />
                         <button onClick={()=>removeRow(i)} style={{ border:'none', background:'transparent', cursor:'pointer', color:'#d1d5db', fontSize:16, padding:0 }}>×</button>
                       </div>
