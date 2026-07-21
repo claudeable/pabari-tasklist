@@ -5,9 +5,9 @@ import { SessionUser } from '@/types'
 
 type IssuingCompany = 'mercury' | 'bytewise'
 
-interface MercuryItem  { qty: string; description: string }
-interface BytewiseItem { item_code: string; description: string; unit: string }
-type AnyItem = MercuryItem | BytewiseItem
+interface AnyItem { qty?: string; description: string; item_code?: string; unit?: string }
+type MercuryItem  = AnyItem
+type BytewiseItem = AnyItem
 
 interface DeliveryNote {
   id: number
