@@ -140,8 +140,8 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
     if (!form.to_company.trim()) { setError('Customer is required'); return }
     if (!form.delivery_date)     { setError('Date is required'); return }
     const filledItems = form.items.filter(it => {
-      if (issuingCo === 'bytewise') { const b = it as BytewiseItem; return b.item_code.trim()||b.description.trim() }
-      else { const m = it as MercuryItem; return m.qty.trim()||m.description.trim() }
+      if (issuingCo === 'bytewise') { return (it.item_code??'').trim()||(it.description??'').trim() }
+      else { return (it.qty??'').trim()||(it.description??'').trim() }
     })
     if (!filledItems.length) { setError('At least one item is required'); return }
     setSaving(true)
@@ -438,7 +438,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                     const m = item as MercuryItem
                     return (
                       <div key={i} style={{ display:'grid', gridTemplateColumns:'100px 1fr 32px', borderBottom:i<form.items.length-1?'1px solid #f3f4f6':undefined }}>
-                        <input value={m.qty} onChange={e=>setItem(i,'qty',e.target.value)} placeholder="Qty"
+                        <input value={m.qty??''} onChange={e=>setItem(i,'qty',e.target.value)} placeholder="Qty"
                           style={{ padding:'9px 12px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent' }} />
                         <GoodsSelect value={m.description} onChange={v=>setItem(i,'description',v)} options={GOODS_OPTIONS[issuingCo]} />
                         <button onClick={()=>removeRow(i)} style={{ border:'none', background:'transparent', cursor:'pointer', color:'#d1d5db', fontSize:16, padding:0 }}>×</button>
@@ -454,11 +454,11 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                     return (
                       <div key={i} style={{ display:'grid', gridTemplateColumns:'40px 120px 1fr 80px 32px', borderBottom:i<form.items.length-1?'1px solid #f3f4f6':undefined }}>
                         <div style={{ padding:'9px 10px', fontSize:13, color:'#9ca3af', borderRight:'1px solid #f3f4f6', display:'flex', alignItems:'center' }}>{i+1}</div>
-                        <input value={b.item_code} onChange={e=>setItem(i,'item_code',e.target.value)} placeholder="Code"
+                        <input value={b.item_code??''} onChange={e=>setItem(i,'item_code',e.target.value)} placeholder="Code"
                           style={{ padding:'9px 10px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent' }} />
                         <input value={b.description} onChange={e=>setItem(i,'description',e.target.value)} placeholder="Description"
                           style={{ padding:'9px 10px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent', width:'100%', boxSizing:'border-box' }} />
-                        <input value={b.unit} onChange={e=>setItem(i,'unit',e.target.value)} placeholder="e.g. bags"
+                        <input value={b.unit??''} onChange={e=>setItem(i,'unit',e.target.value)} placeholder="e.g. bags"
                           style={{ padding:'9px 10px', border:'none', borderRight:'1px solid #f3f4f6', outline:'none', fontSize:13, background:'transparent' }} />
                         <button onClick={()=>removeRow(i)} style={{ border:'none', background:'transparent', cursor:'pointer', color:'#d1d5db', fontSize:16, padding:0 }}>×</button>
                       </div>

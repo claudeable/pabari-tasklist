@@ -141,7 +141,7 @@ function MercuryTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[]
         <tbody>
           {rows.map((row, i) => (
             <tr key={i}>
-              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:28, verticalAlign:'top' }}>{row.qty}</td>
+              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:28, verticalAlign:'top' }}>{row.qty??''}</td>
               <td style={{ border:'1px solid #000', padding:'6px 10px', verticalAlign:'top', height:28 }}>
                 {row.description}
                 {i===0&&(note.vehicle_no||note.driver_name||note.driver_id)&&(
@@ -228,9 +228,9 @@ function BytewiseTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[
           {rows.map((row, i) => (
             <tr key={i}>
               <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26, color:'#666' }}>{i+1}</td>
-              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.item_code}</td>
+              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.item_code??''}</td>
               <td style={{ border:'1px solid #000', padding:'6px 10px', height:26 }}>{row.description}</td>
-              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.unit}</td>
+              <td style={{ border:'1px solid #000', padding:'6px 10px', textAlign:'center', height:26 }}>{row.unit??''}</td>
             </tr>
           ))}
         </tbody>

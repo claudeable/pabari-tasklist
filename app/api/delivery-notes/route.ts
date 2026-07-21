@@ -43,7 +43,7 @@ export async function GET() {
   try {
     await ensureTable()
     const rows = await query(
-      `SELECT id, note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, status, cancel_reason, created_by, created_at
+      `SELECT id, note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, status, cancel_reason, created_by, created_at, issuing_company, gate_pass_number
        FROM delivery_notes ORDER BY created_at DESC LIMIT 200`
     )
     return NextResponse.json({ notes: rows })
