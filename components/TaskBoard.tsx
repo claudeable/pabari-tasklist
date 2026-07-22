@@ -2131,7 +2131,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               {/* Update history */}
               {(() => {
                 const panelAppUpds    = activeTask.task_updates ?? []
-                const panelParsed     = parseUpdates(activeTask.updates)
+                const appTexts        = new Set(panelAppUpds.map(u => u.text.trim()))
+                const panelParsed     = parseUpdates(activeTask.updates).filter(e => !appTexts.has(e.text.trim()))
                 const totalCount      = panelAppUpds.length + panelParsed.length
                 return (
                   <>

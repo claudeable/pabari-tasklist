@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     section:         body.section ?? 'General',
     category:        body.category ?? 'Other',
     particulars:     body.particulars ?? '',
-    updates:         body.initial_update ?? '',
+    updates:         '',
     responsible:     body.responsible ?? '',
     payment:         body.payment ?? 'Non-Payment',
     status:          body.status   ?? 'pending-discussion',
