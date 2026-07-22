@@ -148,6 +148,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [filterPriority,  setFilterPriority]  = useState('')
   const [filterPerson,    setFilterPerson]    = useState('')
   const [filterCategory,  setFilterCategory]  = useState('')
+  const [filterDateFrom,  setFilterDateFrom]  = useState('')
+  const [filterDateTo,    setFilterDateTo]    = useState('')
 
   const showCompanyCol = filterCompany === ''
   const companyTabsRef = useRef<HTMLDivElement>(null)
@@ -340,7 +342,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     canHKComment:    ['admin','director'].includes(currentUser.role),
     canViewAs:       ['admin','director'].includes(currentUser.role),
     canPostUpdate:   (task: Task) =>
-      effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName),
+      effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName) || currentUser.email === 'yaynalem@usm.co.ke',
     // MY ATTENTION panel: all directors (Harshil, Benson) and admin
     showAttentionPanel: currentUser.role === 'admin' || currentUser.role === 'director',
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -465,10 +467,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (filterCategory  && t.category    !== filterCategory)                             return false
       if (filterPriority  && t.priority     !== filterPriority)                            return false
       if (filterPerson    && !nameMatch(t.responsible, filterPerson))                      return false
+      if (filterDateFrom  && t.date < filterDateFrom)                                      return false
+      if (filterDateTo    && t.date > filterDateTo)                                        return false
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, search])
+  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, filterDateFrom, filterDateTo, search])
 
   const kpis = useMemo(() => ({
     total:    base.filter(t=>t.status!=='resolved').length,
@@ -778,7 +782,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
             <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
           )}
-          {currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') && (
+          {(currentUser.role !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke') && (!isKiscolOnly || currentUser.role === 'ceo') && (
             <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
           )}
           {(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')) && (
@@ -869,7 +873,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               {label:'← Portal',href:'/'},
               {label:'Task Board',href:'/tasks'},
               ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Dashboard',href:'/dashboard'}] : []),
-              ...(currentUser.role !== 'staff' && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Reports',href:'/reports'}] : []),
+              ...((currentUser.role !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke') && (!isKiscolOnly || currentUser.role === 'ceo') ? [{label:'Reports',href:'/reports'}] : []),
               ...(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director') ? [{label:'Documents',href:'/documents'}] : []),
               ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
             ].map(item=>(
@@ -1374,7 +1378,15 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 {availablePeople.map(p=><option key={p} value={p}>{p}</option>)}
               </select>
             )}
-            <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPriority('');setFilterPerson('');setFilterCategory('')}}
+            <div style={{display:'flex',alignItems:'center',gap:4}}>
+              <span style={{fontSize:11,color:'#9ca3af',whiteSpace:'nowrap'}}>Date:</span>
+              <input type="date" value={filterDateFrom} onChange={e=>setFilterDateFrom(e.target.value)}
+                style={{border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11,color:'#374151',outline:'none'}}/>
+              <span style={{fontSize:11,color:'#9ca3af'}}>–</span>
+              <input type="date" value={filterDateTo} onChange={e=>setFilterDateTo(e.target.value)}
+                style={{border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11,color:'#374151',outline:'none'}}/>
+            </div>
+            <button onClick={()=>{setSearch('');setFilterSection('');setFilterStatus('');setFilterPriority('');setFilterPerson('');setFilterCategory('');setFilterDateFrom('');setFilterDateTo('')}}
               style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 10px',fontSize:12,cursor:'pointer',color:'#4b5563'}}>
               Reset
             </button>
