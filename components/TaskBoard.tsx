@@ -73,6 +73,27 @@ function fmtDate() {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   return `${d.getDate()}-${m[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`
 }
+// Convert any task date format to ISO YYYY-MM-DD for comparisons
+const MONTH_MAP: Record<string,string> = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
+function taskDateToISO(d: string): string {
+  if (!d) return ''
+  // "23-Jul-26" or "23-Jul-2026"
+  const m1 = d.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/)
+  if (m1) {
+    const mm = MONTH_MAP[m1[2].toLowerCase()] || '01'
+    const yyyy = m1[3].length === 2 ? `20${m1[3]}` : m1[3]
+    return `${yyyy}-${mm}-${m1[1].padStart(2,'0')}`
+  }
+  // "23/07/26" or "23/07/2026"
+  const m2 = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (m2) {
+    const yyyy = m2[3].length === 2 ? `20${m2[3]}` : m2[3]
+    return `${yyyy}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`
+  }
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10)
+  return ''
+}
 function weekNum() {
   const d = new Date(), s = new Date(d.getFullYear(), 0, 1)
   return `WK-${Math.ceil(((d.getTime()-s.getTime())/86400000+s.getDay()+1)/7)}`
@@ -214,7 +235,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [updateFile,     setUpdateFile]     = useState<File | null>(null)
   const taskFileRef   = useRef<HTMLInputElement>(null)
   const updateFileRef = useRef<HTMLInputElement>(null)
-  const canSeeFinance = FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
+  const canSeeFinance = currentUser.role === 'admin' || FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
 
   // ── Update editing (admin / director only) ───────────────────────
   const [editUpdateId,   setEditUpdateId]   = useState<string | null>(null)
@@ -467,8 +488,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (filterCategory  && t.category    !== filterCategory)                             return false
       if (filterPriority  && t.priority     !== filterPriority)                            return false
       if (filterPerson    && !nameMatch(t.responsible, filterPerson))                      return false
-      if (filterDateFrom  && t.date < filterDateFrom)                                      return false
-      if (filterDateTo    && t.date > filterDateTo)                                        return false
+      if (filterDateFrom  && taskDateToISO(t.date) < filterDateFrom)                       return false
+      if (filterDateTo    && taskDateToISO(t.date) > filterDateTo)                         return false
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
