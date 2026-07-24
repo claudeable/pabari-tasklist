@@ -329,28 +329,6 @@ export default function PettyCashForm({ currentUser, hodName }: Props) {
             </div>
           </div>
 
-          {/* Approval chain (read-only preview) */}
-          <div style={{...sectionStyle,background:'#f9fafb'}}>
-            <div style={{fontSize:14,fontWeight:700,color:'#374151',marginBottom:14}}>Approval Chain</div>
-            <div style={{display:'grid',gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)',gap:10}}>
-              {[
-                { label:'Raised By',                  name: currentUser.name,            role:'Employee' },
-                { label:'Checked By HOS',              name:'Krishna',                   role:'Head of Section' },
-                { label:'Verified & Approved By HOD', name: hodName || '(your HOD)',     role:'Head of Department' },
-                { label:'Approved By Finance HOD',    name:'Andu',                       role:'Finance HOD' },
-              ].map(step => (
-                <div key={step.label} style={{padding:'10px 12px',background:'white',borderRadius:6,border:'1px solid #e5e7eb'}}>
-                  <div style={{fontSize:10,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:4}}>{step.label}</div>
-                  <div style={{fontSize:13,fontWeight:600,color:'#1a3a2a'}}>{step.name}</div>
-                  <div style={{fontSize:11,color:'#9ca3af'}}>{step.role}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{marginTop:12,padding:'10px 14px',background:'#fef3c7',borderRadius:5,fontSize:12,color:'#92400e',fontWeight:500}}>
-              ⚠ After payment is made, the legal receipt must be returned to Finance within 48 hours. Failure will result in recovery from payroll.
-            </div>
-          </div>
-
           {error && (
             <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:6,padding:'12px 16px',marginBottom:14,fontSize:13,color:'#dc2626'}}>
               {error}

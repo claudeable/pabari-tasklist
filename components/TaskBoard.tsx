@@ -73,6 +73,11 @@ function fmtDate() {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   return `${d.getDate()}-${m[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`
 }
+function isoToDisplayDate(iso: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y.slice(2)}`
+}
 // Convert any task date format to ISO YYYY-MM-DD for comparisons
 const MONTH_MAP: Record<string,string> = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
 function taskDateToISO(d: string): string {
@@ -199,6 +204,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     recurrence: 'none' as Recurrence,
   })
   const [comment,       setComment]       = useState('')
+  const [updateDate,    setUpdateDate]    = useState('')
   const [saving,        setSaving]        = useState(false)
   const [viewAs,        setViewAs]        = useState('')   // name of person being viewed as
   const [hkEditId,      setHkEditId]      = useState<string|null>(null)
@@ -622,7 +628,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setSaving(true)
     const res = await fetch(`/api/tasks/${activeTask.id}/updates`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ date:todayStr(), text:comment.trim() }),
+      body: JSON.stringify({ date: updateDate ? isoToDisplayDate(updateDate) : todayStr(), text:comment.trim() }),
     })
     const { update } = await res.json()
     const u = update as TaskUpdate
@@ -638,7 +644,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     setTasks(prev => prev.map(t => t.id===activeTask.id
       ? {...t, task_updates:[u,...(t.task_updates||[])]} : t))
     setActiveTask(p => p ? {...p, task_updates:[u,...(p.task_updates||[])]} : p)
-    setComment(''); setSaving(false)
+    setComment(''); setUpdateDate(''); setSaving(false)
   }
 
   async function addTask() {
@@ -2378,12 +2384,19 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:13}}>✕</button>
                   )}
                 </div>
-                <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-                  <button onClick={()=>setActiveTask(null)} style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer'}}>Close</button>
-                  <button onClick={postUpdate} disabled={saving||!comment.trim()}
-                    style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'5px 14px',fontSize:11,fontWeight:600,cursor:'pointer',opacity:comment.trim()?1:0.5}}>
-                    {saving?'Posting…':'Post Update'}
-                  </button>
+                <div style={{display:'flex',gap:6,alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <label style={{fontSize:10,fontWeight:600,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',whiteSpace:'nowrap'}}>Date</label>
+                    <input type="date" value={updateDate} onChange={e=>setUpdateDate(e.target.value)}
+                      style={{border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11,color:'#374151'}}/>
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button onClick={()=>setActiveTask(null)} style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer'}}>Close</button>
+                    <button onClick={postUpdate} disabled={saving||!comment.trim()}
+                      style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'5px 14px',fontSize:11,fontWeight:600,cursor:'pointer',opacity:comment.trim()?1:0.5}}>
+                      {saving?'Posting…':'Post Update'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
