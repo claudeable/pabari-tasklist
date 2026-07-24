@@ -1,9 +1,9 @@
 export type PettyCashStatus = 'pending_hos' | 'pending_hod' | 'pending_finance' | 'approved' | 'disbursed' | 'received' | 'rejected'
 
 export const PETTY_CASH_STATUS_LABELS: Record<PettyCashStatus, string> = {
-  pending_hos:     'Pending HOS (Krishna)',
-  pending_hod:     'Pending HOD Approval',
-  pending_finance: 'Pending Finance (Andu)',
+  pending_hos:     'Under Review',
+  pending_hod:     'Under Review',
+  pending_finance: 'Under Review',
   approved:        'Approved — Awaiting Disbursement',
   disbursed:       'Disbursed — Awaiting Confirmation',
   received:        'Received ✓',
