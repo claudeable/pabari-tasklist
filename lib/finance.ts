@@ -374,7 +374,7 @@ export const COMPANY_LETTERHEAD: Record<string, {
   'MERCURY':     { name:'Mercury Limited',                        address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
   'MALI CREDIT': { name:'Mali Credit Limited',                    address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
   'MALEE':       { name:'Malee Limited',                          address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
-  'GHPL':        { name:'GHPL Limited',                           address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
+  'GHPL':        { name:'Getwell Health Pharma Ltd',               address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
   'UNIFRESH':    { name:'Unifresh Limited',                       address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
   'PDL':         { name:'PDL Limited',                            address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },
   'USM':         { name:'USM Limited',                            address:['Nairobi, Kenya'], phone:'', email:'', pin:'' },

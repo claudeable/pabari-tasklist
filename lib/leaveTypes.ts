@@ -1,7 +1,7 @@
 export const LEAVE_COMPANIES = [
   'Berlin Equipment Ltd',
   'Doctor Pharma (K) Limited',
-  'Getwell Hospital Ltd (GHL)',
+  'Getwell Health Pharma Ltd',
   'KISCOL',
   'Mali Credit Limited',
   'Mayfair Aviation Ltd',
