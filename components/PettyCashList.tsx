@@ -50,6 +50,8 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
   const isSabina   = currentUser.email === SABINA_EMAIL
   const isYalelet  = currentUser.email === YALELET_EMAIL
   const canSeeAll  = isAdmin || currentUser.role === 'director' || isHOS || isFinance || isSuresh || isAhmad || isSabina || isYalelet
+  const firstName  = currentUser.name.trim().split(' ')[0].toLowerCase()
+  const canSeeChain = isAdmin || firstName === 'benson'
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -326,8 +328,8 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                         )}
                       </div>
 
-                      {/* Approval status — only shows disbursement + receipt steps, no internal approver names */}
-                      <div style={{marginBottom:14}}>
+                      {/* Approval status — only visible to Harshil and Benson */}
+                      {canSeeChain && <div style={{marginBottom:14}}>
                         <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Status</div>
                         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                           {[
@@ -342,7 +344,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </div>}
 
                       {req.rejection_reason && (
                         <div style={{marginBottom:14,padding:'10px 14px',background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:5}}>
