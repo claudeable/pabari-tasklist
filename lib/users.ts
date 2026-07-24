@@ -52,8 +52,11 @@ export async function getUsers(): Promise<StoredUser[]> {
 
 export async function getUserByName(name: string): Promise<StoredUser | undefined> {
   await ensureUserCols()
+  // Try exact match first, then first-name-only match as fallback
   const row = await queryOne<Record<string, unknown>>(
-    'SELECT * FROM users WHERE LOWER(name) = LOWER($1)',
+    `SELECT * FROM users WHERE LOWER(name) = LOWER($1)
+        OR LOWER(SPLIT_PART(name, ' ', 1)) = LOWER($1)
+     ORDER BY (LOWER(name) = LOWER($1)) DESC LIMIT 1`,
     [name]
   )
   return row ? rowToUser(row) : undefined

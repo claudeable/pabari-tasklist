@@ -40,7 +40,7 @@ export async function sendEmail({
             </tr>
             <tr>
               <td style="padding:28px">
-                <div style="font-size:14px;color:#374151;line-height:1.7;white-space:pre-line">${body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                <div style="font-size:14px;color:#374151;line-height:1.7;white-space:pre-line">${body}</div>
               </td>
             </tr>
             <tr>
