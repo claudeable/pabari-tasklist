@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
 
   const gmailUser = process.env.GMAIL_USER || '(not set)'
   const gmailPass = process.env.GMAIL_APP_PASSWORD ? '(set)' : '(NOT SET)'
+  const resendKey = process.env.RESEND_API_KEY ? '(set)' : '(NOT SET)'
 
   // Try user lookup
   const found = await getUserByName(name).catch(e => ({ error: String(e) }))
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    env: { GMAIL_USER: gmailUser, GMAIL_APP_PASSWORD: gmailPass },
+    env: { GMAIL_USER: gmailUser, GMAIL_APP_PASSWORD: gmailPass, RESEND_API_KEY: resendKey },
     userLookup: { name, found },
     emailSend: sendResult,
   })
