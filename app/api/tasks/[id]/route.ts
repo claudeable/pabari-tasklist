@@ -6,6 +6,7 @@ import { getUserByName, getUserByEmail } from '@/lib/users'
 import { postDMMessage } from '@/lib/chat'
 import { getSubscriptionsForUser, sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
+import { sendEmail } from '@/lib/email'
 
 async function notifyLegal(
   sender: { id: string | number; name: string },
@@ -87,6 +88,19 @@ export async function PATCH(
     notifyResponsible(user, task, body.hk_comment.trim()).catch(err =>
       console.error('[task PATCH] notifyResponsible failed:', err)
     )
+  }
+
+  // Email new assignee when responsible changes
+  if (user && body.responsible && body.responsible !== prev?.responsible) {
+    getUserByName(body.responsible).then(assignee => {
+      if (assignee?.email && assignee.email.toLowerCase() !== user.email.toLowerCase()) {
+        sendEmail({
+          to: assignee.email,
+          subject: `Task Assigned: ${task.particulars.slice(0, 60)}`,
+          body: `Hi ${assignee.name.split(' ')[0]},\n\nA task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\nPlease log in to the portal to view and update this task.\n\nhttps://pabari-tasklist-production.up.railway.app/tasks`,
+        }).catch(() => {})
+      }
+    }).catch(() => {})
   }
 
   // Activity log: status changes and comments

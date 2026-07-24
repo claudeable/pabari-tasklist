@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createTask, addUpdate, getTasks } from '@/lib/db'
 import { verifyToken } from '@/lib/auth'
 import { logActivity } from '@/lib/activityLog'
-import { getUserByEmail } from '@/lib/users'
+import { getUserByEmail, getUserByName } from '@/lib/users'
 import { postDMMessage } from '@/lib/chat'
 import { FINANCE_VISIBLE_EMAILS } from '@/types'
+import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +90,19 @@ export async function POST(req: NextRequest) {
 
     if (body.legal_review === true) {
       notifyLegal(user, task.particulars, task.company).catch(() => {})
+    }
+
+    // Email the assigned person (skip if they created it themselves)
+    if (task.responsible) {
+      getUserByName(task.responsible).then(assignee => {
+        if (assignee?.email && assignee.email.toLowerCase() !== user.email.toLowerCase()) {
+          sendEmail({
+            to: assignee.email,
+            subject: `Task Assigned: ${task.particulars.slice(0, 60)}`,
+            body: `Hi ${assignee.name.split(' ')[0]},\n\nA new task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\nPlease log in to the portal to view and update this task.\n\nhttps://pabari-tasklist-production.up.railway.app/tasks`,
+          }).catch(() => {})
+        }
+      }).catch(() => {})
     }
   }
 
