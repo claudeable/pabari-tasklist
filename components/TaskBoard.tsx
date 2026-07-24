@@ -435,13 +435,15 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return accessible // director / admin see everything in their accessible companies
   }, [tasks, effectiveRole, effectiveName, currentUser.name, currentUser.companies, subordinates, teamMembers])
 
-  // Finance category restricted to whitelist
-  const visibleTasks = useMemo(
-    () => canSeeFinance
-      ? _visibleTasks
-      : _visibleTasks.filter(t => t.category !== 'Finance'),
-    [_visibleTasks, canSeeFinance]
-  )
+  // Finance category restricted to whitelist — always show tasks the user is responsible for
+  const visibleTasks = useMemo(() => {
+    if (canSeeFinance) return _visibleTasks
+    const myName = (currentUser.name || '').toLowerCase()
+    const myFirst = myName.split(' ')[0]
+    return _visibleTasks.filter(t =>
+      t.category !== 'Finance' || nameMatch(t.responsible, myName) || nameMatch(t.responsible, myFirst)
+    )
+  }, [_visibleTasks, canSeeFinance, currentUser.name])
 
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {
