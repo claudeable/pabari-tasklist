@@ -31,9 +31,14 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get('pabari-session')?.value
   const user  = token ? await verifyToken(token) : null
   let tasks = await getTasks()
-  // Finance tasks restricted to whitelist
+  // Finance tasks restricted to whitelist — but always show tasks the user is responsible for
   if (!user || !FINANCE_VISIBLE_EMAILS.has((user.email || '').toLowerCase())) {
-    tasks = tasks.filter(t => t.category !== 'Finance')
+    const userName = (user?.name || '').toLowerCase()
+    tasks = tasks.filter(t =>
+      t.category !== 'Finance' ||
+      t.responsible.toLowerCase() === userName ||
+      t.responsible.toLowerCase().startsWith(userName.split(' ')[0])
+    )
   }
   return NextResponse.json(tasks)
 }
