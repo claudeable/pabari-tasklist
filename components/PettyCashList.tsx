@@ -326,8 +326,8 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                         )}
                       </div>
 
-                      {/* Approval timeline */}
-                      <div style={{marginBottom:14}}>
+                      {/* Approval timeline — hidden from the requester themselves */}
+                      {canSeeAll && <div style={{marginBottom:14}}>
                         <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Approval Status</div>
                         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                           {(isKiscol
@@ -352,7 +352,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </div>}
 
                       {req.rejection_reason && (
                         <div style={{marginBottom:14,padding:'10px 14px',background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:5}}>
