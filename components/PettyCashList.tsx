@@ -326,25 +326,15 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                         )}
                       </div>
 
-                      {/* Approval timeline — hidden from the requester themselves */}
-                      {canSeeAll && <div style={{marginBottom:14}}>
-                        <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Approval Status</div>
+                      {/* Approval status — only shows disbursement + receipt steps, no internal approver names */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Status</div>
                         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                          {(isKiscol
-                            ? [
-                                { label:'Suresh',           done: !!req.hos_approved_at,  pending: req.status === 'pending_hos' },
-                                { label:'Ahmad',            done: !!req.hod_approved_at,  pending: req.status === 'pending_hod' },
-                                { label:'Yalelet (Cash)',   done: !!req.disbursed_at,     pending: req.status === 'approved' },
-                                { label:'Requester',        done: !!req.received_at,      pending: req.status === 'disbursed' },
-                              ]
-                            : [
-                                { label:'Krishna (HOS)',    done: !!req.hos_approved_at,     pending: req.status === 'pending_hos' },
-                                { label: req.hod_name || 'HOD', done: !!req.hod_approved_at, pending: req.status === 'pending_hod' },
-                                { label:'Andu (Finance)',   done: !!req.finance_approved_at, pending: req.status === 'pending_finance' },
-                                { label:'Yalelet (Cash)',   done: !!req.disbursed_at,        pending: req.status === 'approved' },
-                                { label:'Requester',        done: !!req.received_at,         pending: req.status === 'disbursed' },
-                              ]
-                          ).map(step => (
+                          {[
+                            { label:'Under Review', done: !!req.hos_approved_at || !!req.hod_approved_at || !!req.finance_approved_at, pending: ['pending_hos','pending_hod','pending_finance'].includes(req.status) },
+                            { label:'Cash Disbursed', done: !!req.disbursed_at, pending: req.status === 'approved' },
+                            { label:'Received',       done: !!req.received_at,  pending: req.status === 'disbursed' },
+                          ].map(step => (
                             <div key={step.label} style={{padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:600,
                               background: step.done ? '#d1fae5' : step.pending ? '#fef3c7' : '#f3f4f6',
                               color:      step.done ? '#065f46' : step.pending ? '#92400e' : '#9ca3af'}}>
@@ -352,7 +342,7 @@ export default function PettyCashList({ currentUser, requests: initialRequests }
                             </div>
                           ))}
                         </div>
-                      </div>}
+                      </div>
 
                       {req.rejection_reason && (
                         <div style={{marginBottom:14,padding:'10px 14px',background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:5}}>
