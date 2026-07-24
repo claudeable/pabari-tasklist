@@ -33,12 +33,14 @@ export async function GET(req: NextRequest) {
   let tasks = await getTasks()
   // Finance tasks restricted to whitelist — but always show tasks the user is responsible for
   if (!user || !FINANCE_VISIBLE_EMAILS.has((user.email || '').toLowerCase())) {
-    const userName = (user?.name || '').toLowerCase()
-    tasks = tasks.filter(t =>
-      t.category !== 'Finance' ||
-      t.responsible.toLowerCase() === userName ||
-      t.responsible.toLowerCase().startsWith(userName.split(' ')[0])
-    )
+    const userName  = (user?.name || '').toLowerCase()
+    const firstName = userName.split(' ')[0]
+    const userEmail = (user?.email || '').toLowerCase()
+    tasks = tasks.filter(t => {
+      if (t.category !== 'Finance') return true
+      const resp = t.responsible.toLowerCase()
+      return resp === userName || resp === firstName || resp.startsWith(firstName) || resp === userEmail
+    })
   }
   return NextResponse.json(tasks)
 }
