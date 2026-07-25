@@ -18,6 +18,7 @@ const STATUS_PILL: Record<TaskStatus, string> = {
   'awaiting-hk-approval':  'pill pill-hk',
   'resolved':              'pill pill-resolved',
   'expired':               'pill pill-expired',
+  'archived':              'pill pill-expired',
 }
 const AVATAR_COLORS: Record<string, string> = {
   harshil: '#b5833a', sabina: '#6c5ce7', ahmad: '#e17055',
@@ -34,6 +35,7 @@ const BORDER: Record<TaskStatus, string> = {
   'awaiting-hk-approval':  '#9d174d',
   'resolved':              '#15803d',
   'expired':               '#7f1d1d',
+  'archived':              '#6b7280',
 }
 
 function nameMatch(responsible: string, name: string): boolean {
