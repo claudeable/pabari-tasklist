@@ -2437,6 +2437,24 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               })()}
             </div>
 
+            {/* Log Follow-Up from existing task */}
+            {perms.canAddTask && (
+              <div style={{padding:'6px 12px',borderTop:'1px solid #f3f4f6',background:'#f9fafb',flexShrink:0}}>
+                <button onClick={()=>{
+                  setFuForm(f=>({...f,
+                    company:     activeTask.company,
+                    particulars: '',
+                    responsible: currentUser.name,
+                    dueDate:     '',
+                    recurrence:  'none' as Recurrence,
+                  }))
+                  setShowFollowUpForm(true)
+                }} style={{width:'100%',background:'white',color:'#1a3a2a',border:'1px solid #1a3a2a',borderRadius:4,padding:'6px 10px',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>
+                  📩 Log Follow-Up on this Task
+                </button>
+              </div>
+            )}
+
             {/* Add Update — shown only if user can post on this task */}
             {perms.canPostUpdate(activeTask) && (
               <div style={{padding:'9px 12px',borderTop:'1px solid #f3f4f6',background:'#f9fafb',flexShrink:0}}>
