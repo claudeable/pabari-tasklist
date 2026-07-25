@@ -215,7 +215,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [legalDraft,    setLegalDraft]    = useState('')
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
-  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'>('active')
+  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'>('active')
   const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|''>('')
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
@@ -241,7 +241,12 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [updateFile,     setUpdateFile]     = useState<File | null>(null)
   const taskFileRef   = useRef<HTMLInputElement>(null)
   const updateFileRef = useRef<HTMLInputElement>(null)
-  const canSeeFinance = currentUser.role === 'admin' || FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
+  const canSeeFinance  = currentUser.role === 'admin' || FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
+  const _firstName     = (currentUser.name || '').trim().split(' ')[0].toLowerCase()
+  const canArchive     = currentUser.role === 'admin' || _firstName === 'paul' || _firstName === 'benson'
+  const canSeeArchived = canArchive
+  const canSeeAllResolved = currentUser.role === 'admin' || _firstName === 'paul' || _firstName === 'benson'
+  const canSeeFinanceResolved = _firstName === 'yalelet' || _firstName === 'krishina'
 
   // ── Update editing (admin / director only) ───────────────────────
   const [editUpdateId,   setEditUpdateId]   = useState<string | null>(null)
@@ -453,10 +458,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }, [visibleTasks])
 
   // ── Base set for KPIs (company-filtered visible tasks) ───────────
-  const base = useMemo(() =>
-    filterCompany ? visibleTasks.filter(t => t.company === filterCompany) : visibleTasks,
-    [visibleTasks, filterCompany]
-  )
+  const base = useMemo(() => {
+    const active = visibleTasks.filter(t => t.status !== 'resolved' && t.status !== 'archived')
+    return filterCompany ? active.filter(t => t.company === filterCompany) : active
+  }, [visibleTasks, filterCompany])
 
   const availableSections = useMemo(() => {
     const fromTasks = Array.from(new Set(base.map(t => t.section).filter(Boolean))).sort()
@@ -537,9 +542,19 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     return []
   }, [visibleTasks, currentUser.role, subordinates, teamMembers, allUsers])
 
-  const resolvedTasks = useMemo(() =>
-    visibleTasks.filter(t => t.status === 'resolved'),
-    [visibleTasks]
+  const resolvedTasks = useMemo(() => {
+    const all = visibleTasks.filter(t => t.status === 'resolved')
+    if (canSeeAllResolved) return all
+    if (canSeeFinanceResolved) return all.filter(t =>
+      nameMatch(t.responsible, currentUser.name) || t.category === 'Finance'
+    )
+    // Everyone else: only their own resolved tasks
+    return all.filter(t => nameMatch(t.responsible, currentUser.name))
+  }, [visibleTasks, canSeeAllResolved, canSeeFinanceResolved, currentUser.name])
+
+  const archivedTasks = useMemo(() =>
+    canSeeArchived ? visibleTasks.filter(t => t.status === 'archived') : [],
+    [visibleTasks, canSeeArchived]
   )
 
   // ── Actions ──────────────────────────────────────────────────────
@@ -1091,11 +1106,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       {/* MAIN TABS — Active / Pending My Review / Resolved */}
       <div style={{background:'white',borderBottom:'1px solid #e5e7eb',display:'flex',alignItems:'center',padding:'0 20px',gap:4,flexShrink:0}}>
         {([
-          { key:'active',         label:'Active Tasks',       count: visibleTasks.filter(t=>t.status!=='resolved').length },
+          { key:'active',         label:'Active Tasks',       count: visibleTasks.filter(t=>t.status!=='resolved'&&t.status!=='archived').length },
           ...(currentUser.role==='staff' ? [] : [
             { key:'pending-review', label:'Pending My Review', count: pendingMyReview.length },
           ]),
           { key:'resolved',       label:'Resolved',           count: resolvedTasks.length },
+          ...(canSeeArchived ? [
+            { key:'archived', label:'Archived', count: archivedTasks.length },
+          ] : []),
         ] as {key:typeof activeMainTab;label:string;count:number}[]).map(tab=>(
           <button key={tab.key} onClick={()=>setActiveMainTab(tab.key)}
             style={{border:'none',borderBottom:activeMainTab===tab.key?'2px solid #1a3a2a':'2px solid transparent',
@@ -1218,6 +1236,35 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
                   <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
                   <span className="pill pill-resolved">Resolved</span>
+                </div>
+                <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
+                <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
+              </div>
+              <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
+                View
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ARCHIVED TAB */}
+      {activeMainTab === 'archived' && canSeeArchived && (
+        <div style={{flex:1,overflow:'auto',padding:20}}>
+          <div style={{marginBottom:12}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search archived tasks…"
+              style={{border:'1px solid #d1d5db',borderRadius:4,padding:'6px 10px',fontSize:13,width:280,outline:'none'}}/>
+            <span style={{marginLeft:12,fontSize:12,color:'#9ca3af'}}>{archivedTasks.filter(t=>!search||JSON.stringify(t).toLowerCase().includes(search.toLowerCase())).length} archived</span>
+          </div>
+          {archivedTasks.length === 0 ? (
+            <div style={{textAlign:'center',color:'#9ca3af',paddingTop:60,fontSize:13}}>No archived tasks.</div>
+          ) : archivedTasks.filter(t=>!search||JSON.stringify(t).toLowerCase().includes(search.toLowerCase())).map(task => (
+            <div key={task.id} style={{background:'white',border:'1px solid #e5e7eb',borderLeft:'4px solid #6b7280',borderRadius:6,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
+                  <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
+                  <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#f3f4f6',color:'#6b7280',textTransform:'uppercase'}}>Archived</span>
                 </div>
                 <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
                 <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
@@ -1948,6 +1995,29 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   : <span className={STATUS_PILL[activeTask.status]}>{STATUS_LABELS[activeTask.status]}</span>
                 }
               </div>
+
+              {/* Archive button — Harshil, Paul, Benson only */}
+              {canArchive && activeTask.status !== 'archived' && (
+                <div style={{marginBottom:8}}>
+                  <button onClick={async () => {
+                    if (!confirm('Move this task to the archive? It will be hidden from the main board.')) return
+                    await changeStatus(activeTask, 'archived')
+                    setActiveTask(null)
+                  }} style={{background:'#f3f4f6',color:'#6b7280',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',width:'100%',textAlign:'left'}}>
+                    🗄 Move to Archive
+                  </button>
+                </div>
+              )}
+              {canArchive && activeTask.status === 'archived' && (
+                <div style={{marginBottom:8}}>
+                  <button onClick={async () => {
+                    await changeStatus(activeTask, 'pending-discussion')
+                    setActiveTask(null)
+                  }} style={{background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',width:'100%',textAlign:'left'}}>
+                    ↩ Restore from Archive
+                  </button>
+                </div>
+              )}
 
               {/* Priority */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>

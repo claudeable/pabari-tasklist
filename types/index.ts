@@ -30,6 +30,7 @@ export type TaskStatus =
   | 'awaiting-hk-approval'
   | 'resolved'
   | 'expired'
+  | 'archived'
 
 export type TaskPriority = 'low' | 'medium' | 'high'
 export type ApprovalType = 'ceo_approval' | 'no_approval' | ''
@@ -54,6 +55,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   'awaiting-hk-approval': 'Awaiting HK Approval',
   'resolved':             'Resolved',
   'expired':              'Expired',
+  'archived':             'Archived',
 }
 
 export const STATUS_OPTIONS_BY_ROLE: Record<UserRole, TaskStatus[]> = {
