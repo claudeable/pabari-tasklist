@@ -1847,8 +1847,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           </div>
         </div>
 
-        {/* DETAIL PANEL */}
-        {activeTask && (
+        {/* DETAIL PANEL — active tab inline panel */}
+        {activeTask && activeMainTab === 'active' && (
           <div style={isMobile
             ? {position:'fixed',inset:0,zIndex:300,background:'white',overflowY:'auto',display:'flex',flexDirection:'column'}
             : {width:325,borderLeft:'1px solid #e5e7eb',background:'white',overflowY:'auto',flexShrink:0,display:'flex',flexDirection:'column'}}>
@@ -2477,6 +2477,60 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           </div>
         )}
       </div>}
+
+      {/* DETAIL PANEL — overlay for resolved/archived tabs */}
+      {activeTask && activeMainTab !== 'active' && (
+        <div style={{position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,0.4)',display:'flex',justifyContent:'flex-end'}}
+          onClick={e=>{if(e.target===e.currentTarget)setActiveTask(null)}}>
+          <div style={{width: isMobile?'100%':400,background:'white',overflowY:'auto',display:'flex',flexDirection:'column',height:'100%'}}>
+            <div style={{padding:'12px 14px',background:'#1a3a2a',color:'white',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{fontWeight:600,fontSize:13,flex:1,paddingRight:8}}>{activeTask.particulars}</div>
+              <button onClick={()=>setActiveTask(null)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'white',cursor:'pointer',fontSize:16,width:28,height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:16}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+                {[
+                  {l:'Company',    v:activeTask.company},
+                  {l:'Section',    v:activeTask.section},
+                  {l:'Date',       v:activeTask.date},
+                  {l:'Responsible',v:activeTask.responsible},
+                  {l:'Status',     v:STATUS_LABELS[activeTask.status]},
+                  {l:'Priority',   v:PRIORITY_LABELS[activeTask.priority||'medium']},
+                ].map(({l,v})=>(
+                  <div key={l}>
+                    <div style={{fontSize:9.5,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2}}>{l}</div>
+                    <div style={{fontSize:12,color:'#111827',fontWeight:500}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              {activeTask.hk_comment && (
+                <div style={{marginBottom:12,padding:'8px 10px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:5}}>
+                  <div style={{fontSize:9.5,fontWeight:700,color:'#92400e',textTransform:'uppercase',marginBottom:3}}>HK Comment</div>
+                  <div style={{fontSize:12,color:'#374151'}}>{activeTask.hk_comment}</div>
+                </div>
+              )}
+              <div style={{fontSize:9.5,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:8}}>Update History</div>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {(activeTask.task_updates||[]).map(u=>(
+                  <div key={u.id} style={{borderLeft:'2px solid #1a3a2a',paddingLeft:10}}>
+                    <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',marginBottom:1}}>{u.date}</div>
+                    <div style={{fontSize:12,color:'#374151'}}>{u.text}</div>
+                  </div>
+                ))}
+                {(activeTask.task_updates||[]).length===0 && <div style={{fontSize:12,color:'#9ca3af'}}>No updates.</div>}
+              </div>
+              {canArchive && activeTask.status === 'archived' && (
+                <div style={{marginTop:16}}>
+                  <button onClick={async()=>{await changeStatus(activeTask,'pending-discussion');setActiveTask(null)}}
+                    style={{background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'7px 14px',fontSize:12,cursor:'pointer',width:'100%'}}>
+                    ↩ Restore from Archive
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATUS BAR */}
       <div style={{background:'#1a3a2a',color:'rgba(255,255,255,0.55)',fontSize:10.5,padding:'5px 20px',display:'flex',gap:14,alignItems:'center',flexShrink:0}}>
