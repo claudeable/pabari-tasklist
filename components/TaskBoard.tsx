@@ -1242,7 +1242,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
                 <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
               </div>
-              <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+              <button onClick={()=>setActiveTask(task)}
                 style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
                 View
               </button>
@@ -1271,7 +1271,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
                 <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
               </div>
-              <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+              <button onClick={()=>setActiveTask(task)}
                 style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
                 View
               </button>
