@@ -149,7 +149,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
       const payload = { ...form, items: filledItems, issuing_company: issuingCo }
       if (editingId) {
         const existing = notes.find(n => n.id === editingId)
-        const r = await fetch(`/api/delivery-notes/${editingId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ ...payload, note_number: existing?.note_number ?? '' }) })
+        const r = await fetch(`/api/delivery-notes/${editingId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) })
         const j = await r.json()
         if (!r.ok) { setError(j.error ?? `Save failed (${r.status})`); setSaving(false); return }
         setShowForm(false); setEditingId(null); setForm(emptyForm(issuingCo)); await loadNotes()
