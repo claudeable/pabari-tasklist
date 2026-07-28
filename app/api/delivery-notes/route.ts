@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { query, execute } from '@/lib/database'
+import { query, queryOne, execute } from '@/lib/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +70,14 @@ export async function POST(req: NextRequest) {
     }
     if (!note_number?.trim()) {
       return NextResponse.json({ error: 'Delivery Note No is required' }, { status: 400 })
+    }
+
+    const existing = await queryOne<{ id: number }>(
+      `SELECT id FROM delivery_notes WHERE LOWER(TRIM(note_number)) = LOWER(TRIM($1))`,
+      [note_number.trim()]
+    )
+    if (existing) {
+      return NextResponse.json({ error: `Delivery Note No "${note_number.trim()}" already exists in the system.` }, { status: 409 })
     }
 
     const rows = await query<{ id: number }>(

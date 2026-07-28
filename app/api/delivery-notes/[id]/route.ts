@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { queryOne, execute } from '@/lib/database'
 
+
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -31,6 +32,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const body = await req.json()
     const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, issuing_company, gate_pass_number } = body
     if (!note_number?.trim()) return NextResponse.json({ error: 'Delivery Note No is required' }, { status: 400 })
+
+    const duplicate = await queryOne<{ id: number }>(
+      `SELECT id FROM delivery_notes WHERE LOWER(TRIM(note_number)) = LOWER(TRIM($1)) AND id != $2`,
+      [note_number.trim(), params.id]
+    )
+    if (duplicate) {
+      return NextResponse.json({ error: `Delivery Note No "${note_number.trim()}" already exists in the system.` }, { status: 409 })
+    }
+
     await execute(
       `UPDATE delivery_notes SET note_number=$1, to_company=$2, order_no=$3, delivery_date=$4,
        vehicle_no=$5, driver_name=$6, driver_id=$7, items=$8, remarks=$9, issuing_company=$10, gate_pass_number=$11 WHERE id=$12`,
