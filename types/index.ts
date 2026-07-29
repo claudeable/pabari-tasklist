@@ -87,7 +87,7 @@ export const COMPANIES = [
   'BYTEWISE', 'WELWYN', 'DR.PHARMA', 'PIL',
   'MERCURY', 'MALI CREDIT', 'MALEE', 'GHPL', 'UNIFRESH',
   'PDL', 'USM', 'MAXITOWER', 'EURO TOWERS', 'EPPL',
-  'BERLIN_BNK', 'IIGENTRA', 'KISCOL',
+  'BERLIN_BNK', 'IIGENTRA',
 ] as const
 
 export const SECTIONS = [
@@ -99,15 +99,6 @@ export const SECTIONS = [
   'Internal Non-Payment',
   'Put on Hold',
   'General',
-] as const
-
-// Sections visible to KISCOL-only users
-export const KISCOL_SECTIONS = [
-  'External Stakeholders - Non-Payment',
-  'External Stakeholders - Payment',
-  'Outgrowers',
-  'Staff - Salary',
-  'Put on Hold',
 ] as const
 
 export const CATEGORIES = [

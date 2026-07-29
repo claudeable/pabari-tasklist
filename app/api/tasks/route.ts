@@ -50,14 +50,6 @@ export async function POST(req: NextRequest) {
   const token = req.cookies.get('pabari-session')?.value
   const user  = token ? await verifyToken(token) : null
 
-  // KISCOL tasks can only be created by users who have KISCOL (or ALL) company access
-  if (body.company === 'KISCOL') {
-    const hasKiscol = user && (user.companies.includes('ALL') || user.companies.includes('KISCOL'))
-    if (!hasKiscol) {
-      return NextResponse.json({ error: 'Not authorised to create KISCOL tasks.' }, { status: 403 })
-    }
-  }
-
   const task = await createTask({
     sno:             body.sno ?? 0,
     date:            body.date ?? '',
