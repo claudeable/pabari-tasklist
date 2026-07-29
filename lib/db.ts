@@ -8,6 +8,17 @@ async function ensureParentId() {
   await execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS legal_review BOOLEAN NOT NULL DEFAULT false')
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS legal_comment TEXT NOT NULL DEFAULT ''")
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''")
+  // Backfill created_by for tasks created before this column existed,
+  // by matching each task's created_at against the activity_log task_created entry
+  // within a 30-second window (they are logged in the same request).
+  await execute(`
+    UPDATE tasks t
+    SET created_by = al.user_name
+    FROM activity_log al
+    WHERE al.action = 'task_created'
+      AND t.created_by = ''
+      AND ABS(EXTRACT(EPOCH FROM (t.created_at - al.created_at))) < 30
+  `).catch(() => {})
   parentColReady = true
 }
 
