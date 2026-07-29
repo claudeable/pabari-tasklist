@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   try {
     const body = await req.json()
-    const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, issuing_company, gate_pass_number } = body
+    const { note_number, to_company, delivery_address, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, issuing_company, gate_pass_number } = body
     if (!note_number?.trim()) return NextResponse.json({ error: 'Delivery Note No is required' }, { status: 400 })
 
     const duplicate = await queryOne<{ id: number }>(
@@ -42,9 +42,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     await execute(
-      `UPDATE delivery_notes SET note_number=$1, to_company=$2, order_no=$3, delivery_date=$4,
-       vehicle_no=$5, driver_name=$6, driver_id=$7, items=$8, remarks=$9, issuing_company=$10, gate_pass_number=$11 WHERE id=$12`,
-      [note_number.trim(), to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', issuing_company ?? 'mercury', gate_pass_number ?? '', params.id]
+      `UPDATE delivery_notes SET note_number=$1, to_company=$2, delivery_address=$3, order_no=$4, delivery_date=$5,
+       vehicle_no=$6, driver_name=$7, driver_id=$8, items=$9, remarks=$10, issuing_company=$11, gate_pass_number=$12 WHERE id=$13`,
+      [note_number.trim(), to_company, delivery_address ?? '', order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', issuing_company ?? 'mercury', gate_pass_number ?? '', params.id]
     )
     return NextResponse.json({ ok: true })
   } catch (e) {

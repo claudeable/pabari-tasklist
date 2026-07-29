@@ -11,6 +11,7 @@ interface DeliveryNote {
   id: number
   note_number: string
   to_company: string
+  delivery_address: string
   order_no: string
   delivery_date: string
   vehicle_no: string
@@ -127,6 +128,12 @@ function MercuryTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[]
         <span style={{ fontWeight:700, whiteSpace:'nowrap' }}>M/S</span>
         <span style={{ flex:1, borderBottom:'1px solid #000', paddingBottom:1, paddingLeft:4, minHeight:18 }}>{note.to_company}</span>
       </div>
+      {note.delivery_address && (
+        <div style={{ border:'1px solid #000', borderBottom:'none', padding:'7px 12px', display:'flex', alignItems:'flex-start', gap:8 }}>
+          <span style={{ fontWeight:700, whiteSpace:'nowrap', fontSize:11 }}>Address</span>
+          <span style={{ flex:1, paddingLeft:4, fontSize:11, whiteSpace:'pre-wrap' }}>{note.delivery_address}</span>
+        </div>
+      )}
       <div style={{ border:'1px solid #000', borderBottom:'none', padding:'7px 12px', display:'flex', justifyContent:'flex-end' }}>
         <div style={{ display:'flex', alignItems:'flex-end', gap:8 }}>
           <span style={{ fontWeight:700 }}>Date</span>
@@ -203,6 +210,9 @@ function BytewiseTemplate({ note, items }: { note: DeliveryNote; items: AnyItem[
       <div style={{ border:'2px solid #000', padding:'10px 14px', marginBottom:14, minHeight:60 }}>
         <div style={{ fontWeight:700, fontSize:11, textTransform:'uppercase', marginBottom:6, letterSpacing:'0.05em' }}>Customer Details</div>
         <div style={{ fontSize:13, fontWeight:600 }}>{note.to_company}</div>
+        {note.delivery_address && (
+          <div style={{ fontSize:11, color:'#444', marginTop:4, whiteSpace:'pre-wrap' }}>{note.delivery_address}</div>
+        )}
       </div>
 
       {/* Goods table */}

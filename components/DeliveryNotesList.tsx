@@ -13,6 +13,7 @@ interface DeliveryNote {
   id: number
   note_number: string
   to_company: string
+  delivery_address: string
   order_no: string
   delivery_date: string
   vehicle_no: string
@@ -46,7 +47,7 @@ function emptyBytewiseItems(): BytewiseItem[] { return [{item_code:'',descriptio
 
 function emptyForm(co: IssuingCompany) {
   return {
-    note_number: '', to_company: '', delivery_date: TODAY,
+    note_number: '', to_company: '', delivery_address: '', delivery_date: TODAY,
     vehicle_no: '', driver_name: '', driver_id: '', gate_pass_number: '',
     items: co === 'bytewise' ? emptyBytewiseItems() : emptyMercuryItems(),
     remarks: '',
@@ -121,15 +122,16 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
     const items = Array.isArray(n.items) ? n.items : JSON.parse(n.items as unknown as string ?? '[]')
     setIssuingCo(co)
     setForm({
-      note_number:   n.note_number    || '',
-      to_company:    n.to_company,
-      delivery_date: n.delivery_date?.slice(0,10) || TODAY,
-      vehicle_no:    n.vehicle_no     || '',
-      driver_name:   n.driver_name    || '',
-      driver_id:     n.driver_id      || '',
+      note_number:      n.note_number      || '',
+      to_company:       n.to_company,
+      delivery_address: n.delivery_address || '',
+      delivery_date:    n.delivery_date?.slice(0,10) || TODAY,
+      vehicle_no:       n.vehicle_no       || '',
+      driver_name:      n.driver_name      || '',
+      driver_id:        n.driver_id        || '',
       gate_pass_number: n.gate_pass_number || '',
-      items:         items.length ? items : (co==='bytewise' ? emptyBytewiseItems() : emptyMercuryItems()),
-      remarks:       n.remarks        || '',
+      items:            items.length ? items : (co==='bytewise' ? emptyBytewiseItems() : emptyMercuryItems()),
+      remarks:          n.remarks          || '',
     })
     setEditingId(n.id); setError(''); setShowForm(true)
   }
@@ -406,6 +408,13 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
                 {custsForForm.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
               {custsForForm.length===0&&<div style={{ fontSize:11, color:'#b45309', marginTop:4 }}>No {CO_LABEL[issuingCo]} customers yet — <button type="button" onClick={()=>{setShowForm(false);setTab('customers')}} style={{ background:'none',border:'none',color:'#b45309',textDecoration:'underline',cursor:'pointer',fontSize:11,padding:0 }}>add one in Customers tab</button></div>}
+            </div>
+
+            {/* Delivery Address */}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:4 }}>Delivery Address / Location</label>
+              <textarea value={form.delivery_address} onChange={e=>setForm(f=>({...f,delivery_address:e.target.value}))} rows={2} placeholder="e.g. Mombasa Road, Industrial Area, Nairobi (optional)"
+                style={{ width:'100%', padding:'9px 12px', border:'1px solid #e5e7eb', borderRadius:8, fontSize:13, outline:'none', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box' }} />
             </div>
 
             {/* Driver fields */}

@@ -26,8 +26,9 @@ async function ensureTable() {
     ['created_by',       'TEXT DEFAULT \'\''],
     ['status',           'TEXT NOT NULL DEFAULT \'active\''],
     ['cancel_reason',    'TEXT DEFAULT \'\''],
-    ['issuing_company',  'TEXT NOT NULL DEFAULT \'mercury\''],
-    ['gate_pass_number', 'TEXT DEFAULT \'\''],
+    ['issuing_company',   'TEXT NOT NULL DEFAULT \'mercury\''],
+    ['gate_pass_number',  'TEXT DEFAULT \'\''],
+    ['delivery_address',  'TEXT DEFAULT \'\''],
   ]
   for (const [col, def] of cols) {
     await execute(`ALTER TABLE delivery_notes ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {})
@@ -43,7 +44,7 @@ export async function GET() {
   try {
     await ensureTable()
     const rows = await query(
-      `SELECT id, note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, status, cancel_reason, created_by, created_at, issuing_company, gate_pass_number
+      `SELECT id, note_number, to_company, delivery_address, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, status, cancel_reason, created_by, created_at, issuing_company, gate_pass_number
        FROM delivery_notes ORDER BY created_at DESC LIMIT 200`
     )
     return NextResponse.json({ notes: rows })
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     await ensureTable()
 
     const body = await req.json()
-    const { note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, issuing_company, gate_pass_number } = body
+    const { note_number, to_company, delivery_address, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, issuing_company, gate_pass_number } = body
 
     if (!to_company || !delivery_date) {
       return NextResponse.json({ error: 'To Company and Date are required' }, { status: 400 })
@@ -81,9 +82,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await query<{ id: number }>(
-      `INSERT INTO delivery_notes (note_number, to_company, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, created_by, issuing_company, gate_pass_number)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [note_number.trim(), to_company, order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', user.name, issuing_company ?? 'mercury', gate_pass_number ?? '']
+      `INSERT INTO delivery_notes (note_number, to_company, delivery_address, order_no, delivery_date, vehicle_no, driver_name, driver_id, items, remarks, created_by, issuing_company, gate_pass_number)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+      [note_number.trim(), to_company, delivery_address ?? '', order_no ?? '', delivery_date, vehicle_no ?? '', driver_name ?? '', driver_id ?? '', JSON.stringify(items ?? []), remarks ?? '', user.name, issuing_company ?? 'mercury', gate_pass_number ?? '']
     )
     const id = rows[0].id
     return NextResponse.json({ id, note_number: note_number.trim() })
