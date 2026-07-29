@@ -79,6 +79,7 @@ export async function PATCH(
         recurrence:      task.recurrence,
         parent_id:       task.id,
         legal_review:    false,
+        created_by:      '',
       })
     }
   }
