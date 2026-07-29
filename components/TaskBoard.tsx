@@ -395,8 +395,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
     // For all other roles, apply company access gate first
     // Non-ALL users also see any task they're personally responsible for (cross-company assignments)
+    // ALL-company users: hide KISCOL tasks except Finance (KISCOL has its own board)
     const accessible = currentUser.companies.includes('ALL')
-      ? tasks
+      ? tasks.filter(t => t.company !== 'KISCOL' || t.category === 'Finance')
       : tasks.filter(t =>
           currentUser.companies.includes(t.company) ||
           nameMatch(t.responsible, currentUser.name)
@@ -444,13 +445,24 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // Finance category restricted to whitelist — always show tasks the user is responsible for
   const visibleTasks = useMemo(() => {
-    if (canSeeFinance) return _visibleTasks
     const myName = (currentUser.name || '').toLowerCase()
     const myFirst = myName.split(' ')[0]
-    return _visibleTasks.filter(t =>
-      t.category !== 'Finance' || nameMatch(t.responsible, myName) || nameMatch(t.responsible, myFirst)
-    )
-  }, [_visibleTasks, canSeeFinance, currentUser.name])
+    const base = canSeeFinance
+      ? _visibleTasks
+      : _visibleTasks.filter(t =>
+          t.category !== 'Finance' || nameMatch(t.responsible, myName) || nameMatch(t.responsible, myFirst)
+        )
+    // Finance-whitelisted non-admin/director users also see every task they personally created
+    if (canSeeFinance && currentUser.role !== 'admin' && currentUser.role !== 'director') {
+      const visibleIds = new Set(base.map(t => t.id))
+      const assigned = tasks.filter(t =>
+        !visibleIds.has(t.id) &&
+        (t.created_by || '').toLowerCase() === myName
+      )
+      if (assigned.length > 0) return [...base, ...assigned]
+    }
+    return base
+  }, [_visibleTasks, canSeeFinance, currentUser.name, currentUser.role, tasks])
 
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {

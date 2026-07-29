@@ -7,6 +7,7 @@ async function ensureParentId() {
   await execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_id INTEGER')
   await execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS legal_review BOOLEAN NOT NULL DEFAULT false')
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS legal_comment TEXT NOT NULL DEFAULT ''")
+  await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''")
   // One-time: move Lulie to KISCOL-only access (was incorrectly set to ALL)
   await execute(`UPDATE users SET companies = '["KISCOL"]', department = 'KISCOL', reports_to = 'ahmad@usm.co.ke'
     WHERE email = 'lanalem@kwale-group.com' AND companies::text = '["ALL"]'`)
@@ -40,6 +41,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     parent_id:       row.parent_id ? String(row.parent_id) : undefined,
     legal_review:    Boolean(row.legal_review),
     legal_comment:   String(row.legal_comment || ''),
+    created_by:      String(row.created_by || ''),
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
     task_updates: (updates as Record<string, unknown>[]).map(u => ({
@@ -89,8 +91,8 @@ export async function createTask(
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
        responsible, payment, status, priority, approval_type, status_wk, hk_comment,
-       due_date, recurrence, parent_id, legal_review, project_id, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+       due_date, recurrence, parent_id, legal_review, project_id, created_at, updated_at, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
      RETURNING *`,
     [data.sno, data.date, data.company, data.category, data.section, data.particulars,
      data.updates, data.responsible, data.payment, data.status, data.priority ?? 'medium',
@@ -99,7 +101,7 @@ export async function createTask(
      data.parent_id ? Number(data.parent_id) : null,
      data.legal_review ?? false,
      data.project_id ? Number(data.project_id) : null,
-     now, now]
+     now, now, data.created_by ?? '']
   )
   if (!row) throw new Error('Failed to create task')
   return rowToTask({ ...row, task_updates: [] })

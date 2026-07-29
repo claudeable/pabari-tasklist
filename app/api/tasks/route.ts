@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
     parent_id:       body.parent_id ? String(body.parent_id) : undefined,
     legal_review:    body.legal_review === true,
     project_id:      body.project_id ? Number(body.project_id) : undefined,
+    created_by:      user?.name ?? '',
   })
 
   if (body.initial_update) {
