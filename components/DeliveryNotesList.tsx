@@ -403,7 +403,7 @@ export default function DeliveryNotesList({ currentUser }: { currentUser: Sessio
             {/* Customer dropdown */}
             <div style={{ marginBottom:14 }}>
               <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:4 }}>Customer *</label>
-              <select value={form.to_company} onChange={e=>setForm(f=>({...f,to_company:e.target.value}))} style={{ ...inp, color:form.to_company?'#111827':'#9ca3af' }}>
+              <select value={form.to_company} onChange={e=>{const cust=custsForForm.find(c=>c.name===e.target.value);setForm(f=>({...f,to_company:e.target.value,delivery_address:cust?.address||f.delivery_address}))}} style={{ ...inp, color:form.to_company?'#111827':'#9ca3af' }}>
                 <option value="">— Select customer —</option>
                 {custsForForm.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
