@@ -104,7 +104,7 @@ export const SECTIONS = [
 export const CATEGORIES = [
   'Other', 'Supplier', 'Staff', 'OG/Outgrower', 'Legal',
   'Finance', 'Operations', 'Auctioneer', 'Travel', 'Bank', 'KRA', 'Auditor',
-  'Correspondence',
+  'Correspondence', 'Projects',
 ] as const
 
 export const PEOPLE = [
