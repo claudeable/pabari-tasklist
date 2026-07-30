@@ -66,10 +66,8 @@ const ACTION_FEED: Record<string, string> = {
 
 const systems = [
   { key:'tasks',    icon:'✓',  iconBg:'#dbeafe', iconColor:'#1d4ed8', label:'Task Management',     href:'/tasks',            detail:'Pending · Assignments · Deadlines' },
-  { key:'forms',    icon:'📋', iconBg:'#fef3c7', iconColor:'#b45309', label:'Forms',               href:'/forms',            detail:'Leave Requests · Petty Cash' },
   { key:'finance',  icon:'💳', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Finance',             href:'/finance',          detail:'Invoices · Payments · Budgets',  financeOnly:true },
   { key:'delivery', icon:'📦', iconBg:'#fef3c7', iconColor:'#b45309', label:'Delivery Notes',      href:'/delivery-notes',   detail:'Create · Track · Export',        yaleletOnly:true },
-  { key:'assets',   icon:'🗂️', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Asset Directory',     href:'/asset-directory',  detail:'Assets · Fleet · Compliance',    assetsOnly:true },
   { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',         detail:'Milestones · Gantt · Budget',    projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents',        detail:'Upload · Folders · View',        adminOnly:true },
   { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',          detail:'Contacts · Directory · Search',  harshilOnly:true },
@@ -259,7 +257,6 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
           <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${isHK ? 6 : 5},1fr)`, gap:10, marginTop:24 }}>
             {[
               { label:'My Tasks',        value: dash?.myTasks,          color:'#60a5fa', href:'/tasks',  icon:'📋' },
-              { label:'Approvals',        value: dash?.approvalsWaiting, color:'#fbbf24', href:'/forms',  icon:'✅', alert: (dash?.approvalsWaiting ?? 0) > 0 },
               { label:'Overdue',          value: dash?.overdueTasks,     color:'#f87171', href:'/tasks',  icon:'⚠️', alert: (dash?.overdueTasks ?? 0) > 0 },
               { label:'Due Today',        value: dash?.dueToday,         color:'#a78bfa', href:'/tasks',  icon:'📅' },
               { label:'Completed Today',  value: dash?.completedToday,   color:'#34d399', href:'/tasks',  icon:'✓' },
@@ -548,10 +545,9 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
             </div>
             <div style={{ padding:12, display:'flex', flexDirection:'column', gap:6 }}>
               {[
-                { label:'Submit Leave Request',      href:'/forms/leave/new',          icon:'📅' },
-                { label:'New Petty Cash Request',    href:'/forms/petty-cash/new',     icon:'💵' },
-                { label:'View My Tasks',             href:'/tasks',                    icon:'✓'  },
-                { label:'PCR Reports',               href:'/reports/petty-cash',       icon:'📊' },
+                { label:'View My Tasks',    href:'/tasks',    icon:'✓'  },
+                { label:'Projects',         href:'/projects', icon:'📐' },
+                { label:'Documents',        href:'/documents',icon:'📁' },
               ].map(action => (
                 <a key={action.href} href={action.href}
                   style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, textDecoration:'none', color:'#374151', fontSize:13, fontWeight:500, transition:'background 0.1s' }}
