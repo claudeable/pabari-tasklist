@@ -19,6 +19,18 @@ async function ensureParentId() {
       AND t.created_by = ''
       AND ABS(EXTRACT(EPOCH FROM (t.created_at - al.created_at))) < 30
   `).catch(() => {})
+  // Create S. Kumar account if it doesn't exist (admin has no UI access to create users)
+  const skumarExists = await queryOne('SELECT id FROM users WHERE email = $1', ['skumar@usm.co.ke']).catch(() => null)
+  if (!skumarExists) {
+    const bcrypt = await import('bcryptjs')
+    const hash = await bcrypt.hash('Welcome2025!', 10)
+    await execute(
+      `INSERT INTO users (name, email, role, department, reports_to, hod_email, companies, password_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (email) DO NOTHING`,
+      ['S. Kumar', 'skumar@usm.co.ke', 'staff', 'Operations', '', '', '["ALL"]', hash]
+    ).catch(() => {})
+  }
   parentColReady = true
 }
 
