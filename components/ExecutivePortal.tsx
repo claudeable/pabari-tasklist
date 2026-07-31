@@ -383,7 +383,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
         <div style={{ flex: 1 }} />
 
         {/* Desktop nav links */}
-        {!isMobile && [['Tasks','/tasks'],['Portal','/'],['Connect','/connect'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre']].map(([l, h]) => (
+        {!isMobile && [['Tasks','/tasks'],['Portal','/'],['Connect','/connect'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre'],['Users','/admin/users']].map(([l, h]) => (
           <a key={l} href={h} style={{ color: T.text3, fontSize: 12, textDecoration: 'none', fontWeight: 600, letterSpacing: '0.04em', transition: 'color 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.color = T.text)}
             onMouseLeave={e => (e.currentTarget.style.color = T.text3)}>{l}</a>
@@ -397,7 +397,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               <>
                 <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
                 <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 99, background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 10, minWidth: 160, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
-                  {[['Tasks','/tasks'],['Portal','/'],['Connect','/connect'],['Centre','/centre'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects']].map(([l, h]) => (
+                  {[['Tasks','/tasks'],['Portal','/'],['Connect','/connect'],['Centre','/centre'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Users','/admin/users']].map(([l, h]) => (
                     <a key={l} href={h} onClick={() => setNavOpen(false)} style={{ display: 'block', padding: '11px 16px', fontSize: 13, fontWeight: 600, color: T.text2, textDecoration: 'none', borderBottom: `1px solid ${T.border}` }}>{l}</a>
                   ))}
                 </div>

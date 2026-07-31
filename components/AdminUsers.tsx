@@ -12,8 +12,7 @@ interface Props { currentUser: SessionUser; initialUsers: UserRow[] }
 const ROLES: UserRole[] = ['admin','director','ceo','manager','staff']
 
 const ACCESS_OPTIONS = [
-  { value: 'ALL',    label: 'All Companies',  desc: 'Full group-wide access' },
-  { value: 'KISCOL', label: 'KISCOL Only',    desc: 'Restricted to KISCOL tasks' },
+  { value: 'ALL', label: 'All Companies', desc: 'Full group-wide access' },
 ]
 const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
   admin:    { bg:'#1a3a2a', color:'white'   },
@@ -154,10 +153,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                     {u.hod_email ? (users.find(x=>x.email===u.hod_email)?.name || u.hod_email) : '—'}
                   </td>
                   <td style={{padding:'11px 16px'}}>
-                    {(u.companies ?? ['ALL']).includes('ALL')
-                      ? <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#dbeafe',color:'#1d4ed8'}}>All Companies</span>
-                      : <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#dcfce7',color:'#15803d'}}>KISCOL Only</span>
-                    }
+                    <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#dbeafe',color:'#1d4ed8'}}>All Companies</span>
                   </td>
                   <td style={{padding:'11px 16px'}}>
                     <div style={{display:'flex',gap:5}}>
@@ -243,7 +239,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                       }}>
                         <input type="radio" name="companies" value={opt.value}
                           checked={isSelected}
-                          onChange={() => setForm(f => ({ ...f, companies: opt.value === 'ALL' ? ['ALL'] : ['KISCOL'] }))}
+                          onChange={() => setForm(f => ({ ...f, companies: ['ALL'] }))}
                           style={{marginTop:2,accentColor:'#1a3a2a'}}/>
                         <div>
                           <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{opt.label}</div>
