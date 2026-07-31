@@ -369,13 +369,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const effectiveName = viewAs || currentUser.name
 
   const perms = useMemo(() => ({
-    canAddTask:      effectiveRole !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke',
+    canAddTask:      effectiveRole !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke' || currentUser.email === 'skumar@usm.co.ke',
     canDelete:       currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director'),
     canChangeStatus: effectiveRole !== 'staff',
     canHKComment:    ['admin','director'].includes(currentUser.role),
     canViewAs:       ['admin','director'].includes(currentUser.role),
     canPostUpdate:   (task: Task) =>
-      effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName) || currentUser.email === 'yaynalem@usm.co.ke',
+      effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName) || currentUser.email === 'yaynalem@usm.co.ke' || currentUser.email === 'skumar@usm.co.ke',
     // MY ATTENTION panel: all directors (Harshil, Benson) and admin
     showAttentionPanel: currentUser.role === 'admin' || currentUser.role === 'director',
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -451,8 +451,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       : _visibleTasks.filter(t =>
           t.category !== 'Finance' || nameMatch(t.responsible, myName) || nameMatch(t.responsible, myFirst)
         )
-    // Finance-whitelisted non-admin/director users also see every task they personally created
-    if (canSeeFinance && currentUser.role !== 'admin' && currentUser.role !== 'director') {
+    // All non-admin/director users also see every task they personally created
+    if (currentUser.role !== 'admin' && currentUser.role !== 'director') {
       const visibleIds = new Set(base.map(t => t.id))
       const assigned = tasks.filter(t =>
         !visibleIds.has(t.id) &&
