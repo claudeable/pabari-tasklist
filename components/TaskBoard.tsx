@@ -1870,15 +1870,31 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               )}
 
               {[
-                {l:'Date',     v:activeTask.date},
-                {l:'Payment',  v:activeTask.payment},
-                {l:'Category', v:activeTask.category},
+                {l:'Date',    v:activeTask.date},
+                {l:'Payment', v:activeTask.payment},
               ].map(r=>(
                 <div key={r.l} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
                   <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:1}}>{r.l}</div>
                   <div style={{fontSize:12,color:'#111827'}}>{r.v}</div>
                 </div>
               ))}
+
+              {/* Category — editable for admin/director/manager */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Category</div>
+                {(currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.role === 'manager')
+                  ? <select value={activeTask.category} onChange={async e=>{
+                      const val = e.target.value
+                      await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({category:val})})
+                      setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,category:val}:t))
+                      setActiveTask(p=>p?{...p,category:val}:p)
+                    }}
+                    style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
+                    {CATEGORIES.filter(c => c !== 'Finance' || canSeeFinance).map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                  : <span style={{fontSize:12,color:'#111827'}}>{activeTask.category}</span>
+                }
+              </div>
 
               {/* Responsible — editable only for director/admin */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>

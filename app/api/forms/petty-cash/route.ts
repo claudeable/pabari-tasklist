@@ -25,6 +25,7 @@ export async function GET() {
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const canSeeAll = user.role === 'admin' || user.role === 'director'
     || user.email === HOS_EMAIL || user.email === FINANCE_EMAIL
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   const { form_type, payment_method, request_date, company, employee_id_no, items, total_amount, amount_in_words, delegate_name, delegate_id_no, project_id } = body

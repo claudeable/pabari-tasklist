@@ -11,6 +11,7 @@ export default async function NewPettyCashPage() {
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) redirect('/login')
+  if (user.role !== 'admin') redirect('/tasks')
 
   // Look up HOD name from reports_to
   let hodName = ''

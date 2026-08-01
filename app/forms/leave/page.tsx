@@ -12,6 +12,7 @@ export default async function LeaveFormPage() {
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) redirect('/login')
+  if (user.role !== 'admin') redirect('/tasks')
 
   const year = new Date().getFullYear()
   const canSeeAll = user.role === 'admin' || user.role === 'director' || user.department === 'HR'

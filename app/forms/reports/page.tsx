@@ -18,6 +18,7 @@ export default async function FormsReportsPage() {
   const session = cookieStore.get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) redirect('/login')
+  if (user.role !== 'admin') redirect('/tasks')
 
   const isAdmin    = user.role === 'admin'
   const isDirector = user.role === 'director' || user.role === 'ceo'
