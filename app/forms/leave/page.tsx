@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
-import { getAllLeaveRequests, getMyLeaveRequests, getLeaveBalance, ANNUAL_LEAVE_LIMIT } from '@/lib/leave'
+import { getAllLeaveRequests, getLeaveBalance, ANNUAL_LEAVE_LIMIT } from '@/lib/leave'
 import type { LeaveRequest } from '@/lib/leave'
 import LeaveList from '@/components/LeaveList'
 
@@ -15,15 +15,11 @@ export default async function LeaveFormPage() {
   if (user.role !== 'admin') redirect('/tasks')
 
   const year = new Date().getFullYear()
-  const canSeeAll = user.role === 'admin' || user.role === 'director' || user.department === 'HR'
-  const empId = parseInt(String(user.id ?? ''), 10) || undefined
-
-  console.log('[leave page] user=%s id=%s role=%s dept=%s canSeeAll=%s', user.name, user.id, user.role, user.department, canSeeAll)
   let requests: LeaveRequest[] = []
   let usedDays = 0
   try {
     const results = await Promise.all([
-      canSeeAll ? getAllLeaveRequests() : getMyLeaveRequests(user.name, empId),
+      getAllLeaveRequests(),
       getLeaveBalance(user.name, year),
     ])
     requests = results[0]

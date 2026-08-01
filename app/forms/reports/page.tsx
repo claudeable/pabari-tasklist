@@ -1,17 +1,11 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
-import { getAllLeaveRequests, getMyLeaveRequests } from '@/lib/leave'
-import { getAllPettyCashRequests, getMyPettyCashRequests } from '@/lib/pettyCash'
+import { getAllLeaveRequests } from '@/lib/leave'
+import { getAllPettyCashRequests } from '@/lib/pettyCash'
 import FormsReports from '@/components/FormsReports'
 
 export const dynamic = 'force-dynamic'
-
-const HOS_EMAIL     = 'rkrishnan@usm.co.ke'
-const FINANCE_EMAIL = 'ateferi@kwale-group.com'
-const SURESH_EMAIL  = 'ssuresh@kwale-group.com'
-const AHMAD_EMAIL   = 'ahmad@usm.co.ke'
-const SABINA_EMAIL  = 'smutua@kwale-group.com'
 
 export default async function FormsReportsPage() {
   const cookieStore = cookies()
@@ -20,32 +14,18 @@ export default async function FormsReportsPage() {
   if (!user) redirect('/login')
   if (user.role !== 'admin') redirect('/tasks')
 
-  const isAdmin    = user.role === 'admin'
-  const isDirector = user.role === 'director' || user.role === 'ceo'
-  const isHR       = user.department === 'HR' || isAdmin
-
-  // Leave reports: HR, admin, director
-  const canSeeLeaveFull = isHR || isDirector
-
-  // PCR reports: admin, director, all approvers, Sabina
-  const isPCRApprover = [HOS_EMAIL, FINANCE_EMAIL, SURESH_EMAIL, AHMAD_EMAIL, SABINA_EMAIL]
-    .includes((user.email ?? '').toLowerCase())
-  const canSeePCRFull = isAdmin || isDirector || isPCRApprover
-
-  if (!canSeeLeaveFull && !canSeePCRFull) redirect('/forms')
-
   const [leaveReqs, pcrReqs] = await Promise.all([
-    canSeeLeaveFull ? getAllLeaveRequests() : getMyLeaveRequests(user.name),
-    canSeePCRFull   ? getAllPettyCashRequests() : getMyPettyCashRequests(parseInt(String(user.id ?? ''), 10) || 0),
+    getAllLeaveRequests(),
+    getAllPettyCashRequests(),
   ])
 
   return (
     <FormsReports
       currentUser={user}
-      leaveReqs={canSeeLeaveFull ? leaveReqs : []}
-      pcrReqs={canSeePCRFull ? pcrReqs : []}
-      canSeeLeaveFull={canSeeLeaveFull}
-      canSeePCRFull={canSeePCRFull}
+      leaveReqs={leaveReqs}
+      pcrReqs={pcrReqs}
+      canSeeLeaveFull={true}
+      canSeePCRFull={true}
     />
   )
 }
