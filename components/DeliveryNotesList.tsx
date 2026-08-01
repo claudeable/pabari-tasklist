@@ -35,8 +35,8 @@ interface Customer {
 const TODAY = new Date().toISOString().slice(0, 10)
 
 const GOODS_OPTIONS: Record<IssuingCompany, string[]> = {
-  mercury:  ['Soya Beans 50kg', 'Sugar 50kg', 'Biriyani Rice 25kg', '2kg Sugar Bales', '1kg Sugar Bales'],
-  bytewise: ['Soya Beans 50kg', 'Sugar 50kg', 'Biriyani Rice 25kg', '2kg Sugar Bales', '1kg Sugar Bales'],
+  mercury:  ['Soya Beans 50kg', 'Sugar 50kg', 'Biryani Rice 25kg', '2kg Sugar Bales', '1kg Sugar Bales'],
+  bytewise: ['Soya Beans 50kg', 'Sugar 50kg', 'Biryani Rice 25kg', '2kg Sugar Bales', '1kg Sugar Bales'],
 }
 
 const CO_LABEL: Record<IssuingCompany, string> = { mercury: 'Mercury Agencies Limited', bytewise: 'Bytewise Limited' }
