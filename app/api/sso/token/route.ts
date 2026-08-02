@@ -21,8 +21,8 @@ export const dynamic = 'force-dynamic'
 
 // Map portal key → its base URL (update when Property is deployed)
 const PORTAL_URLS: Record<string, string> = {
-  pil:      'https://pil-transmission-lines-app.up.railway.app',
-  smartops: 'https://joint-collaboration-portal.vercel.app',
+  pil:      'https://pil-frontend-production.up.railway.app',
+  smartops: 'https://smart-ops-frontend-production.up.railway.app',
   property: '',
 }
 

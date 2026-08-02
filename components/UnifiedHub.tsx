@@ -70,7 +70,6 @@ export default function UnifiedHub({ currentUser }: Props) {
     stat:   openTasks !== null ? `${openTasks} open tasks` : 'Loading…',
   }
 
-  // Direct URLs — used until each portal has an /sso page deployed
   const externalCards = [
     {
       key:     'smartops',
@@ -78,7 +77,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       icon:    '🏭',
       accent:  '#38bdf8',
       desc:    'Joint operations collaboration portal',
-      url:     'https://joint-collaboration-portal.vercel.app',
+      url:     'https://smart-ops-frontend-production.up.railway.app',
       visible: isAdmin || portals.includes('smartops'),
     },
     {
@@ -87,7 +86,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       icon:    '⚡',
       accent:  '#fb923c',
       desc:    'Transmission lines project portal',
-      url:     'https://pil-transmission-lines-app.up.railway.app',
+      url:     'https://pil-frontend-production.up.railway.app',
       visible: isAdmin || portals.includes('pil'),
     },
     {
