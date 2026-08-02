@@ -180,6 +180,17 @@ export async function GET() {
     dnCancelled = parseInt(rows[0]?.cancelled ?? '0', 10)
   } catch { /**/ }
 
+  // ── Legal review tasks ──────────────────────────────────────────────────
+  let legalReviewTasks: { id: string; particulars: string; company: string; responsible: string; days_waiting: string }[] = []
+  try {
+    legalReviewTasks = await query<{ id: string; particulars: string; company: string; responsible: string; days_waiting: string }>(
+      `SELECT id::text, particulars, company, responsible,
+              GREATEST(0, EXTRACT(DAY FROM NOW() - created_at))::int::text AS days_waiting
+       FROM tasks WHERE legal_review = true AND status NOT IN ('resolved','expired','archived')
+       ORDER BY created_at ASC LIMIT 20`
+    )
+  } catch { /**/ }
+
   // ── By-company breakdown ────────────────────────────────────────────────
   let byCompany: { company: string; total: string; action_req: string }[] = []
   try {
@@ -199,7 +210,7 @@ export async function GET() {
     oldestDays, avgWaitDays,
     pcrActive, pcrHighValue, leavePending, docCount,
     dnTotal, dnThisWeek, dnCancelled,
-    actionTasks, approvalTasks, pcrItems,
+    actionTasks, approvalTasks, legalReviewTasks, pcrItems,
     activityFeed, workload, byCompany,
   })
 }

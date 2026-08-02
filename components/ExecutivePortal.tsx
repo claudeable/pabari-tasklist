@@ -31,6 +31,10 @@ interface ApprovalTask {
   id: string; particulars: string; company: string
   responsible: string; days_waiting: string
 }
+interface LegalTask {
+  id: string; particulars: string; company: string
+  responsible: string; days_waiting: string
+}
 interface PcrItem    { req_no: string; employee_name: string; company: string; total_amount: string; status: string }
 interface Activity   { user_name: string; action: string; details: string; created_at: string }
 interface WorkloadRow { responsible: string; open: string; resolved_week: string }
@@ -43,7 +47,7 @@ interface ExecData {
   oldestDays: number; avgWaitDays: number
   pcrActive: number; pcrHighValue: number; leavePending: number; docCount: number
   dnTotal: number; dnThisWeek: number; dnCancelled: number
-  actionTasks: ActionTask[]; approvalTasks: ApprovalTask[]
+  actionTasks: ActionTask[]; approvalTasks: ApprovalTask[]; legalReviewTasks: LegalTask[]
   pcrItems: PcrItem[]; activityFeed: Activity[]
   workload: WorkloadRow[]; byCompany: CompanyRow[]
 }
@@ -356,7 +360,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
     ? (data?.approvalTasks ?? [])
     : [] // HK approval queue belongs to Harshil only
 
-  const decisions    = myActionTasks.length + myApprovalTasks.length
+  const legalTasks   = data?.legalReviewTasks ?? []
+  const decisions    = myActionTasks.length + myApprovalTasks.length + legalTasks.length
   const reviewMins   = Math.round(decisions * 1.5)
   const recs         = data ? genRecommendations(data, myActionTasks, isHK) : []
   const health       = data ? computeHealth(data) : []
@@ -752,6 +757,28 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   )
                 })}
 
+                {/* Legal review tasks — visible to all executives */}
+                {legalTasks.map(t => {
+                  const days = parseInt(t.days_waiting, 10)
+                  return (
+                    <div key={t.id} style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start', background: 'rgba(124,58,237,0.04)' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', marginTop: 5, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: '#7c3aed', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>⚖ Legal Review</span>
+                          <span style={{ fontSize: 10, color: T.text3 }}>{t.company}</span>
+                          {days >= 3 && <span style={{ fontSize: 9, color: T.amber, background: `${T.amber}12`, borderRadius: 4, padding: '2px 6px', fontWeight: 800 }}>⚠ {days}d open</span>}
+                        </div>
+                        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{t.particulars}</div>
+                        <div style={{ fontSize: 10, color: T.text3 }}>Owner: <span style={{ color: T.text2, fontWeight: 600 }}>{t.responsible}</span></div>
+                      </div>
+                      <a href={`/tasks?id=${t.id}`} style={{ fontSize: 11, color: '#7c3aed', textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
+                        Review →
+                      </a>
+                    </div>
+                  )
+                })}
+
                 {/* HK comment queue — Harshil only */}
                 {isHK && (data?.needsHkComment ?? 0) > 0 && (
                   <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start', background: `${T.amber}08` }}>
@@ -791,7 +818,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   </div>
                 ))}
 
-                {!loading && decisions === 0 && (!isHK || (data?.needsHkComment ?? 0) === 0) && (data?.pcrHighValue ?? 0) === 0 && (
+                {!loading && decisions === 0 && legalTasks.length === 0 && (!isHK || (data?.needsHkComment ?? 0) === 0) && (data?.pcrHighValue ?? 0) === 0 && (
                   <div style={{ padding: '36px', textAlign: 'center' }}>
                     <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.6 }}>◈</div>
                     <div style={{ color: T.green, fontSize: 14, fontWeight: 700 }}>All clear — no pending decisions</div>
