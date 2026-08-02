@@ -33,6 +33,27 @@ async function ensureParentId() {
       ['S. Kumar', 'skumar@usm.co.ke', 'staff', 'Operations', '', '', '["ALL"]', hash]
     ).catch(() => {})
   }
+
+  // ── Multi-portal hub SSO ──────────────────────────────────────────────────
+  // portals: which sub-portals each user can access ('pil', 'smartops', 'property')
+  await execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS portals TEXT[] NOT NULL DEFAULT '{}'").catch(() => {})
+  // sso_tokens: short-lived one-time tokens for cross-portal login
+  await execute(`
+    CREATE TABLE IF NOT EXISTS sso_tokens (
+      id         SERIAL PRIMARY KEY,
+      token      TEXT    NOT NULL UNIQUE,
+      email      TEXT    NOT NULL,
+      name       TEXT    NOT NULL,
+      role       TEXT    NOT NULL,
+      portal     TEXT    NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at    TIMESTAMPTZ
+    )
+  `).catch(() => {})
+  // Clean up expired tokens on every boot
+  await execute(`DELETE FROM sso_tokens WHERE expires_at < NOW() - INTERVAL '1 hour'`).catch(() => {})
+  // ─────────────────────────────────────────────────────────────────────────
+
   parentColReady = true
 }
 

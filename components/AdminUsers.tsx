@@ -5,7 +5,8 @@ import InactivityGuard from './InactivityGuard'
 
 interface UserRow {
   id: string; name: string; email: string; role: UserRole
-  department: string; reports_to: string; hod_email: string; companies: string[]; created_at: string
+  department: string; reports_to: string; hod_email: string; companies: string[]
+  portals: string[]; created_at: string
 }
 interface Props { currentUser: SessionUser; initialUsers: UserRow[] }
 
@@ -22,7 +23,14 @@ const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
   staff:    { bg:'#f3f4f6', color:'#374151' },
 }
 
-const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', hod_email:'', companies: ['ALL'] as string[] }
+// Sub-portals users can be assigned to
+const PORTAL_OPTIONS = [
+  { value: 'pil',      label: 'PIL / KETRACO',   desc: 'Transmission lines portal' },
+  { value: 'smartops', label: 'Smart Ops',        desc: 'Joint operations portal'   },
+  { value: 'property', label: 'Property Mgmt',    desc: 'Property management portal'},
+]
+
+const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', hod_email:'', companies: ['ALL'] as string[], portals: [] as string[] }
 const ARCHIVE_CUTOFF = '2026-06-01'
 
 export default function AdminUsers({ currentUser, initialUsers }: Props) {
@@ -59,7 +67,7 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
 
   const openAdd  = () => { setForm(BLANK); setEditId(null); setError(''); setShowForm(true) }
   const openEdit = (u: UserRow) => {
-    setForm({ name:u.name, email:u.email, role:u.role, department:u.department, reports_to:u.reports_to, hod_email:u.hod_email||'', companies: u.companies ?? ['ALL'] })
+    setForm({ name:u.name, email:u.email, role:u.role, department:u.department, reports_to:u.reports_to, hod_email:u.hod_email||'', companies: u.companies ?? ['ALL'], portals: u.portals ?? [] })
     setEditId(u.id); setError(''); setShowForm(true)
   }
 
@@ -329,6 +337,38 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
                   })}
                 </div>
               </div>
+              {/* ── Connected Portals (SSO) ────────────────────────────────────── */}
+              <div>
+                <label style={lbl}>Connected Portals (SSO)</label>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                  {PORTAL_OPTIONS.map(p => {
+                    const checked = form.portals.includes(p.value)
+                    const toggle  = () => setForm(f => ({
+                      ...f,
+                      portals: checked ? f.portals.filter(x => x !== p.value) : [...f.portals, p.value],
+                    }))
+                    return (
+                      <label key={p.value} style={{
+                        display:'flex',gap:8,alignItems:'flex-start',cursor:'pointer',
+                        background: checked ? '#eff6ff' : 'white',
+                        border:`1px solid ${checked ? '#93c5fd' : '#e5e7eb'}`,
+                        borderRadius:5,padding:'7px 10px',
+                      }}>
+                        <input type="checkbox" checked={checked} onChange={toggle}
+                          style={{marginTop:2,accentColor:'#1d4ed8'}}/>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{p.label}</div>
+                          <div style={{fontSize:10,color:'#9ca3af',marginTop:1}}>{p.desc}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+                <div style={{fontSize:10,color:'#9ca3af',marginTop:6}}>
+                  Admins can always access all portals. Assign portals to give non-admin users SSO access.
+                </div>
+              </div>
+              {/* ─────────────────────────────────────────────────────────────────── */}
               {!editId && (
                 <div style={{display:'flex',alignItems:'flex-end'}}>
                   <div style={{background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:4,padding:'7px 10px',fontSize:12,color:'#6b7280',width:'100%'}}>

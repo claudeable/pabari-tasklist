@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
     reports_to: user.reports_to,
     hod_email:  user.hod_email || '',
     companies:  user.companies,
+    portals:    user.portals ?? [],
   })
 
   postSystemMessage(`🟢 ${user.name} logged in`).catch(() => {})

@@ -17,6 +17,7 @@ export interface StoredUser {
   reports_to:    string
   hod_email:     string
   companies:     string[]
+  portals:       string[]  // sub-portals: 'pil', 'smartops', 'property'
   password_hash: string
   created_at:    string
 }
@@ -28,6 +29,7 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
   } else if (typeof row.companies === 'string') {
     try { companies = JSON.parse(row.companies) } catch { companies = ['ALL'] }
   }
+  const portals: string[] = Array.isArray(row.portals) ? (row.portals as string[]) : []
   return {
     id:            String(row.id),
     name:          String(row.name),
@@ -37,6 +39,7 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
     reports_to:    String(row.reports_to || ''),
     hod_email:     String(row.hod_email || ''),
     companies,
+    portals,
     password_hash: String(row.password_hash),
     created_at:    String(row.created_at),
   }
@@ -119,19 +122,27 @@ export async function createUser(data: {
 
 export async function updateUser(id: string, data: {
   name?: string; email?: string; role?: UserRole
-  department?: string; reports_to?: string; hod_email?: string; companies?: string[]
+  department?: string; reports_to?: string; hod_email?: string
+  companies?: string[]
+  portals?: string[]
 }): Promise<StoredUser | null> {
   await ensureUserCols()
-  const { companies, ...rest } = data
+  const { companies, portals, ...rest } = data
   const allowed = ['name', 'email', 'role', 'department', 'reports_to', 'hod_email']
   const fields  = Object.keys(rest).filter(k => allowed.includes(k))
 
   // companies is JSONB — handle separately
   if (companies !== undefined) fields.push('companies')
+  // portals is TEXT[] — handled as native array
+  if (portals !== undefined) fields.push('portals')
   if (!fields.length) return null
 
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
-  const values = fields.map(f => f === 'companies' ? JSON.stringify(companies) : (rest as Record<string, unknown>)[f])
+  const values = fields.map(f => {
+    if (f === 'companies') return JSON.stringify(companies)
+    if (f === 'portals')   return portals
+    return (rest as Record<string, unknown>)[f]
+  })
   const row = await queryOne<Record<string, unknown>>(
     `UPDATE users SET ${set} WHERE id = $1 RETURNING *`,
     [id, ...values]

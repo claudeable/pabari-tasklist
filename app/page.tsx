@@ -1,12 +1,14 @@
+// ============================================================
+// PABARI ERP — Main portal hub (entry point for all users)
+// Sub-portals: Smart Ops, PIL/KETRACO, Property Management
+// Executive dashboard is at /intelligence
+// ============================================================
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
-import PortalHub from '@/components/PortalHub'
-import ExecutivePortal from '@/components/ExecutivePortal'
+import UnifiedHub from '@/components/UnifiedHub'
 
 export const dynamic = 'force-dynamic'
-
-const EXEC_NAMES = ['harshil', 'benson']
 
 export default async function Home() {
   const cookieStore = cookies()
@@ -15,10 +17,5 @@ export default async function Home() {
 
   if (!currentUser) redirect('/login')
 
-  const firstName = (currentUser.name?.split(' ')[0] ?? '').toLowerCase()
-  const isExec = currentUser.role === 'admin' || EXEC_NAMES.includes(firstName)
-
-  return isExec
-    ? <ExecutivePortal currentUser={currentUser} />
-    : <PortalHub currentUser={currentUser} />
+  return <UnifiedHub currentUser={currentUser} />
 }

@@ -9,6 +9,7 @@ export interface SessionUser {
   reports_to: string
   hod_email:  string
   companies:  string[]   // ['ALL'] or ['KISCOL'] etc.
+  portals:    string[]   // sub-portals this user can access: 'pil', 'smartops', 'property'
 }
 
 export interface PublicUser {

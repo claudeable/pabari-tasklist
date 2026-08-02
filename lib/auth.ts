@@ -11,6 +11,7 @@ export interface SessionUser {
   reports_to: string
   hod_email:  string
   companies:  string[]
+  portals:    string[]  // sub-portals this user can access: 'pil', 'smartops', 'property'
 }
 
 const secret = () => {
@@ -25,6 +26,7 @@ export async function signToken(user: SessionUser): Promise<string> {
     department: user.department, reports_to: user.reports_to,
     hod_email: user.hod_email,
     companies: user.companies,
+    portals:   user.portals,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -36,8 +38,9 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, secret())
     const p = payload as unknown as SessionUser
-    // Ensure companies always has a valid value even for old tokens
+    // Ensure arrays always have valid values even for old tokens
     if (!Array.isArray(p.companies)) p.companies = ['ALL']
+    if (!Array.isArray(p.portals))   p.portals   = []
     if (!p.hod_email) p.hod_email = ''
     return p
   } catch {
