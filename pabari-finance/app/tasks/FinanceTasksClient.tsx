@@ -48,7 +48,7 @@ export default function FinanceTasksClient({ tasks }: { tasks: FinanceTask[] }) 
           <h1 className="page-title">Finance Tasks</h1>
           <p className="page-sub">{tasks.length} total · {tasks.filter(t => t.status !== 'resolved' && t.status !== 'expired').length} active</p>
         </div>
-        <a href="https://pabari-tasklist-production.up.railway.app/tasks" target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
+        <a href="https://pabari-workspace.up.railway.app/tasks" target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
           Add Task on Main Board ↗
         </a>
       </div>

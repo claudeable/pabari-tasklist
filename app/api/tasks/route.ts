@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
           sendEmail({
             to: assignee.email,
             subject: `Task Assigned: ${task.particulars.slice(0, 60)}`,
-            body: `Hi ${assignee.name.split(' ')[0]},\n\nA new task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\nPlease log in to the portal to view and update this task.\n\nhttps://pabari-tasklist-production.up.railway.app/tasks`,
+            body: `Hi ${assignee.name.split(' ')[0]},\n\nA new task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\nPlease log in to the portal to view and update this task.\n\nhttps://pabari-workspace.up.railway.app/tasks`,
           }).catch(() => {})
         }
       }).catch(() => {})

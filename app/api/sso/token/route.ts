@@ -5,6 +5,7 @@
 // Returns a 60-second one-time token that the sub-portal validates
 // against /api/sso/validate before issuing its own session.
 //
+// Master portal URL: https://pabari-workspace.up.railway.app
 // Sub-portals that use this:
 //   - PIL / KETRACO  → pil-transmission-lines-app.up.railway.app
 //   - Smart Ops      → joint-collaboration-portal.vercel.app
