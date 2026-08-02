@@ -30,9 +30,8 @@ function fmtDate() {
 }
 
 export default function UnifiedHub({ currentUser }: Props) {
-  const [isMobile,     setIsMobile]     = useState(false)
-  const [launchingKey, setLaunchingKey] = useState<string | null>(null)
-  const [openTasks,    setOpenTasks]    = useState<number | null>(null)
+  const [isMobile,  setIsMobile]  = useState(false)
+  const [openTasks, setOpenTasks] = useState<number | null>(null)
 
   const firstName = (currentUser.name?.split(' ')[0] ?? 'there')
   const role      = currentUser.role
@@ -59,27 +58,6 @@ export default function UnifiedHub({ currentUser }: Props) {
     window.location.href = '/login'
   }
 
-  // SSO launch for external portals
-  async function handlePortalLaunch(portalKey: string) {
-    setLaunchingKey(portalKey)
-    try {
-      const res  = await fetch('/api/sso/token', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ portal: portalKey }),
-      })
-      const data = await res.json()
-      if (res.ok && data.redirect_url) {
-        window.location.href = data.redirect_url
-      } else {
-        alert(data.error ?? 'Access denied to this portal')
-      }
-    } catch {
-      alert('Failed to launch portal — please try again')
-    } finally {
-      setLaunchingKey(null)
-    }
-  }
 
   // ── 4 top-level cards ──────────────────────────────────────────────────────
   const internalCard = {
@@ -92,6 +70,7 @@ export default function UnifiedHub({ currentUser }: Props) {
     stat:   openTasks !== null ? `${openTasks} open tasks` : 'Loading…',
   }
 
+  // Direct URLs — used until each portal has an /sso page deployed
   const externalCards = [
     {
       key:     'smartops',
@@ -99,6 +78,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       icon:    '🏭',
       accent:  '#38bdf8',
       desc:    'Joint operations collaboration portal',
+      url:     'https://joint-collaboration-portal.vercel.app',
       visible: isAdmin || portals.includes('smartops'),
     },
     {
@@ -107,6 +87,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       icon:    '⚡',
       accent:  '#fb923c',
       desc:    'Transmission lines project portal',
+      url:     'https://pil-transmission-lines-app.up.railway.app',
       visible: isAdmin || portals.includes('pil'),
     },
     {
@@ -115,6 +96,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       icon:    '🏢',
       accent:  '#818cf8',
       desc:    'Property management portal',
+      url:     '',
       visible: isAdmin || portals.includes('property'),
     },
   ].filter(p => p.visible)
@@ -185,35 +167,33 @@ export default function UnifiedHub({ currentUser }: Props) {
             </div>
           </a>
 
-          {/* External portals — SSO launch */}
+          {/* External portals — direct links */}
           {externalCards.map(p => (
-            <button
+            <a
               key={p.key}
-              onClick={() => handlePortalLaunch(p.key)}
-              disabled={launchingKey === p.key}
-              style={{
-                textAlign:'left', background:'white', border:'1px solid #e2e8f0', borderRadius:14,
-                padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s',
-                boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden',
-                opacity: launchingKey === p.key ? 0.7 : 1, width:'100%',
-              }}
-              onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=p.accent }}
-              onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+              href={p.url || undefined}
+              target={p.url ? '_blank' : undefined}
+              rel="noopener noreferrer"
+              onClick={!p.url ? (e) => { e.preventDefault(); alert('This portal is not yet deployed.') } : undefined}
+              style={{ textDecoration:'none', display:'block', opacity: p.url ? 1 : 0.6 }}
             >
-              <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:p.accent, borderRadius:'14px 14px 0 0' }} />
-              <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>{p.icon}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                <span style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', letterSpacing:'-0.01em' }}>{p.label}</span>
-                <span style={{ fontSize:9, fontWeight:700, color:'#22d3ee', background:'rgba(34,211,238,0.1)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:4, padding:'2px 5px', letterSpacing:'0.06em' }}>SSO</span>
+              <div
+                style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor: p.url ? 'pointer' : 'not-allowed', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
+                onMouseEnter={e => { if (p.url) { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=p.accent } }}
+                onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+              >
+                <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:p.accent, borderRadius:'14px 14px 0 0' }} />
+                <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>{p.icon}</div>
+                <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', marginBottom:6, letterSpacing:'-0.01em' }}>{p.label}</div>
+                <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>{p.desc}</div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:p.accent, background:`${p.accent}18`, border:`1px solid ${p.accent}33`, borderRadius:20, padding:'4px 12px' }}>
+                    {p.url ? 'Open portal' : 'Coming soon'}
+                  </span>
+                  <span style={{ fontSize:18, color:'#cbd5e1' }}>↗</span>
+                </div>
               </div>
-              <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>{p.desc}</div>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <span style={{ fontSize:12, fontWeight:700, color:p.accent, background:`${p.accent}18`, border:`1px solid ${p.accent}33`, borderRadius:20, padding:'4px 12px' }}>
-                  {launchingKey === p.key ? 'Launching…' : 'Open portal'}
-                </span>
-                <span style={{ fontSize:18, color:'#cbd5e1' }}>↗</span>
-              </div>
-            </button>
+            </a>
           ))}
 
         </div>
