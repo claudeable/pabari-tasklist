@@ -1,17 +1,6 @@
-// ============================================================
-// PIL / KETRACO — SSO Landing Page
-// Portal: PIL (pil-transmission-lines-app)
-// Master portal: Pabari ERP
-//
-// Flow:
-//   1. Pabari ERP redirects here: /auth/sso?token=<one-time-token>
-//   2. This page calls POST /api/v1/auth/sso with the token
-//   3. PIL backend validates with Pabari, looks up user by pabari_email
-//   4. On success: store access token in memory, redirect to /dashboard
-//   5. On failure: show error with link back to Pabari hub
-// ============================================================
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch, setAccessToken } from "@/lib/api-client";
@@ -23,7 +12,7 @@ interface LoginResult {
   challenge_token: string | null;
 }
 
-export default function SsoPage() {
+function SsoContent() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +49,6 @@ export default function SsoPage() {
         {!error ? (
           <>
             <p className="mb-6 text-sm text-slate-400">Signing you in via Pabari ERP…</p>
-            {/* Minimal spinner */}
             <div
               style={{
                 width: 32, height: 32, margin: "0 auto",
@@ -85,5 +73,13 @@ export default function SsoPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function SsoPage() {
+  return (
+    <Suspense>
+      <SsoContent />
+    </Suspense>
   );
 }

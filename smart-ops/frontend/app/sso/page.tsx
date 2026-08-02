@@ -1,17 +1,6 @@
-// ============================================================
-// SMART OPS PORTAL — SSO Landing Page
-// Portal: Smart Ops (joint-collaboration-portal)
-// Master portal: Pabari Workspace
-//
-// Flow:
-//   1. Pabari Workspace redirects here: /sso?token=<one-time-token>
-//   2. This page calls POST /api/v1/auth/sso with the token
-//   3. Smart Ops backend validates with Pabari, looks up user by email
-//   4. On success: set jcp_session flag cookie, redirect to /dashboard
-//   5. On failure: show error with link back to Pabari hub
-// ============================================================
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Waves } from "lucide-react";
@@ -21,7 +10,7 @@ import { markSignedIn } from "@/lib/auth";
 const PABARI_URL =
   process.env.NEXT_PUBLIC_PABARI_URL ?? "https://pabari-workspace.up.railway.app";
 
-export default function SsoPage() {
+function SsoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -106,5 +95,13 @@ export default function SsoPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SsoPage() {
+  return (
+    <Suspense>
+      <SsoContent />
+    </Suspense>
   );
 }
