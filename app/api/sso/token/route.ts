@@ -57,6 +57,7 @@ export async function POST(req: Request) {
     [token, user.email, user.name, user.role, portal, expiresAt.toISOString()]
   )
 
-  const redirectUrl = `${PORTAL_URLS[portal]}/auth/sso?token=${token}`
+  // PIL uses /sso (Next.js route group (auth) doesn't add to URL path)
+  const redirectUrl = `${PORTAL_URLS[portal]}/sso?token=${token}`
   return NextResponse.json({ token, redirect_url: redirectUrl })
 }

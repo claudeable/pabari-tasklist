@@ -1,31 +1,22 @@
 // ============================================================
-// PABARI ERP — Unified Hub
-// Central launcher for all users. Shows role-appropriate module
-// cards plus sub-portal cards (Smart Ops, PIL/KETRACO, Property).
+// PABARI WORKSPACE — Unified Hub
+// 4-card launcher:
+//   1. Task Management  → /tasks  (internal Pabari system)
+//   2. Smart Ops        → SSO → joint-collaboration-portal.vercel.app
+//   3. PIL / KETRACO    → SSO → pil-transmission-lines-app.up.railway.app
+//   4. Property Mgmt    → SSO → (not yet deployed)
 //
-// Sub-portal SSO flow:
-//   1. User clicks portal card → handlePortalLaunch(portalKey)
-//   2. POST /api/sso/token  → receives one-time token
-//   3. Redirect to PORTAL_URL/auth/sso?token=xxx
-//   4. Sub-portal validates token via POST /api/sso/validate
-//
-// Portal URLs:
-//   Smart Ops  → joint-collaboration-portal.vercel.app
-//   PIL/KETRACO → pil-transmission-lines-app.up.railway.app
-//   Property   → not yet deployed
+// SSO flow for external portals:
+//   POST /api/sso/token → one-time token → redirect to PORTAL/sso?token=xxx
+//   Sub-portal calls POST /api/sso/validate (server-to-server) to verify
 // ============================================================
 'use client'
 import { useState, useEffect } from 'react'
-import { SessionUser, FINANCE_VISIBLE_EMAILS } from '@/types'
+import { SessionUser } from '@/types'
 import InactivityGuard from './InactivityGuard'
 import NotificationBell from './NotificationBell'
 
 interface Props { currentUser: SessionUser }
-
-interface HubStats {
-  tasks: number; finance: number; projects: number
-  docs: number; invoices: number; deliveries: number
-}
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -39,25 +30,41 @@ function fmtDate() {
 }
 
 export default function UnifiedHub({ currentUser }: Props) {
-  const [stats,        setStats]        = useState<HubStats | null>(null)
   const [isMobile,     setIsMobile]     = useState(false)
   const [launchingKey, setLaunchingKey] = useState<string | null>(null)
+  const [openTasks,    setOpenTasks]    = useState<number | null>(null)
 
-  const firstName  = (currentUser.name?.split(' ')[0] ?? 'there')
-  const role       = currentUser.role
-  const isAdmin    = role === 'admin'
-  const isDirector = role === 'director' || role === 'ceo'
-  const isManager  = role === 'manager'
-  const canFinance = isAdmin || isDirector || FINANCE_VISIBLE_EMAILS.has(currentUser.email ?? '')
-  const portals    = (currentUser as unknown as { portals?: string[] }).portals ?? []
+  const firstName = (currentUser.name?.split(' ')[0] ?? 'there')
+  const role      = currentUser.role
+  const isAdmin   = role === 'admin'
+  const portals   = currentUser.portals ?? []
 
-  // SSO redirect for external sub-portals
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Fetch just the open-task count for the Task Management card badge
+  useEffect(() => {
+    fetch('/api/hub/stats', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setOpenTasks(d.tasks) })
+      .catch(() => {})
+  }, [])
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    window.location.href = '/login'
+  }
+
+  // SSO launch for external portals
   async function handlePortalLaunch(portalKey: string) {
     setLaunchingKey(portalKey)
     try {
-      const res = await fetch('/api/sso/token', {
-        method: 'POST',
-        credentials: 'include',
+      const res  = await fetch('/api/sso/token', {
+        method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ portal: portalKey }),
       })
@@ -74,155 +81,47 @@ export default function UnifiedHub({ currentUser }: Props) {
     }
   }
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  useEffect(() => {
-    fetch('/api/hub/stats', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats(d) })
-      .catch(() => {})
-  }, [])
-
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-    window.location.href = '/login'
+  // ── 4 top-level cards ──────────────────────────────────────────────────────
+  const internalCard = {
+    key:    'tasks',
+    label:  'Task Management',
+    href:   '/tasks',
+    icon:   '📋',
+    accent: '#22c55e',
+    desc:   'Tasks · Projects · Finance · Documents · Connect · Centre',
+    stat:   openTasks !== null ? `${openTasks} open tasks` : 'Loading…',
   }
 
-  // Module definitions
-  const modules = [
-    {
-      key:     'tasks',
-      label:   'Tasks',
-      href:    '/tasks',
-      icon:    '📋',
-      color:   '#1a3a2a',
-      accent:  '#22c55e',
-      desc:    'Manage and track team tasks',
-      stat:    stats ? `${stats.tasks} open` : '—',
-      visible: true,
-    },
-    {
-      key:     'projects',
-      label:   'Projects',
-      href:    '/projects',
-      icon:    '📁',
-      color:   '#1e3a5f',
-      accent:  '#60a5fa',
-      desc:    'Track projects and milestones',
-      stat:    stats ? `${stats.projects} active` : '—',
-      visible: !( role === 'staff' && !isAdmin),
-    },
-    {
-      key:     'finance',
-      label:   'Finance',
-      href:    '/finance',
-      icon:    '💰',
-      color:   '#3b1a5f',
-      accent:  '#a78bfa',
-      desc:    'Invoices, quotations, delivery notes',
-      stat:    stats ? `${stats.finance} pending` : '—',
-      visible: canFinance,
-    },
-    {
-      key:     'documents',
-      label:   'Documents',
-      href:    '/documents',
-      icon:    '📄',
-      color:   '#3b2a1a',
-      accent:  '#f59e0b',
-      desc:    'Company document library',
-      stat:    stats ? `${stats.docs} files` : '—',
-      visible: true,
-    },
-    {
-      key:     'connect',
-      label:   'Connect',
-      href:    '/connect',
-      icon:    '👥',
-      color:   '#1a3a3a',
-      accent:  '#22d3ee',
-      desc:    'Staff directory and contacts',
-      stat:    'Directory',
-      visible: role !== 'staff' || isAdmin,
-    },
-    {
-      key:     'centre',
-      label:   'Centre',
-      href:    '/centre',
-      icon:    '💬',
-      color:   '#2a1a3a',
-      accent:  '#c084fc',
-      desc:    'Chat, inbox and AI assistant',
-      stat:    'Messages & AI',
-      visible: true,
-    },
-    {
-      key:     'intelligence',
-      label:   'Intelligence',
-      href:    '/intelligence',
-      icon:    '⚡',
-      color:   '#0a1a0f',
-      accent:  '#4ade80',
-      desc:    'Executive dashboard and briefings',
-      stat:    'Live briefing',
-      visible: isAdmin || isDirector,
-    },
-    {
-      key:     'admin',
-      label:   'Admin',
-      href:    '/admin/users',
-      icon:    '⚙️',
-      color:   '#1a1a1a',
-      accent:  '#9ca3af',
-      desc:    'User management and system tools',
-      stat:    'System admin',
-      visible: isAdmin,
-    },
-  ].filter(m => m.visible)
-
-  // ── External sub-portal cards ──────────────────────────────────────────────
-  // These use SSO redirect instead of a plain href.
-  // Visibility: admin always sees all; other roles need portals[] assignment.
-  const subPortals = [
+  const externalCards = [
     {
       key:     'smartops',
       label:   'Smart Ops',
       icon:    '🏭',
-      color:   '#1a2a3a',
       accent:  '#38bdf8',
       desc:    'Joint operations collaboration portal',
-      stat:    'Smart Ops',
       visible: isAdmin || portals.includes('smartops'),
     },
     {
       key:     'pil',
       label:   'PIL / KETRACO',
       icon:    '⚡',
-      color:   '#2a1a0a',
       accent:  '#fb923c',
       desc:    'Transmission lines project portal',
-      stat:    'PIL KETRACO',
       visible: isAdmin || portals.includes('pil'),
     },
     {
       key:     'property',
       label:   'Property Mgmt',
       icon:    '🏢',
-      color:   '#1a1a2a',
       accent:  '#818cf8',
       desc:    'Property management portal',
-      stat:    'Coming soon',
       visible: isAdmin || portals.includes('property'),
     },
-  ].filter(m => m.visible)
+  ].filter(p => p.visible)
   // ────────────────────────────────────────────────────────────────────────────
 
-  const cols = isMobile ? 2 : Math.min(modules.length, 4)
+  const totalCards  = 1 + externalCards.length
+  const gridCols    = isMobile ? 1 : Math.min(totalCards, 2)
 
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Inter,Arial,sans-serif', display:'flex', flexDirection:'column' }}>
@@ -247,7 +146,7 @@ export default function UnifiedHub({ currentUser }: Props) {
 
       {/* HERO */}
       <div style={{ background:'linear-gradient(135deg, #0f1a12 0%, #1a2d1f 100%)', padding: isMobile ? '28px 16px 32px' : '40px 32px 44px', borderBottom:'1px solid #1e2e1a' }}>
-        <div style={{ maxWidth:1100, margin:'0 auto' }}>
+        <div style={{ maxWidth:900, margin:'0 auto' }}>
           <div style={{ fontSize: isMobile ? 11 : 12, fontWeight:700, color:'#4a7055', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>
             {getGreeting()}, {firstName}
           </div>
@@ -258,91 +157,75 @@ export default function UnifiedHub({ currentUser }: Props) {
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div style={{ flex:1, maxWidth:1100, margin:'0 auto', width:'100%', padding: isMobile ? '24px 14px 48px' : '36px 32px 64px' }}>
-
-        {/* Internal modules */}
-        <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:18 }}>
-          Your Modules
+      {/* PORTAL GRID */}
+      <div style={{ flex:1, maxWidth:900, margin:'0 auto', width:'100%', padding: isMobile ? '28px 16px 56px' : '44px 32px 72px' }}>
+        <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:22 }}>
+          Select a Portal
         </div>
-        <ModuleGrid modules={modules} isMobile={isMobile} />
 
-        {/* External sub-portals (SSO) */}
-        {subPortals.length > 0 && (
-          <>
-            <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:36, marginBottom:18, display:'flex', alignItems:'center', gap:8 }}>
-              Connected Portals
-              <span style={{ fontSize:9, fontWeight:700, color:'#22d3ee', background:'rgba(34,211,238,0.1)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:4, padding:'2px 6px', letterSpacing:'0.06em' }}>SSO</span>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${gridCols}, 1fr)`, gap: isMobile ? 14 : 22 }}>
+
+          {/* Task Management — internal, plain link */}
+          <a href={internalCard.href} style={{ textDecoration:'none', display:'block' }}>
+            <div
+              style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
+              onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=internalCard.accent }}
+              onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+            >
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:internalCard.accent, borderRadius:'14px 14px 0 0' }} />
+              <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>{internalCard.icon}</div>
+              <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', marginBottom:6, letterSpacing:'-0.01em' }}>{internalCard.label}</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>{internalCard.desc}</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:internalCard.accent, background:`${internalCard.accent}18`, border:`1px solid ${internalCard.accent}33`, borderRadius:20, padding:'4px 12px' }}>
+                  {internalCard.stat}
+                </span>
+                <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
+              </div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap: isMobile ? 12 : 18 }}>
-              {subPortals.map(p => (
-                <button
-                  key={p.key}
-                  onClick={() => handlePortalLaunch(p.key)}
-                  disabled={launchingKey === p.key}
-                  style={{
-                    textAlign:'left', background:'white', border:'1px solid #e2e8f0', borderRadius:12,
-                    padding: isMobile ? '18px 16px' : '24px 22px', cursor:'pointer', transition:'all 0.15s',
-                    boxShadow:'0 1px 3px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden',
-                    opacity: launchingKey === p.key ? 0.7 : 1,
-                  }}
-                  onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-2px)'; el.style.boxShadow=`0 8px 24px rgba(0,0,0,0.10)`; el.style.borderColor=p.accent }}
-                  onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
-                >
-                  <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:p.accent, borderRadius:'12px 12px 0 0' }} />
-                  <div style={{ fontSize: isMobile ? 28 : 34, marginBottom:12, lineHeight:1 }}>{p.icon}</div>
-                  <div style={{ fontSize: isMobile ? 15 : 17, fontWeight:800, color:'#0f172a', marginBottom:4, letterSpacing:'-0.01em' }}>{p.label}</div>
-                  <div style={{ fontSize: isMobile ? 11 : 12, color:'#64748b', marginBottom:14, lineHeight:1.4 }}>{p.desc}</div>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <span style={{ fontSize:11, fontWeight:700, color:p.accent, background:`${p.accent}18`, border:`1px solid ${p.accent}33`, borderRadius:20, padding:'3px 10px' }}>
-                      {launchingKey === p.key ? 'Launching…' : p.stat}
-                    </span>
-                    <span style={{ fontSize:16, color:'#cbd5e1' }}>↗</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+          </a>
+
+          {/* External portals — SSO launch */}
+          {externalCards.map(p => (
+            <button
+              key={p.key}
+              onClick={() => handlePortalLaunch(p.key)}
+              disabled={launchingKey === p.key}
+              style={{
+                textAlign:'left', background:'white', border:'1px solid #e2e8f0', borderRadius:14,
+                padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s',
+                boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden',
+                opacity: launchingKey === p.key ? 0.7 : 1, width:'100%',
+              }}
+              onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=p.accent }}
+              onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+            >
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:p.accent, borderRadius:'14px 14px 0 0' }} />
+              <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>{p.icon}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                <span style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', letterSpacing:'-0.01em' }}>{p.label}</span>
+                <span style={{ fontSize:9, fontWeight:700, color:'#22d3ee', background:'rgba(34,211,238,0.1)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:4, padding:'2px 5px', letterSpacing:'0.06em' }}>SSO</span>
+              </div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>{p.desc}</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:p.accent, background:`${p.accent}18`, border:`1px solid ${p.accent}33`, borderRadius:20, padding:'4px 12px' }}>
+                  {launchingKey === p.key ? 'Launching…' : 'Open portal'}
+                </span>
+                <span style={{ fontSize:18, color:'#cbd5e1' }}>↗</span>
+              </div>
+            </button>
+          ))}
+
+        </div>
 
         {/* Signed-in badge */}
-        <div style={{ marginTop:32, display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ marginTop:36, display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em' }}>Signed in as</span>
           <span style={{ fontSize:10, fontWeight:700, color:'#475569', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:20, padding:'2px 10px', textTransform:'capitalize' }}>
             {currentUser.name} · {role}
           </span>
         </div>
       </div>
-    </div>
-  )
-}
-
-// Extracted so internal-module cards don't share click handler type issues
-function ModuleGrid({ modules, isMobile }: {
-  modules: { key:string; label:string; href:string; icon:string; color:string; accent:string; desc:string; stat:string }[]
-  isMobile: boolean
-}) {
-  const cols = isMobile ? 2 : Math.min(modules.length, 4)
-  return (
-    <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap: isMobile ? 12 : 18 }}>
-      {modules.map(mod => (
-        <a key={mod.key} href={mod.href} style={{ textDecoration:'none', display:'block' }}>
-          <div
-            style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:12, padding: isMobile ? '18px 16px' : '24px 22px', cursor:'pointer', transition:'all 0.15s', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', height:'100%', position:'relative', overflow:'hidden' }}
-            onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-2px)'; el.style.boxShadow=`0 8px 24px rgba(0,0,0,0.10)`; el.style.borderColor=mod.accent }}
-            onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
-          >
-            <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:mod.accent, borderRadius:'12px 12px 0 0' }} />
-            <div style={{ fontSize: isMobile ? 28 : 34, marginBottom:12, lineHeight:1 }}>{mod.icon}</div>
-            <div style={{ fontSize: isMobile ? 15 : 17, fontWeight:800, color:'#0f172a', marginBottom:4, letterSpacing:'-0.01em' }}>{mod.label}</div>
-            <div style={{ fontSize: isMobile ? 11 : 12, color:'#64748b', marginBottom:14, lineHeight:1.4 }}>{mod.desc}</div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'auto' }}>
-              <span style={{ fontSize:11, fontWeight:700, color:mod.accent, background:`${mod.accent}18`, border:`1px solid ${mod.accent}33`, borderRadius:20, padding:'3px 10px' }}>{mod.stat}</span>
-              <span style={{ fontSize:16, color:'#cbd5e1' }}>→</span>
-            </div>
-          </div>
-        </a>
-      ))}
     </div>
   )
 }
