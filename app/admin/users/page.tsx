@@ -20,6 +20,7 @@ export default async function AdminUsersPage() {
     role: u.role, department: u.department, reports_to: u.reports_to,
     hod_email: u.hod_email || '',
     companies: u.companies,
+    portals:   u.portals ?? [],
     created_at: u.created_at,
   }))
 
