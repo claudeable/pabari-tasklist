@@ -235,7 +235,7 @@ export default function UnifiedHub({ currentUser }: Props) {
           {!isMobile && <span style={{ fontSize:9, color:'#4a7055', fontWeight:700, background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:4, padding:'2px 6px', letterSpacing:'0.06em' }}>ERP</span>}
         </div>
         <div style={{ flex:1 }} />
-        <NotificationBell currentUser={currentUser} />
+        <NotificationBell userEmail={currentUser.email} />
         <div style={{ display:'flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:20, padding:'4px 12px' }}>
           <div style={{ width:24, height:24, borderRadius:'50%', background:'#1a3a2a', border:'1px solid #22c55e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800, color:'#22c55e' }}>
             {(currentUser.name ?? 'U')[0].toUpperCase()}
