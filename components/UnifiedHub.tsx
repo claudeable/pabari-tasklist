@@ -166,13 +166,11 @@ export default function UnifiedHub({ currentUser }: Props) {
             </div>
           </a>
 
-          {/* External portals — direct links */}
+          {/* External portals */}
           {externalCards.map(p => (
             <a
               key={p.key}
               href={p.url || undefined}
-              target={p.url ? '_blank' : undefined}
-              rel="noopener noreferrer"
               onClick={!p.url ? (e) => { e.preventDefault(); alert('This portal is not yet deployed.') } : undefined}
               style={{ textDecoration:'none', display:'block', opacity: p.url ? 1 : 0.6 }}
             >
