@@ -1,0 +1,114 @@
+name: scv-prod
+
+networks:
+  scv-internal:
+    driver: bridge
+    internal: true # no default route out — only the caddy service is on the edge network too
+  scv-edge:
+    driver: bridge
+
+volumes:
+  scv_pgdata:
+  scv_storage:
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SCV_DOMAIN: ${SCV_DOMAIN:?SCV_DOMAIN required}
+      SCV_ACME_EMAIL: ${SCV_ACME_EMAIL:?SCV_ACME_EMAIL required}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    ports: ["443:443"]
+    networks: [scv-edge, scv-internal]
+    depends_on: [backend, frontend]
+    security_opt: ["no-new-privileges:true"]
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    user: postgres
+    environment:
+      POSTGRES_DB: scv
+      POSTGRES_USER_FILE: /run/secrets/pg_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_user, pg_password]
+    volumes:
+      - scv_pgdata:/var/lib/postgresql/data
+    networks: [scv-internal]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    # No ports published — reachable only from backend on scv-internal.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass-file", "/run/secrets/redis_password", "--protected-mode", "yes",
+              "--rename-command", "FLUSHALL", "", "--rename-command", "CONFIG", ""]
+    secrets: [redis_password]
+    networks: [scv-internal]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  backend:
+    image: ${SCV_BACKEND_IMAGE:-scv-backend:latest}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    user: "app:app"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      EXPOSE_OPENAPI_DOCS: "false"
+      DATABASE_URL_FILE: /run/secrets/database_url
+      REDIS_URL_FILE: /run/secrets/redis_url
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      ROOT_SECRET_PATH: /run/secrets/root_secret
+      ALLOWED_ORIGINS: '["https://${SCV_DOMAIN}"]'
+    secrets:
+      [database_url, redis_url, jwt_private_key, jwt_public_key, root_secret]
+    volumes:
+      - scv_storage:/data/storage:rw
+    networks: [scv-internal]
+    mem_limit: 1g
+    cpus: 1.0
+
+  frontend:
+    image: ${SCV_FRONTEND_IMAGE:-scv-frontend:latest}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    user: "app:app"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: https://${SCV_DOMAIN}
+    networks: [scv-internal]
+    mem_limit: 512m
+
+volumes:
+  caddy_data:
+
+secrets:
+  pg_user:
+    file: /run/secrets/scv/pg_user
+  pg_password:
+    file: /run/secrets/scv/pg_password
+  redis_password:
+    file: /run/secrets/scv/redis_password
+  database_url:
+    file: /run/secrets/scv/database_url
+  redis_url:
+    file: /run/secrets/scv/redis_url
+  jwt_private_key:
+    file: /run/secrets/scv/jwt_private_key.pem
+  jwt_public_key:
+    file: /run/secrets/scv/jwt_public_key.pem
+  root_secret:
+    file: /run/secrets/scv/root_secret.key

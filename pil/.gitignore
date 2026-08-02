@@ -1,0 +1,34 @@
+# Secrets — never commit
+secrets/
+.env
+*.pem
+*.key
+!docker/caddy/**
+
+# Local dev-only Postgres data directory (isolated instance for this project,
+# separate from any pre-existing system Postgres) — never commit database files.
+.devdb/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+frontend/.env*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Token used for this repo lacks 'workflow' scope; keep these local until re-pushed with a proper token
+.github/workflows/
+logins.html

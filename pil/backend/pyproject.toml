@@ -1,0 +1,74 @@
+[project]
+name = "scv-backend"
+version = "0.1.0"
+description = "Secure Collaboration Vault - backend API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "asyncpg>=0.29",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "argon2-cffi>=23.1",
+    "pyjwt[crypto]>=2.9",
+    "pyotp>=2.9",
+    "redis>=5.0",
+    "python-multipart>=0.0.12",
+    "structlog>=24.4",
+    "cryptography>=43.0",
+    "webauthn>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pip-audit>=2.7",
+    "fakeredis>=2.24",
+]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+ignore = [
+    "S101", # assert is how pytest works; also used for internal invariants
+    "S105", # string-content password/secret heuristic — too many false positives on
+            # enum members and constant names (e.g. "password_changed", "token_type")
+            # to be worth the noise; S106/S107 (call-site keyword args) stay active
+            # since those catch the actually-risky pattern (a literal passed where a
+            # real credential belongs) with far fewer false positives.
+    "B008", # FastAPI's Depends()/Query()/Path() in a function default is the
+            # framework's own idiomatic DI pattern, not the mutable-default-argument
+            # bug this rule exists to catch.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures legitimately construct literal, deliberately-fake credentials
+# (passwords, tokens, root secrets) — S106/S107 flagging that is expected noise
+# specific to test code, not a signal that a real secret leaked into source.
+"tests/**" = ["S106", "S107"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

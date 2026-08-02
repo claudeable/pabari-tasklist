@@ -1,0 +1,72 @@
+name: scv-dev
+
+networks:
+  scv-internal:
+    driver: bridge
+
+volumes:
+  scv_dev_pgdata:
+  scv_dev_storage:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scv
+      POSTGRES_USER: scv_dev
+      POSTGRES_PASSWORD: scv_dev_password_change_me
+    volumes:
+      - scv_dev_pgdata:/var/lib/postgresql/data
+    networks: [scv-internal]
+    # No ports published to host in prod; exposed here only for local dev convenience.
+    ports: ["127.0.0.1:5432:5432"]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "scv_dev_redis_password"]
+    networks: [scv-internal]
+    ports: ["127.0.0.1:6379:6379"]
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      DEBUG: "true"
+      EXPOSE_OPENAPI_DOCS: "true"
+      DATABASE_URL: postgresql+asyncpg://scv_dev:scv_dev_password_change_me@postgres:5432/scv
+      REDIS_URL: redis://:scv_dev_redis_password@redis:6379/0
+      ALLOWED_ORIGINS: '["http://localhost:3000"]'
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      ROOT_SECRET_PATH: /run/secrets/root_secret
+    volumes:
+      - scv_dev_storage:/data/storage
+      - ../backend/app:/app/app:ro
+    secrets: [jwt_private_key, jwt_public_key, root_secret]
+    depends_on: [postgres, redis]
+    networks: [scv-internal]
+    ports: ["127.0.0.1:8000:8000"]
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on: [backend]
+    networks: [scv-internal]
+    ports: ["127.0.0.1:3000:3000"]
+
+secrets:
+  jwt_private_key:
+    file: ../secrets/dev/jwt_private_key.pem
+  jwt_public_key:
+    file: ../secrets/dev/jwt_public_key.pem
+  root_secret:
+    file: ../secrets/dev/root_secret.key

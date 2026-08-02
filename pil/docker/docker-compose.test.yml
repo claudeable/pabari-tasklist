@@ -1,0 +1,58 @@
+name: scv-test
+
+networks:
+  scv-test-internal:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    tmpfs: ["/var/lib/postgresql/data"] # ephemeral, reset every run — no real data ever
+    environment:
+      POSTGRES_DB: scv_test
+      POSTGRES_USER: scv_test
+      POSTGRES_PASSWORD: scv_test_password
+    networks: [scv-test-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scv_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    networks: [scv-test-internal]
+
+  backend-test:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      ENVIRONMENT: test
+      DEBUG: "true"
+      DATABASE_URL: postgresql+asyncpg://scv_test:scv_test_password@postgres:5432/scv_test
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_ORIGINS: '["http://localhost:3000"]'
+      JWT_PRIVATE_KEY_PATH: /tmp/jwt_private_key.pem
+      JWT_PUBLIC_KEY_PATH: /tmp/jwt_public_key.pem
+      ROOT_SECRET: test-only-root-secret-not-for-production-use
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks: [scv-test-internal]
+    # Ephemeral Ed25519 keypair generated fresh per run (never used outside this
+    # disposable test container) — see ci-backend.yml for the CI-native equivalent.
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        python -c "
+        from cryptography.hazmat.primitives import serialization;
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey;
+        k = Ed25519PrivateKey.generate();
+        open('/tmp/jwt_private_key.pem','wb').write(k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()));
+        open('/tmp/jwt_public_key.pem','wb').write(k.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+        " &&
+        alembic upgrade head &&
+        python -m pytest tests/unit tests/integration tests/security -q

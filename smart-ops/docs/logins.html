@@ -1,0 +1,411 @@
+<title>Smart Ops Team Logins</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --surface: #ffffff;
+    --surface-2: #eceff2;
+    --border: #dbe1e7;
+    --ink: #16232e;
+    --ink-dim: #58697a;
+    --accent: #0f5e8c;
+    --accent-ink: #ffffff;
+    --water: #0b8c8c;
+    --mono-bg: #eef2f5;
+    --focus: #0f5e8c;
+    --shadow: 0 1px 2px rgba(16, 30, 40, 0.06), 0 8px 24px -12px rgba(16, 30, 40, 0.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1620;
+      --surface: #121e2b;
+      --surface-2: #182734;
+      --border: #24384a;
+      --ink: #e6edf3;
+      --ink-dim: #93a5b5;
+      --accent: #5aa8d8;
+      --accent-ink: #06121c;
+      --water: #4fc3c0;
+      --mono-bg: #0a1620;
+      --focus: #5aa8d8;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0d1620;
+    --surface: #121e2b;
+    --surface-2: #182734;
+    --border: #24384a;
+    --ink: #e6edf3;
+    --ink-dim: #93a5b5;
+    --accent: #5aa8d8;
+    --accent-ink: #06121c;
+    --water: #4fc3c0;
+    --mono-bg: #0a1620;
+    --focus: #5aa8d8;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.6);
+  }
+
+  :root[data-theme="light"] {
+    --bg: #f4f6f8;
+    --surface: #ffffff;
+    --surface-2: #eceff2;
+    --border: #dbe1e7;
+    --ink: #16232e;
+    --ink-dim: #58697a;
+    --accent: #0f5e8c;
+    --accent-ink: #ffffff;
+    --water: #0b8c8c;
+    --mono-bg: #eef2f5;
+    --focus: #0f5e8c;
+    --shadow: 0 1px 2px rgba(16, 30, 40, 0.06), 0 8px 24px -12px rgba(16, 30, 40, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: clamp(24px, 5vw, 56px) 20px 64px;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--water);
+    margin: 0 0 10px;
+  }
+
+  .eyebrow .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--water);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--water) 22%, transparent);
+  }
+
+  h1 {
+    font-size: clamp(24px, 3.4vw, 30px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+
+  .sub {
+    color: var(--ink-dim);
+    font-size: 14.5px;
+    margin: 0;
+    max-width: 46ch;
+  }
+
+  .sub a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .sub a:hover { border-color: var(--accent); }
+
+  .password-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 220px;
+  }
+
+  .password-card .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 0 0 4px;
+  }
+
+  .password-card code {
+    font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .copy-btn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .copy-btn:hover { background: var(--border); }
+  .copy-btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .copy-btn[data-copied="true"] {
+    background: color-mix(in srgb, var(--water) 18%, var(--surface-2));
+    border-color: var(--water);
+    color: var(--water);
+  }
+
+  .org-block {
+    margin-top: 30px;
+  }
+
+  .org-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 12px;
+  }
+
+  .org-title h2 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .org-title .count {
+    font-size: 12px;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    border-radius: 10px;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+
+  tbody tr + tr td {
+    border-top: 1px solid var(--border);
+  }
+
+  tbody tr {
+    transition: background 100ms ease;
+  }
+
+  tbody tr:hover {
+    background: var(--surface-2);
+  }
+
+  td {
+    padding: 11px 14px;
+    font-size: 13.5px;
+    vertical-align: middle;
+  }
+
+  .role-pill {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .name {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .email-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .email-cell code {
+    font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    background: var(--mono-bg);
+    padding: 3px 7px;
+    border-radius: 5px;
+  }
+
+  .row-copy {
+    appearance: none;
+    border: none;
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .row-copy:hover { color: var(--accent); background: var(--surface-2); }
+  .row-copy:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .row-copy svg { width: 14px; height: 14px; }
+  .row-copy[data-copied="true"] { color: var(--water); }
+
+  footer {
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  footer a { color: var(--ink-dim); }
+
+  @media (max-width: 560px) {
+    header { flex-direction: column; }
+    .password-card { width: 100%; }
+    td, thead th { padding: 9px 10px; }
+    .email-cell code { font-size: 11px; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow"><span class="dot"></span>Smart Ops Portal</p>
+      <h1>Team logins</h1>
+      <p class="sub">All Smart Ops data at <a href="https://joint-collaboration-portal.vercel.app" target="_blank" rel="noopener">joint-collaboration-portal.vercel.app</a> is scoped to this one project. Sign in with just your name on the login page.</p>
+    </div>
+    <div class="password-card">
+      <div>
+        <p class="label">Shared password</p>
+        <code id="pw-text">Password123!</code>
+      </div>
+      <button class="copy-btn" id="pw-copy" type="button">Copy</button>
+    </div>
+  </header>
+
+  <div class="org-block">
+    <div class="org-title">
+      <h2>Smart Ops team</h2>
+      <span class="count">9 accounts</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Name</th></tr>
+        </thead>
+        <tbody id="tbl-team"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>Seeded by <code style="font-family:inherit;">python -m app.seed</code> against the Neon database.</span>
+    <span>All 9 accounts share the password above.</span>
+  </footer>
+</div>
+
+<script>
+  var names = ["Admin", "Harshil", "Benson", "Pedro", "Suresh", "Liam", "Yatin", "Minesh", "Priyesh"];
+
+  function renderRows(list, targetId) {
+    var tbody = document.getElementById(targetId);
+    var html = "";
+    list.forEach(function (name) {
+      html += '<tr><td class="name">' + name + '</td></tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  renderRows(names, "tbl-team");
+
+  function flashCopied(el) {
+    var original = el.textContent;
+    el.setAttribute("data-copied", "true");
+    el.textContent = "Copied";
+    setTimeout(function () {
+      el.removeAttribute("data-copied");
+      el.textContent = original;
+    }, 1400);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+
+  document.getElementById("pw-copy").addEventListener("click", function () {
+    var btn = this;
+    copyText(document.getElementById("pw-text").textContent).then(function () {
+      flashCopied(btn);
+    });
+  });
+</script>

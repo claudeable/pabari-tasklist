@@ -1,0 +1,33 @@
+{
+	admin off
+}
+
+:443, {$SCV_DOMAIN} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	@api path /api/* /ws
+	handle @api {
+		# Defense in depth alongside the app-layer cap in document_service.py /
+		# settings.max_upload_bytes (Deployment & Hardening Guide §6, Pentest
+		# Checklist §4) — this stops an oversized request from ever reaching
+		# Starlette's multipart parser, not just from being accepted afterward.
+		request_body {
+			max_size 110MB
+		}
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	tls {$SCV_ACME_EMAIL}
+}
