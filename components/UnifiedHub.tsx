@@ -232,7 +232,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       <nav style={{ background:'#0f1a12', borderBottom:'1px solid #1e2e1a', padding: isMobile ? '0 16px' : '0 32px', display:'flex', alignItems:'center', height:52, position:'sticky', top:0, zIndex:50, gap:16 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontWeight:900, fontSize:15, color:'#b5833a', letterSpacing:'0.15em' }}>PABARI</span>
-          {!isMobile && <span style={{ fontSize:9, color:'#4a7055', fontWeight:700, background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:4, padding:'2px 6px', letterSpacing:'0.06em' }}>ERP</span>}
+          {!isMobile && <span style={{ fontSize:9, color:'#4a7055', fontWeight:700, background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:4, padding:'2px 6px', letterSpacing:'0.06em' }}>WORKSPACE</span>}
         </div>
         <div style={{ flex:1 }} />
         <NotificationBell userEmail={currentUser.email} />
@@ -252,7 +252,7 @@ export default function UnifiedHub({ currentUser }: Props) {
             {getGreeting()}, {firstName}
           </div>
           <h1 style={{ margin:0, fontSize: isMobile ? 26 : 38, fontWeight:900, color:'#e2ede7', lineHeight:1.1, letterSpacing:'-0.02em' }}>
-            Pabari Group Portal
+            Pabari Workspace
           </h1>
           <p style={{ margin:'8px 0 0', color:'#4a7055', fontSize: isMobile ? 12 : 13 }}>{fmtDate()}</p>
         </div>
