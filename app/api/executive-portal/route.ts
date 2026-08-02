@@ -35,8 +35,10 @@ export async function GET() {
 
   try {
     needsHkComment = cnt(await query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired')
-       AND (hk_comment IS NULL OR TRIM(hk_comment) = '')`
+      `SELECT COUNT(*)::text AS count FROM tasks
+       WHERE status NOT IN ('resolved','expired','archived')
+         AND (hk_comment IS NULL OR TRIM(hk_comment) = '')
+         AND (priority IN ('high','critical') OR status = 'awaiting-hk-approval')`
     ))
   } catch { /**/ }
 

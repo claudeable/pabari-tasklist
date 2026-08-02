@@ -123,9 +123,9 @@ function genRecommendations(data: ExecData, myTasks: ActionTask[], isHK: boolean
   // HK Comment queue — only relevant to Harshil
   if (isHK && (data.needsHkComment ?? 0) >= 6) {
     recs.push({
-      title: `Comment on ${data.needsHkComment} blocked tasks`,
+      title: `Comment on ${data.needsHkComment} high-priority tasks`,
       reason: `Team is waiting on your direction to proceed — each comment unlocks next steps`,
-      impact: `${data.needsHkComment} tasks unblocked immediately`,
+      impact: `${data.needsHkComment} high-priority tasks unblocked immediately`,
       priority: data.needsHkComment > 20 ? 'critical' : 'high',
       confidence: 99,
       href: '/tasks',
@@ -546,7 +546,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   {[
                     { v: data?.actionRequired ?? 0, l: 'Action Required', c: (data?.actionRequired ?? 0) > 5 ? T.red : T.amber },
                     { v: data?.awaitingApproval ?? 0, l: 'Awaiting Approval', c: T.blue },
-                    { v: data?.needsHkComment ?? 0, l: 'HK Comment Queue', c: T.amber },
+                    { v: data?.needsHkComment ?? 0, l: 'High Priority Queue', c: T.amber },
                     { v: data?.resolvedToday ?? 0, l: 'Resolved Today', c: T.green },
                   ].map(s => (
                     <div key={s.l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
@@ -785,12 +785,12 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.amber, marginTop: 5, flexShrink: 0, boxShadow: `0 0 6px ${T.amber}66` }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 800, color: T.amber, background: `${T.amber}18`, border: `1px solid ${T.amber}33`, borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>HK Comment Queue</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, color: T.amber, background: `${T.amber}18`, border: `1px solid ${T.amber}33`, borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>High Priority Queue</span>
                       </div>
                       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 3 }}>
-                        {data?.needsHkComment} tasks waiting for your direction
+                        {data?.needsHkComment} high-priority tasks need your direction
                       </div>
-                      <div style={{ fontSize: 10, color: T.text3 }}>Your comment unlocks the next step for each team member</div>
+                      <div style={{ fontSize: 10, color: T.text3 }}>High priority or awaiting approval — your comment unblocks the team</div>
                     </div>
                     <a href="/tasks" style={{ fontSize: 11, color: T.amber, textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: `${T.amber}18`, border: `1px solid ${T.amber}33`, borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
                       Review →

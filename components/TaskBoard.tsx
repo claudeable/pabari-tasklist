@@ -495,7 +495,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   const dirAttention = useMemo(() => ({
     pendingReview:   visibleTasks.filter(t => t.status === 'in-review'),
-    needsComment:    visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired'),
+    needsComment:    visibleTasks.filter(t => !t.hk_comment?.trim() && (t.priority === 'high' || t.status === 'awaiting-hk-approval') && t.status !== 'resolved' && t.status !== 'expired' && t.status !== 'archived'),
     actionRequired:  visibleTasks.filter(t => t.status === 'action-required'),
     financeCategory: canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired'),
   }), [visibleTasks, canSeeFinance, allFinanceTasks])
@@ -503,7 +503,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const filtered = useMemo(() => {
     let list = base
     if (directorFilter === 'pending-review')   list = visibleTasks.filter(t => t.status === 'in-review')
-    if (directorFilter === 'needs-comment')     list = visibleTasks.filter(t => !t.hk_comment?.trim() && t.status !== 'resolved' && t.status !== 'expired')
+    if (directorFilter === 'needs-comment')     list = visibleTasks.filter(t => !t.hk_comment?.trim() && (t.priority === 'high' || t.status === 'awaiting-hk-approval') && t.status !== 'resolved' && t.status !== 'expired' && t.status !== 'archived')
     if (directorFilter === 'action-required')   list = visibleTasks.filter(t => t.status === 'action-required')
     if (directorFilter === 'finance')           list = canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
     return list.filter(t => {
@@ -1301,7 +1301,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               {[
                 ...(perms.showAttentionPanel ? [
                   {label:'Pending My Review',   val:'pending-review'   as const, count:dirAttention.pendingReview.length,   dot:'#1d4ed8', desc:'In-review — ready for sign-off'},
-                  {label:'Needs HK Comment',    val:'needs-comment'    as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'Open tasks with no comment yet'},
+                  {label:'High Priority Queue',  val:'needs-comment'    as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'High-priority or awaiting approval — no HK comment yet'},
                   {label:'Action Required',     val:'action-required'  as const, count:dirAttention.actionRequired.length,  dot:'#dc2626', desc:'Flagged for escalation'},
                 ] : []),
                 ...(canSeeFinance ? [
