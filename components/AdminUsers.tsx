@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SessionUser, DEPARTMENTS, UserRole } from '@/types'
 import InactivityGuard from './InactivityGuard'
 
@@ -23,6 +23,7 @@ const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
 }
 
 const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', hod_email:'', companies: ['ALL'] as string[] }
+const ARCHIVE_CUTOFF = '2026-06-01'
 
 export default function AdminUsers({ currentUser, initialUsers }: Props) {
   const [users,    setUsers]    = useState<UserRow[]>(initialUsers)
@@ -32,6 +33,27 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
   const [error,    setError]    = useState('')
   const [saving,   setSaving]   = useState(false)
   const [search,   setSearch]   = useState('')
+
+  // Bulk archive state
+  const [archivePreview, setArchivePreview] = useState<{toArchive:number;highPriorityKept:number;breakdown:{priority:string;count:string}[]}|null>(null)
+  const [archiving,      setArchiving]      = useState(false)
+  const [archiveDone,    setArchiveDone]    = useState<number|null>(null)
+
+  useEffect(() => {
+    fetch(`/api/admin/bulk-archive?cutoff=${ARCHIVE_CUTOFF}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setArchivePreview(d) })
+      .catch(() => {})
+  }, [archiveDone])
+
+  const runArchive = async () => {
+    if (!confirm(`Archive ${archivePreview?.toArchive} low/medium priority tasks created before ${ARCHIVE_CUTOFF}? High-priority tasks will NOT be touched. This cannot be undone.`)) return
+    setArchiving(true)
+    const res  = await fetch('/api/admin/bulk-archive', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ cutoff: ARCHIVE_CUTOFF }) })
+    const data = await res.json()
+    setArchiving(false)
+    if (res.ok) setArchiveDone(data.archived)
+  }
 
   const setF = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -177,6 +199,63 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* MAINTENANCE */}
+      <div style={{padding:'0 24px 24px'}}>
+        <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:20,marginTop:24}}>
+          <div style={{fontWeight:700,fontSize:15,color:'#111',marginBottom:4}}>Task Maintenance</div>
+          <div style={{fontSize:12,color:'#6b7280',marginBottom:16}}>
+            Archive old stale tasks to clean up the active board. High-priority tasks are always kept.
+          </div>
+
+          {archiveDone !== null ? (
+            <div style={{background:'#f0fdf4',border:'1px solid #86efac',borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:12}}>
+              <span style={{fontSize:20}}>✓</span>
+              <div>
+                <div style={{fontWeight:700,color:'#15803d',fontSize:13}}>{archiveDone} tasks archived successfully</div>
+                <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>They are now in the Archived tab on the task board.</div>
+              </div>
+              <button onClick={()=>setArchiveDone(null)} style={{marginLeft:'auto',background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:18}}>✕</button>
+            </div>
+          ) : (
+            <div style={{display:'flex',gap:16,alignItems:'flex-start',flexWrap:'wrap'}}>
+              <div style={{background:'#fafafa',border:'1px solid #e5e7eb',borderRadius:6,padding:'12px 16px',flex:1,minWidth:260}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Cutoff: before {ARCHIVE_CUTOFF}</div>
+                {archivePreview ? (
+                  <>
+                    <div style={{display:'flex',gap:20,marginBottom:8}}>
+                      <div>
+                        <div style={{fontSize:28,fontWeight:900,color:'#dc2626',lineHeight:1}}>{archivePreview.toArchive}</div>
+                        <div style={{fontSize:10,color:'#6b7280',marginTop:2}}>low/medium tasks to archive</div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:28,fontWeight:900,color:'#d97706',lineHeight:1}}>{archivePreview.highPriorityKept}</div>
+                        <div style={{fontSize:10,color:'#6b7280',marginTop:2}}>high-priority kept on board</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,color:'#6b7280'}}>
+                      {archivePreview.breakdown.map(b=>(
+                        <span key={b.priority} style={{marginRight:12}}>{b.priority}: {b.count}</span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{color:'#9ca3af',fontSize:12}}>Loading preview…</div>
+                )}
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:8,justifyContent:'center',paddingTop:8}}>
+                <button
+                  onClick={runArchive}
+                  disabled={archiving || !archivePreview || archivePreview.toArchive === 0}
+                  style={{background:archivePreview?.toArchive?'#1a3a2a':'#f3f4f6',color:archivePreview?.toArchive?'white':'#9ca3af',border:'none',borderRadius:5,padding:'10px 22px',fontSize:13,fontWeight:600,cursor:archivePreview?.toArchive?'pointer':'default',opacity:archiving?0.7:1,whiteSpace:'nowrap'}}>
+                  {archiving ? 'Archiving…' : archivePreview?.toArchive === 0 ? 'Nothing to archive' : `Archive ${archivePreview?.toArchive ?? '…'} Tasks`}
+                </button>
+                <div style={{fontSize:10,color:'#9ca3af',textAlign:'center'}}>High-priority tasks stay active</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
