@@ -183,10 +183,14 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
   const ASSET_USERS    = ['harshil', 'paul', 'krishna', 'yalelet']
   const FINANCE_USERS  = ['harshil', 'yalelet']
 
+  const isPortalOnly = currentUser.department === 'Smart Ops'
+
   const visibleSystems = systems.filter(sys => {
     const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean; harshilOnly?:boolean; assetsOnly?:boolean; financeOnly?:boolean; yaleletOnly?:boolean; ssoPortal?:string }
     const firstNameLower = currentUser.name.toLowerCase().split(' ')[0]
     if (s.ssoPortal)      return currentUser.role === 'admin' || (currentUser.portals ?? []).includes(s.ssoPortal)
+    if (sys.key === 'tasks') return currentUser.role === 'admin' || !isPortalOnly || (currentUser.portals ?? []).includes('tasks')
+    if (isPortalOnly)     return false  // portal-only users see nothing except portals + explicitly granted modules
     if (s.superAdminOnly) return currentUser.role === 'admin'
     if (s.adminOnly)      return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
     if (s.harshilOnly)    return currentUser.role === 'admin' || firstNameLower === 'harshil'
@@ -277,7 +281,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
           </div>
 
           {/* ── WORK TODAY STATS ──────────────────────────────────────────── */}
-          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${isHK ? 6 : 5},1fr)`, gap:10, marginTop:24 }}>
+          {!isPortalOnly && <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${isHK ? 6 : 5},1fr)`, gap:10, marginTop:24 }}>
             {[
               { label:'My Tasks',        value: dash?.myTasks,          color:'#60a5fa', href:'/tasks',  icon:'📋' },
               { label:'Overdue',          value: dash?.overdueTasks,     color:'#f87171', href:'/tasks',  icon:'⚠️', alert: (dash?.overdueTasks ?? 0) > 0 },
@@ -298,7 +302,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
       </div>
 
