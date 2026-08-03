@@ -1,7 +1,7 @@
 [project]
 name = "scv-backend"
 version = "0.1.0"
-description = "Secure Collaboration Vault - backend API"
+description = "PIL / KETRACO Secure Collaboration Vault - backend API"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
