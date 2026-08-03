@@ -30,13 +30,16 @@ function fmtDate() {
 }
 
 export default function UnifiedHub({ currentUser }: Props) {
-  const [isMobile,  setIsMobile]  = useState(false)
-  const [openTasks, setOpenTasks] = useState<number | null>(null)
+  const [isMobile,    setIsMobile]    = useState(false)
+  const [openTasks,   setOpenTasks]   = useState<number | null>(null)
+  const [ssoLoading,  setSsoLoading]  = useState<string | null>(null)
 
-  const firstName = (currentUser.name?.split(' ')[0] ?? 'there')
-  const role      = currentUser.role
-  const isAdmin   = role === 'admin'
-  const portals   = currentUser.portals ?? []
+  const firstName    = (currentUser.name?.split(' ')[0] ?? 'there')
+  const role         = currentUser.role
+  const isAdmin      = role === 'admin'
+  const portals      = currentUser.portals ?? []
+  const isPortalOnly = currentUser.department === 'Smart Ops'
+  const showTasks    = isAdmin || !isPortalOnly || portals.includes('tasks')
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -56,6 +59,20 @@ export default function UnifiedHub({ currentUser }: Props) {
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
     window.location.href = '/login'
+  }
+
+  async function launchPortal(portalKey: string) {
+    setSsoLoading(portalKey)
+    try {
+      const res  = await fetch('/api/sso/token', { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ portal: portalKey }) })
+      const data = await res.json()
+      if (data.redirect_url) { window.location.href = data.redirect_url; return }
+      alert(data.error || 'Unable to launch portal')
+    } catch {
+      alert('Could not reach server. Please try again.')
+    } finally {
+      setSsoLoading(null)
+    }
   }
 
 
@@ -147,7 +164,7 @@ export default function UnifiedHub({ currentUser }: Props) {
         <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${gridCols}, 1fr)`, gap: isMobile ? 14 : 22 }}>
 
           {/* Task Management — internal, plain link */}
-          <a href={internalCard.href} style={{ textDecoration:'none', display:'block' }}>
+          {showTasks && <a href={internalCard.href} style={{ textDecoration:'none', display:'block' }}>
             <div
               style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
               onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=internalCard.accent }}
@@ -164,34 +181,36 @@ export default function UnifiedHub({ currentUser }: Props) {
                 <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
               </div>
             </div>
-          </a>
+          </a>}
 
-          {/* External portals */}
-          {externalCards.map(p => (
-            <a
+          {/* External portals — SSO launch */}
+          {externalCards.map(p => {
+            const launching = ssoLoading === p.key
+            return (
+            <div
               key={p.key}
-              href={p.url || undefined}
-              onClick={!p.url ? (e) => { e.preventDefault(); alert('This portal is not yet deployed.') } : undefined}
-              style={{ textDecoration:'none', display:'block', opacity: p.url ? 1 : 0.6 }}
+              onClick={() => { if (!p.url) { alert('This portal is not yet deployed.'); return } launchPortal(p.key) }}
+              style={{ textDecoration:'none', display:'block', opacity: p.url ? 1 : 0.6, cursor: p.url && !launching ? 'pointer' : launching ? 'wait' : 'not-allowed' }}
             >
               <div
-                style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor: p.url ? 'pointer' : 'not-allowed', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
-                onMouseEnter={e => { if (p.url) { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=p.accent } }}
+                style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden', opacity: launching ? 0.7 : 1 }}
+                onMouseEnter={e => { if (p.url && !launching) { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow=`0 10px 28px rgba(0,0,0,0.10)`; el.style.borderColor=p.accent } }}
                 onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
               >
                 <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:p.accent, borderRadius:'14px 14px 0 0' }} />
-                <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>{p.icon}</div>
+                <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>{launching ? '⏳' : p.icon}</div>
                 <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', marginBottom:6, letterSpacing:'-0.01em' }}>{p.label}</div>
                 <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>{p.desc}</div>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                   <span style={{ fontSize:12, fontWeight:700, color:p.accent, background:`${p.accent}18`, border:`1px solid ${p.accent}33`, borderRadius:20, padding:'4px 12px' }}>
-                    {p.url ? 'Open portal' : 'Coming soon'}
+                    {!p.url ? 'Coming soon' : launching ? 'Launching…' : 'Open portal'}
                   </span>
                   <span style={{ fontSize:18, color:'#cbd5e1' }}>↗</span>
                 </div>
               </div>
-            </a>
-          ))}
+            </div>
+            )
+          })}
 
         </div>
 
