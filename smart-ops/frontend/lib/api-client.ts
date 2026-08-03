@@ -34,7 +34,7 @@ import type {
 } from "@/lib/types";
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8000/api/v1";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "https://smart-ops-backend-production-4fe9.up.railway.app/api/v1";
 
 export class ApiError extends Error {
   status: number;
