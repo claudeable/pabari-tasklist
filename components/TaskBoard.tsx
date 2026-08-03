@@ -2506,11 +2506,17 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 {(activeTask.task_updates||[]).length===0 && <div style={{fontSize:12,color:'#9ca3af'}}>No updates.</div>}
               </div>
               {canArchive && activeTask.status === 'archived' && (
-                <div style={{marginTop:16}}>
+                <div style={{marginTop:16,display:'flex',gap:8}}>
                   <button onClick={async()=>{await changeStatus(activeTask,'pending-discussion');setActiveTask(null)}}
-                    style={{background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'7px 14px',fontSize:12,cursor:'pointer',width:'100%'}}>
-                    ↩ Restore from Archive
+                    style={{background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'7px 14px',fontSize:12,cursor:'pointer',flex:1}}>
+                    ↩ Unarchive
                   </button>
+                  {perms.canDelete && (
+                    <button onClick={()=>deleteTask(activeTask.id)}
+                      style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:4,padding:'7px 14px',fontSize:12,cursor:'pointer',flex:1}}>
+                      🗑 Delete
+                    </button>
+                  )}
                 </div>
               )}
             </div>
