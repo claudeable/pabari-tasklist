@@ -1,28 +1,25 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// UX-level flag only — see lib/auth.ts. Real authorization is enforced by
-// the backend independently via its own httpOnly cookie.
 const AUTH_COOKIE_NAME = "jcp_session";
-const PUBLIC_PATHS = ["/login", "/sso"];
+const PABARI_URL = "https://pabari-workspace.up.railway.app";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isPublicPath = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  // /sso is the only public path — login is disabled, all auth goes through Pabari SSO
+  const isSsoPath = pathname === "/sso" || pathname.startsWith("/sso/");
 
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
-  if (!token && !isPublicPath) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+  // Unauthenticated: send back to Pabari workspace (not a local login page)
+  if (!token && !isSsoPath) {
+    return NextResponse.redirect(PABARI_URL);
   }
 
-  if (token && pathname === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // Anyone hitting /login gets bounced to dashboard (if authed) or Pabari (if not)
+  if (pathname === "/login") {
+    return NextResponse.redirect(token ? new URL("/dashboard", request.url) : PABARI_URL);
   }
 
   return NextResponse.next();
