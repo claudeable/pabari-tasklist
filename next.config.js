@@ -16,6 +16,16 @@ const nextConfig = {
           { key: 'Strict-Transport-Security',  value: 'max-age=63072000; includeSubDomains; preload' },
         ],
       },
+      {
+        // Allow Smart Ops frontend to silently re-auth via Pabari SSO cross-origin
+        source: '/api/sso/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin',      value: 'https://smart-ops-frontend-production.up.railway.app' },
+          { key: 'Access-Control-Allow-Credentials', value: 'true' },
+          { key: 'Access-Control-Allow-Methods',     value: 'POST, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers',     value: 'Content-Type' },
+        ],
+      },
     ]
   },
 }

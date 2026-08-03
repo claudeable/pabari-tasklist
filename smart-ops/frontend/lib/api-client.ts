@@ -50,6 +50,36 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   auth?: boolean;
 }
 
+const PABARI_URL = "https://pabari-workspace.up.railway.app";
+
+async function silentReauth(): Promise<boolean> {
+  try {
+    // Ask Pabari for a new SSO token (cross-origin, uses the Pabari session cookie)
+    const tokenRes = await fetch(`${PABARI_URL}/api/sso/token`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portal: "smartops" }),
+    });
+    if (!tokenRes.ok) return false;
+    const { redirect_url } = await tokenRes.json();
+    if (!redirect_url) return false;
+    const pabariToken = new URL(redirect_url).searchParams.get("token");
+    if (!pabariToken) return false;
+
+    // Exchange the Pabari token for a fresh Smart Ops session cookie
+    const ssoRes = await fetch(`${API_BASE_URL}/auth/sso`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pabari_token: pabariToken }),
+    });
+    return ssoRes.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   // `auth` is accepted for backwards compatibility with existing call sites
   // but no longer changes behavior: authorization is carried by the
@@ -81,8 +111,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     );
   }
 
-  if (response.status === 401) {
+  if (response.status === 401 && !path.includes("/auth/")) {
+    // Try to silently re-auth via Pabari SSO before giving up
+    const refreshed = await silentReauth();
+    if (refreshed) {
+      // Retry original request once with the new session
+      return request<T>(path, options);
+    }
     clearSignedIn();
+    window.location.href = "https://pabari-workspace.up.railway.app";
+    throw new ApiError("Session expired", 401);
   }
 
   if (!response.ok) {

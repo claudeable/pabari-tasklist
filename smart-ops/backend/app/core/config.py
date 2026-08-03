@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     JWT_SECRET: str = "change-me-to-a-long-random-secret"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
     CORS_ORIGINS: str = "http://localhost:3000"
 
