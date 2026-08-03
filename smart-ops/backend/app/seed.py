@@ -277,7 +277,7 @@ def seed_admin_user(
         organization_id=ministry.id,
         department_id=depts["Water Infrastructure"].id,
         full_name="Admin",
-        email="admin@smart-ops.co.uk",
+        email="admin@usm.co.ke",
         title="System Administrator",
         hashed_password=hashed,
         role_id=roles_by_name["System Administrator"].id,
