@@ -843,6 +843,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           {(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')) && (
             <a href="/documents" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Documents</a>
           )}
+          {(currentUser.role === 'admin' || ['harshil','benson'].includes(currentUser.name.toLowerCase().split(' ')[0]) || ['rkrishnan@usm.co.ke','yaynalem@usm.co.ke'].includes(currentUser.email)) && (
+            <a href="/delivery-notes" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Delivery Notes</a>
+          )}
           {currentUser.role === 'admin' && (
             <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>
           )}
@@ -930,6 +933,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               ...(currentUser.role !== 'staff' ? [{label:'Dashboard',href:'/dashboard'}] : []),
               ...((currentUser.role !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke') ? [{label:'Reports',href:'/reports'}] : []),
               ...(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director') ? [{label:'Documents',href:'/documents'}] : []),
+              ...(currentUser.role === 'admin' || ['harshil','benson'].includes(currentUser.name.toLowerCase().split(' ')[0]) || ['rkrishnan@usm.co.ke','yaynalem@usm.co.ke'].includes(currentUser.email) ? [{label:'Delivery Notes',href:'/delivery-notes'}] : []),
               ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
             ].map(item=>(
               <a key={item.href} href={item.href}
