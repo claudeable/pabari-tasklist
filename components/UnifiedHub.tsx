@@ -76,7 +76,7 @@ export default function UnifiedHub({ currentUser }: Props) {
   }
 
 
-  // ── 4 top-level cards ──────────────────────────────────────────────────────
+  // ── Internal cards ─────────────────────────────────────────────────────────
   const internalCard = {
     key:    'tasks',
     label:  'Task Management',
@@ -86,6 +86,9 @@ export default function UnifiedHub({ currentUser }: Props) {
     desc:   'Tasks · Projects · Finance · Documents · Connect · Centre',
     stat:   openTasks !== null ? `${openTasks} open tasks` : 'Loading…',
   }
+
+  const intelVisible    = ['admin','director','ceo','manager'].includes(role)
+  const connectVisible  = !isPortalOnly
 
   const externalCards = [
     {
@@ -118,7 +121,7 @@ export default function UnifiedHub({ currentUser }: Props) {
   ].filter(p => p.visible)
   // ────────────────────────────────────────────────────────────────────────────
 
-  const totalCards  = 1 + externalCards.length
+  const totalCards  = (showTasks ? 1 : 0) + (intelVisible ? 1 : 0) + (connectVisible ? 1 : 0) + externalCards.length
   const gridCols    = isMobile ? 1 : Math.min(totalCards, 2)
 
   return (
@@ -178,6 +181,42 @@ export default function UnifiedHub({ currentUser }: Props) {
                 <span style={{ fontSize:12, fontWeight:700, color:internalCard.accent, background:`${internalCard.accent}18`, border:`1px solid ${internalCard.accent}33`, borderRadius:20, padding:'4px 12px' }}>
                   {internalCard.stat}
                 </span>
+                <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
+              </div>
+            </div>
+          </a>}
+
+          {/* Pabari Intelligence — internal link */}
+          {intelVisible && <a href="/intelligence" style={{ textDecoration:'none', display:'block' }}>
+            <div
+              style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
+              onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow='0 10px 28px rgba(0,0,0,0.10)'; el.style.borderColor='#f59e0b' }}
+              onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+            >
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:'#f59e0b', borderRadius:'14px 14px 0 0' }} />
+              <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>⚡</div>
+              <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', marginBottom:6, letterSpacing:'-0.01em' }}>Pabari Intelligence</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>Executive dashboard · Analytics · Insights</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:'#f59e0b', background:'#f59e0b18', border:'1px solid #f59e0b33', borderRadius:20, padding:'4px 12px' }}>Open dashboard</span>
+                <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
+              </div>
+            </div>
+          </a>}
+
+          {/* Pabari Connect — internal link */}
+          {connectVisible && <a href="/connect" style={{ textDecoration:'none', display:'block' }}>
+            <div
+              style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
+              onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow='0 10px 28px rgba(0,0,0,0.10)'; el.style.borderColor='#b5833a' }}
+              onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+            >
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:'#b5833a', borderRadius:'14px 14px 0 0' }} />
+              <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>📇</div>
+              <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', marginBottom:6, letterSpacing:'-0.01em' }}>Pabari Connect</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>Contacts · Directory · Search</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:'#b5833a', background:'#b5833a18', border:'1px solid #b5833a33', borderRadius:20, padding:'4px 12px' }}>Open directory</span>
                 <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
               </div>
             </div>
