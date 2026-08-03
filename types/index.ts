@@ -82,6 +82,7 @@ export const DEPARTMENTS = [
   'Executive',
   'Director',
   'System',
+  'Smart Ops',
 ] as const
 
 export const COMPANIES = [
