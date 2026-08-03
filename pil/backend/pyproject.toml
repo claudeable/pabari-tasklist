@@ -67,7 +67,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
-packages = []
+packages = ["app"]
 
 [build-system]
 requires = ["hatchling"]
