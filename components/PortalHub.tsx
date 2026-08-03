@@ -72,6 +72,7 @@ const systems = [
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents',        detail:'Upload · Folders · View',        adminOnly:true },
   { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',          detail:'Contacts · Directory · Search',  harshilOnly:true },
   { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security',   detail:'Threats · IP Blocking',          superAdminOnly:true },
+  { key:'smartops', icon:'⚡', iconBg:'#eff6ff', iconColor:'#2563eb', label:'Smart Ops',           href:'',                  detail:'Projects · Field Ops · Reports', ssoPortal:'smartops' },
 ]
 
 function buildSessions(entries: ActivityEntry[]): Session[] {
@@ -126,6 +127,7 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
   const [isMobile, setIsMobile] = useState(false)
   const [dash,     setDash]     = useState<DashboardData | null>(null)
   const [dashLoading, setDashLoading] = useState(true)
+  const [ssoLoading, setSsoLoading] = useState<string | null>(null)
 
   const firstName  = currentUser.name.split(' ')[0]
   const initials   = currentUser.name.split(/\s+/).map((w:string)=>w[0]).slice(0,2).join('').toUpperCase()
@@ -181,8 +183,9 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
   const FINANCE_USERS  = ['harshil', 'yalelet']
 
   const visibleSystems = systems.filter(sys => {
-    const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean; harshilOnly?:boolean; assetsOnly?:boolean; financeOnly?:boolean; yaleletOnly?:boolean }
+    const s = sys as { adminOnly?:boolean; superAdminOnly?:boolean; projectsOnly?:boolean; harshilOnly?:boolean; assetsOnly?:boolean; financeOnly?:boolean; yaleletOnly?:boolean; ssoPortal?:string }
     const firstNameLower = currentUser.name.toLowerCase().split(' ')[0]
+    if (s.ssoPortal)      return currentUser.role === 'admin' || (currentUser.portals ?? []).includes(s.ssoPortal)
     if (s.superAdminOnly) return currentUser.role === 'admin'
     if (s.adminOnly)      return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
     if (s.harshilOnly)    return currentUser.role === 'admin' || firstNameLower === 'harshil'
@@ -192,6 +195,25 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
     if (s.yaleletOnly)    return currentUser.role === 'admin' || firstNameLower === 'yalelet'
     return true
   })
+
+  async function launchPortal(portal: string) {
+    setSsoLoading(portal)
+    try {
+      const res = await fetch('/api/sso/token', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portal }),
+      })
+      const data = await res.json()
+      if (data.redirect_url) { window.location.href = data.redirect_url; return }
+      alert(data.error || 'Unable to launch portal')
+    } catch {
+      alert('Could not reach server. Please try again.')
+    } finally {
+      setSsoLoading(null)
+    }
+  }
 
   const isHK = currentUser.role === 'admin' || (currentUser.role === 'director' && firstName.toLowerCase() === 'harshil')
   // Only admin, Harshil, and Benson see activity log, recent activity, and quick actions
@@ -362,10 +384,14 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
               <div style={sectionTitle}>⚡ Systems</div>
             </div>
             <div style={{ padding:16, display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap:10 }}>
-              {visibleSystems.map(sys => (
-                <div key={sys.key} onClick={() => window.location.href = sys.href}
-                  style={{ padding:'14px 16px', borderRadius:10, border:'1px solid #e5e7eb', cursor:'pointer', transition:'all 0.15s', position:'relative' }}
-                  onMouseEnter={e => { const d = e.currentTarget as HTMLDivElement; d.style.borderColor='#1a3a2a'; d.style.background='#f0fdf4' }}
+              {visibleSystems.map(sys => {
+                const s = sys as { ssoPortal?: string }
+                const isLaunching = ssoLoading === s.ssoPortal && s.ssoPortal != null
+                return (
+                <div key={sys.key}
+                  onClick={() => { if (s.ssoPortal) { launchPortal(s.ssoPortal); return } window.location.href = sys.href }}
+                  style={{ padding:'14px 16px', borderRadius:10, border:'1px solid #e5e7eb', cursor: isLaunching ? 'wait' : 'pointer', transition:'all 0.15s', position:'relative', opacity: isLaunching ? 0.7 : 1 }}
+                  onMouseEnter={e => { if (!isLaunching) { const d = e.currentTarget as HTMLDivElement; d.style.borderColor='#1a3a2a'; d.style.background='#f0fdf4' } }}
                   onMouseLeave={e => { const d = e.currentTarget as HTMLDivElement; d.style.borderColor='#e5e7eb'; d.style.background='transparent' }}>
                   {sys.key === 'forms' && (dash?.approvalsWaiting ?? 0) > 0 && (
                     <span style={{ position:'absolute', top:8, right:8, background:'#ef4444', color:'white', fontSize:10, fontWeight:700, minWidth:18, height:18, padding:'0 5px', borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -373,12 +399,13 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
                     </span>
                   )}
                   <div style={{ width:36, height:36, borderRadius:8, background:sys.iconBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, marginBottom:10 }}>
-                    {sys.icon}
+                    {isLaunching ? '⏳' : sys.icon}
                   </div>
                   <div style={{ fontSize:13, fontWeight:700, color:'#111827', marginBottom:3 }}>{sys.label}</div>
-                  <div style={{ fontSize:11, color:'#9ca3af' }}>{sys.detail}</div>
+                  <div style={{ fontSize:11, color:'#9ca3af' }}>{isLaunching ? 'Launching…' : sys.detail}</div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 

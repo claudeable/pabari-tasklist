@@ -109,6 +109,11 @@ export const api = {
       method: "POST",
       body: { email, password },
     }),
+  ssoLogin: (pabariToken: string) =>
+    request<LoginResponse>("/auth/sso", {
+      method: "POST",
+      body: { pabari_token: pabariToken },
+    }),
   logout: () => request<{ status: string }>("/auth/logout", { method: "POST" }),
   me: () => request<User>("/auth/me"),
   dashboardSummary: () => request<DashboardSummary>("/dashboard/summary"),
