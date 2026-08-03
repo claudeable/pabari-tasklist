@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, Search, Bell, Sun, Moon, LogOut, User as UserIcon, Settings } from "lucide-react";
+import { Menu, Search, Bell, Sun, Moon, ArrowLeft, User as UserIcon, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCurrentUser, useLogout } from "@/lib/hooks/use-auth";
+import { useCurrentUser } from "@/lib/hooks/use-auth";
 import { useNotifications, useUnreadNotificationsCount } from "@/lib/hooks/use-notifications";
 import { formatTimestamp } from "@/components/ui-custom/activity-row";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { data: user } = useCurrentUser();
-  const logout = useLogout();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- standard next-themes hydration guard
@@ -161,8 +160,10 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => logout()}>
-              <LogOut className="h-4 w-4" /> Log out
+            <DropdownMenuItem asChild>
+              <a href="https://pabari-workspace.up.railway.app">
+                <ArrowLeft className="h-4 w-4" /> Back to Workspace
+              </a>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
