@@ -2626,8 +2626,26 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             </div>
             <div style={{flex:1,overflowY:'auto',padding:16}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+                {/* Company — editable for admin, manager, Yalelet */}
+                <div>
+                  <div style={{fontSize:9.5,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2}}>Company</div>
+                  {(currentUser.role==='admin' || currentUser.role==='manager' || currentUser.email==='yaynalem@usm.co.ke') ? (
+                    <select
+                      value={activeTask.company}
+                      onChange={async e=>{
+                        const c = e.target.value
+                        await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({company:c})})
+                        setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,company:c}:t))
+                        setActiveTask(a=>a?{...a,company:c}:a)
+                      }}
+                      style={{fontSize:12,color:'#111827',fontWeight:500,border:'1px solid #d1d5db',borderRadius:4,padding:'3px 6px',background:'white',width:'100%'}}>
+                      {COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <div style={{fontSize:12,color:'#111827',fontWeight:500}}>{activeTask.company}</div>
+                  )}
+                </div>
                 {[
-                  {l:'Company',    v:activeTask.company},
                   {l:'Section',    v:activeTask.section},
                   {l:'Date',       v:activeTask.date},
                   {l:'Responsible',v:activeTask.responsible},
