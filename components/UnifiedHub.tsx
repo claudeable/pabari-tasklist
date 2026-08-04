@@ -80,7 +80,7 @@ export default function UnifiedHub({ currentUser }: Props) {
   const internalCard = {
     key:    'tasks',
     label:  'Task Management',
-    href:   '/tasks',
+    href:   '/tasks/hub',
     icon:   '📋',
     accent: '#22c55e',
     desc:   'Tasks · Projects · Finance · Documents · Connect · Centre',
