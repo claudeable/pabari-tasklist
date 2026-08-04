@@ -89,7 +89,7 @@ export const COMPANIES = [
   'BYTEWISE', 'WELWYN', 'DR.PHARMA', 'PIL',
   'MERCURY', 'MALI CREDIT', 'MALEE', 'GHPL', 'UNIFRESH',
   'PDL', 'USM', 'MAXITOWER', 'EURO TOWERS', 'EPPL',
-  'BERLIN_BNK', 'IIGENTRA',
+  'BERLIN_BNK', 'IIGENTRA', 'KISCOL',
 ] as const
 
 export const SECTIONS = [

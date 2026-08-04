@@ -19,8 +19,6 @@ async function ensureParentId() {
       AND t.created_by = ''
       AND ABS(EXTRACT(EPOCH FROM (t.created_at - al.created_at))) < 30
   `).catch(() => {})
-  // Permanently delete all KISCOL tasks (company removed from system)
-  await execute("DELETE FROM tasks WHERE company = 'KISCOL'").catch(() => {})
   // Create S. Kumar account if it doesn't exist (admin has no UI access to create users)
   const skumarExists = await queryOne('SELECT id FROM users WHERE email = $1', ['skumar@usm.co.ke']).catch(() => null)
   if (!skumarExists) {
