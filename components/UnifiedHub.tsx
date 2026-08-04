@@ -1,10 +1,10 @@
 // ============================================================
 // PABARI WORKSPACE — Unified Hub
 // 4-card launcher:
-//   1. Task Management  → /tasks  (internal Pabari system)
-//   2. Smart Ops        → SSO → joint-collaboration-portal.vercel.app
-//   3. PIL / KETRACO    → SSO → pil-transmission-lines-app.up.railway.app
-//   4. Property Mgmt    → SSO → (not yet deployed)
+//   1. Task Management       → /tasks  (internal Pabari system)
+//   2. Smart Ops             → SSO → joint-collaboration-portal.vercel.app
+//   3. PIL Transmission Lines → SSO → pil-frontend-production.up.railway.app
+//   4. Property Mgmt         → SSO → (not yet deployed)
 //
 // SSO flow for external portals:
 //   POST /api/sso/token → one-time token → redirect to PORTAL/sso?token=xxx
@@ -99,7 +99,7 @@ export default function UnifiedHub({ currentUser }: Props) {
     },
     {
       key:     'pil',
-      label:   'PIL / KETRACO',
+      label:   'PIL Transmission Lines',
       icon:    '⚡',
       accent:  '#fb923c',
       desc:    'Transmission lines project portal',
