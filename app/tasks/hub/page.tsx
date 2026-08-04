@@ -6,9 +6,10 @@ import TaskManagementHub from '@/components/TaskManagementHub'
 
 export const dynamic = 'force-dynamic'
 
-const INTEL_EMAILS  = ['hkotecha@kwale-group.com', 'bnzuka@usm.co.ke', 'pmureithi@usm.co.ke']
-const INTEL_NAMES   = ['harshil', 'benson']
+const INTEL_EMAILS  = ['bnzuka@usm.co.ke', 'pmureithi@usm.co.ke']
+const INTEL_NAMES   = ['benson']
 const YALELET_EMAIL = 'yaynalem@usm.co.ke'
+const PAUL_EMAILS   = ['pmureithi@usm.co.ke', 'hkotecha@kwale-group.com']
 
 export default async function TasksHubPage() {
   const cookieStore = cookies()
@@ -25,15 +26,15 @@ export default async function TasksHubPage() {
   const firstName = currentUser.name.toLowerCase().split(' ')[0]
   const isAdmin   = currentUser.role === 'admin'
 
-  // Harshil & Benson → land directly on Intelligence
+  // Benson → land directly on Intelligence
   if (INTEL_NAMES.includes(firstName)) redirect('/intelligence')
 
   // Everyone without special access → straight to task board
-  const hasPaulAccess   = email === 'pmureithi@usm.co.ke'
+  const hasPaulAccess   = PAUL_EMAILS.includes(email)
   const hasYalelAccess  = email === YALELET_EMAIL
   if (!isAdmin && !hasPaulAccess && !hasYalelAccess) redirect('/tasks')
 
-  // Paul, Yalelet, Admin → show hub with their specific modules
+  // Paul/Harshil, Yalelet, Admin → show hub with their specific modules
   const userType = isAdmin ? 'admin' : hasPaulAccess ? 'paul' : 'yalelet'
 
   return <TaskManagementHub currentUser={currentUser} userType={userType} />
