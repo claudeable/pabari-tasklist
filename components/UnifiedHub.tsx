@@ -38,8 +38,8 @@ export default function UnifiedHub({ currentUser }: Props) {
   const role         = currentUser.role
   const isAdmin      = role === 'admin'
   const portals      = currentUser.portals ?? []
-  const isPortalOnly = currentUser.department === 'Smart Ops'
-  const showTasks    = isAdmin || !isPortalOnly || portals.includes('tasks')
+  // Show Task Management only if: admin, regular staff (no portals assigned), or explicitly granted tasks portal
+  const showTasks    = isAdmin || portals.length === 0 || portals.includes('tasks')
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
