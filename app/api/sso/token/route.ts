@@ -2,7 +2,7 @@
 // PABARI ERP — SSO Token Generator
 // Portal: Pabari ERP (master hub)
 // Called by the UnifiedHub when a user clicks a sub-portal card.
-// Returns a 60-second one-time token that the sub-portal validates
+// Returns a 5-minute one-time token that the sub-portal validates
 // against /api/sso/validate before issuing its own session.
 //
 // Master portal URL: https://pabari-workspace.up.railway.app
@@ -47,9 +47,9 @@ export async function POST(req: Request) {
   if (!hasAccess)
     return NextResponse.json({ error: 'No access to this portal' }, { status: 403 })
 
-  // Generate a cryptographically random one-time token (60-second TTL)
+  // Generate a cryptographically random one-time token (5-minute TTL)
   const token    = randomBytes(32).toString('hex')
-  const expiresAt = new Date(Date.now() + 60_000)
+  const expiresAt = new Date(Date.now() + 300_000)
 
   await execute(
     `INSERT INTO sso_tokens (token, email, name, role, portal, expires_at)
