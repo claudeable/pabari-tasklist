@@ -23,7 +23,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-_EXEMPT_PATHS = {"/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1/auth/sso"}  # pre-session, no cookie yet
+_EXEMPT_PATHS = {"/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1/auth/sso", "/api/v1/auth/refresh"}  # pre-session or cross-origin safe
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
