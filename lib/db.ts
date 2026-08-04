@@ -243,6 +243,7 @@ export async function addUpdate(
     task_id:    String(row.task_id),
     date:       String(row.date || ''),
     text:       String(row.text || ''),
+    added_by:   String(row.added_by || ''),
     created_at: String(row.created_at || ''),
   }
 }
@@ -266,6 +267,7 @@ export async function editUpdate(
     task_id:    String(row.task_id),
     date:       String(row.date || ''),
     text:       String(row.text || ''),
+    added_by:   String(row.added_by || ''),
     created_at: String(row.created_at || ''),
   }
 }
