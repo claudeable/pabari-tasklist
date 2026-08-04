@@ -92,6 +92,19 @@ export async function POST(req: NextRequest) {
       notifyLegal(user, task.particulars, task.company).catch(() => {})
     }
 
+    // Email HK when a high-priority task is created
+    if (task.priority === 'high') {
+      getUserByName('Harshil').then(hk => {
+        if (hk?.email && hk.email.toLowerCase() !== user.email.toLowerCase()) {
+          sendEmail({
+            to: hk.email,
+            subject: `High Priority Task Created: ${task.particulars.slice(0, 60)}`,
+            body: `Hi Harshil,\n\nA high-priority task has been created that may need your comment.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\nCreated by: ${user.name}\n\nhttps://pabari-workspace.up.railway.app/tasks`,
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+    }
+
     // Email the assigned person (skip if they created it themselves)
     if (task.responsible) {
       getUserByName(task.responsible).then(assignee => {

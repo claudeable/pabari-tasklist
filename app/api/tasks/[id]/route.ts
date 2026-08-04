@@ -91,6 +91,19 @@ export async function PATCH(
     )
   }
 
+  // Email HK when task is escalated to awaiting-hk-approval
+  if (body.status === 'awaiting-hk-approval' && prev?.status !== 'awaiting-hk-approval') {
+    getUserByName('Harshil').then(hk => {
+      if (hk?.email) {
+        sendEmail({
+          to: hk.email,
+          subject: `Action Required: Task needs your approval — ${task.particulars.slice(0, 60)}`,
+          body: `Hi Harshil,\n\nA task has been escalated and is awaiting your approval.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\n\nPlease log in to review and approve this task.\n\nhttps://pabari-workspace.up.railway.app/tasks`,
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }
+
   // Email new assignee when responsible changes
   if (user && body.responsible && body.responsible !== prev?.responsible) {
     getUserByName(body.responsible).then(assignee => {
