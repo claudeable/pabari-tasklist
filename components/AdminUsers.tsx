@@ -8,7 +8,7 @@ interface UserRow {
   department: string; reports_to: string; hod_email: string; companies: string[]
   portals: string[]; created_at: string
 }
-interface Props { currentUser: SessionUser; initialUsers: UserRow[] }
+interface Props { currentUser: SessionUser; initialUsers: UserRow[]; hubMode?: boolean }
 
 const ROLES: UserRole[] = ['admin','director','ceo','manager','staff']
 
@@ -34,7 +34,7 @@ const PORTAL_OPTIONS = [
 const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', hod_email:'', companies: ['ALL'] as string[], portals: [] as string[] }
 const ARCHIVE_CUTOFF = '2026-06-01'
 
-export default function AdminUsers({ currentUser, initialUsers }: Props) {
+export default function AdminUsers({ currentUser, initialUsers, hubMode }: Props) {
   const [users,    setUsers]    = useState<UserRow[]>(initialUsers)
   const [showForm, setShowForm] = useState(false)
   const [editId,   setEditId]   = useState<string|null>(null)
@@ -123,13 +123,20 @@ export default function AdminUsers({ currentUser, initialUsers }: Props) {
         <span style={{background:'#b5833a',color:'white',fontWeight:800,fontSize:11,padding:'4px 9px',borderRadius:4,letterSpacing:'1px'}}>PABARI</span>
         <span style={{fontSize:13,fontWeight:700,color:'white'}}>PABARI GROUP</span>
         <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-        <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>← Portal</a>
-        <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
-        <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
-        <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
-        <a href="/reports"   style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Reports</a>
-        <a href="/admin/users" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>User Management</a>
-        <a href="/admin/security" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Security Centre</a>
+        {hubMode ? (<>
+          <a href="/admin-hub" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>← Admin Hub</a>
+          <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
+          <a href="/admin-hub/users" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #6366f1',paddingBottom:2}}>User Management</a>
+          <a href="/admin-hub/security" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Security Centre</a>
+        </>) : (<>
+          <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>← Portal</a>
+          <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
+          <a href="/tasks"     style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Task Board</a>
+          <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Dashboard</a>
+          <a href="/reports"   style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Reports</a>
+          <a href="/admin/users" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>User Management</a>
+          <a href="/admin/security" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12}}>Security Centre</a>
+        </>)}
         <div style={{flex:1}}/>
         <span style={{color:'rgba(255,255,255,0.7)',fontSize:12}}>{currentUser.name}</span>
       </div>

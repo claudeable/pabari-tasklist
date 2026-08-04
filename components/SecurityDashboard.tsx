@@ -54,7 +54,7 @@ function fmtTime(s: string) {
   })
 }
 
-export default function SecurityDashboard({ currentUser }: { currentUser: SessionUser }) {
+export default function SecurityDashboard({ currentUser, hubMode }: { currentUser: SessionUser; hubMode?: boolean }) {
   const [blockedIPs, setBlockedIPs] = useState<BlockedIP[]>([])
   const [events,     setEvents]     = useState<SecurityEvent[]>([])
   const [stats,      setStats]      = useState<Stats>({ blockedIPs: 0, eventsToday: 0, highThreat: 0, autoBlockedToday: 0 })
@@ -125,9 +125,17 @@ export default function SecurityDashboard({ currentUser }: { currentUser: Sessio
       {/* NAV */}
       <div style={{ background: '#1a1a2e', padding: '0 20px', display: 'flex', alignItems: 'center', gap: 12, height: 50, flexShrink: 0 }}>
         <span style={{ background: '#dc2626', color: 'white', fontWeight: 800, fontSize: 11, padding: '4px 9px', borderRadius: 4, letterSpacing: '1px' }}>PABARI</span>
-        <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>← Portal</a>
-        <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }} />
-        <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>🛡 Security Centre</span>
+        {hubMode ? (<>
+          <a href="/admin-hub" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>← Admin Hub</a>
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }} />
+          <a href="/admin-hub/users" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>User Management</a>
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }} />
+          <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>🛡 Security Centre</span>
+        </>) : (<>
+          <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 12 }}>← Portal</a>
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }} />
+          <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>🛡 Security Centre</span>
+        </>)}
         <div style={{ flex: 1 }} />
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
         <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Live · auto-refresh 30s</span>
