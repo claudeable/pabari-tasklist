@@ -1335,7 +1335,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
                     ✓ Approve & Resolve
                   </button>
-                  <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                  <button onClick={()=>setActiveTask(task)}
                     style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:5,padding:'7px 16px',fontSize:12,cursor:'pointer'}}>
                     View Details
                   </button>
@@ -1366,7 +1366,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
                   <div style={{fontSize:11,color:'#6b7280'}}>Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}</div>
                 </div>
-                <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                <button onClick={()=>setActiveTask(task)}
                   style={{background:'#b5833a',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
                   Add Comment
                 </button>
@@ -2579,12 +2579,48 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   </div>
                 ))}
               </div>
-              {activeTask.hk_comment && (
-                <div style={{marginBottom:12,padding:'8px 10px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:5}}>
-                  <div style={{fontSize:9.5,fontWeight:700,color:'#92400e',textTransform:'uppercase',marginBottom:3}}>HK Comment</div>
-                  <div style={{fontSize:12,color:'#374151'}}>{activeTask.hk_comment}</div>
-                </div>
+              {/* HK Comment — view + inline edit */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:9.5,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:6}}>HK Comment</div>
+                {hkEditId === activeTask.id ? (
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    <textarea
+                      value={hkDraft}
+                      onChange={e=>setHkDraft(e.target.value)}
+                      rows={3}
+                      style={{width:'100%',fontSize:12,border:'1px solid #d1d5db',borderRadius:5,padding:'7px 9px',resize:'vertical',fontFamily:'inherit',boxSizing:'border-box'}}
+                      placeholder="Add HK comment…"
+                      autoFocus
+                    />
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={()=>saveHKComment(activeTask.id,hkDraft)}
+                        style={{background:'#b5833a',color:'white',border:'none',borderRadius:4,padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',flex:1}}>
+                        Save
+                      </button>
+                      <button onClick={()=>{setHkEditId(null);setHkDraft('')}}
+                        style={{background:'white',color:'#6b7280',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 14px',fontSize:12,cursor:'pointer'}}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={()=>{setHkEditId(activeTask.id);setHkDraft(activeTask.hk_comment||'')}}
+                    style={{fontSize:12,color:activeTask.hk_comment?'#374151':'#9ca3af',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:5,padding:'8px 10px',cursor:'pointer',minHeight:36}}
+                  >
+                    {activeTask.hk_comment || 'Click to add comment…'}
+                  </div>
+                )}
+              </div>
+
+              {/* Approve button if awaiting HK approval */}
+              {activeTask.status === 'awaiting-hk-approval' && (
+                <button onClick={()=>{approveTask(activeTask);setActiveTask(null)}}
+                  style={{width:'100%',background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'9px 0',fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:14}}>
+                  ✓ Approve & Resolve
+                </button>
               )}
+
               <div style={{fontSize:9.5,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:8}}>Update History</div>
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
                 {(activeTask.task_updates||[]).map(u=>(
