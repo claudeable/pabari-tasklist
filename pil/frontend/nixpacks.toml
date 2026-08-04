@@ -1,6 +1,5 @@
 [phases.install]
 cmds = ["npm install --legacy-peer-deps"]
-onlyIncludeFiles = ["package.json", "package-lock.json"]
 
 [phases.build]
 cmds = ["npm run build"]
