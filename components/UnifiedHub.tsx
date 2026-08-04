@@ -121,7 +121,7 @@ export default function UnifiedHub({ currentUser }: Props) {
   ].filter(p => p.visible)
   // ────────────────────────────────────────────────────────────────────────────
 
-  const totalCards  = (showTasks ? 1 : 0) + (intelVisible ? 1 : 0) + (connectVisible ? 1 : 0) + externalCards.length
+  const totalCards  = (showTasks ? 1 : 0) + (intelVisible ? 1 : 0) + (connectVisible ? 1 : 0) + externalCards.length + (isAdmin ? 1 : 0)
   const gridCols    = isMobile ? 1 : Math.min(totalCards, 2)
 
   return (
@@ -217,6 +217,24 @@ export default function UnifiedHub({ currentUser }: Props) {
               <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>Contacts · Directory · Search</div>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <span style={{ fontSize:12, fontWeight:700, color:'#b5833a', background:'#b5833a18', border:'1px solid #b5833a33', borderRadius:20, padding:'4px 12px' }}>Open directory</span>
+                <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
+              </div>
+            </div>
+          </a>}
+
+          {/* Admin Hub — admin only */}
+          {isAdmin && <a href="/admin-hub" style={{ textDecoration:'none', display:'block' }}>
+            <div
+              style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:14, padding: isMobile ? '22px 20px' : '32px 28px', cursor:'pointer', transition:'all 0.15s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}
+              onMouseEnter={e => { const el = e.currentTarget; el.style.transform='translateY(-3px)'; el.style.boxShadow='0 10px 28px rgba(0,0,0,0.10)'; el.style.borderColor='#6366f1' }}
+              onMouseLeave={e => { const el = e.currentTarget; el.style.transform='translateY(0)'; el.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; el.style.borderColor='#e2e8f0' }}
+            >
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:4, background:'#6366f1', borderRadius:'14px 14px 0 0' }} />
+              <div style={{ fontSize: isMobile ? 36 : 44, marginBottom:16, lineHeight:1 }}>🛡️</div>
+              <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:800, color:'#0f172a', marginBottom:6, letterSpacing:'-0.01em' }}>Admin Hub</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color:'#64748b', marginBottom:18, lineHeight:1.5 }}>Users · Security · Portal Access</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:'#6366f1', background:'#6366f118', border:'1px solid #6366f133', borderRadius:20, padding:'4px 12px' }}>Manage system</span>
                 <span style={{ fontSize:18, color:'#cbd5e1' }}>→</span>
               </div>
             </div>
