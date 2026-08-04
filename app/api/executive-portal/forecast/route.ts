@@ -6,7 +6,8 @@ import Groq from 'groq-sdk'
 
 export const dynamic = 'force-dynamic'
 
-const EXEC_NAMES = ['harshil', 'benson']
+const EXEC_NAMES   = ['harshil', 'benson']
+const INTEL_EMAILS = ['pmureithi@usm.co.ke']
 
 export interface ForecastItem {
   category: string
@@ -22,7 +23,8 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const firstName = (user.name?.split(' ')[0] ?? '').toLowerCase()
-  if (user.role !== 'admin' && !EXEC_NAMES.includes(firstName))
+  const email = (user.email ?? '').toLowerCase()
+  if (user.role !== 'admin' && !EXEC_NAMES.includes(firstName) && !INTEL_EMAILS.includes(email))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // ── 1. Task velocity ─────────────────────────────────────────────────────
