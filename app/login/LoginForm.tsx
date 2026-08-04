@@ -80,10 +80,11 @@ export default function LoginForm() {
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Email</label>
+            <label style={labelStyle}>Email or Username</label>
             <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              type="text" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@pabari.co.ke" required autoFocus
+              autoComplete="username"
               style={inputStyle}
             />
           </div>

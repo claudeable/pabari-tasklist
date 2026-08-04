@@ -74,6 +74,16 @@ export async function getUserByEmail(email: string): Promise<StoredUser | undefi
   return row ? rowToUser(row) : undefined
 }
 
+// Alias login: for accounts without an email (e.g. falcon-01), the alias IS the stored email value
+export async function getUserByAlias(alias: string): Promise<StoredUser | undefined> {
+  await ensureUserCols()
+  const row = await queryOne<Record<string, unknown>>(
+    'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
+    [alias]
+  )
+  return row ? rowToUser(row) : undefined
+}
+
 export async function getPublicUsers() {
   await ensureUserCols()
   const rows = await query<Record<string, unknown>>(

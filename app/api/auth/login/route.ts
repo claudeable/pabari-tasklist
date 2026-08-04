@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { getUserByEmail } from '@/lib/users'
+import { getUserByEmail, getUserByAlias } from '@/lib/users'
 import { signToken } from '@/lib/auth'
 import { postSystemMessage } from '@/lib/chat'
 import { logActivity } from '@/lib/activityLog'
@@ -102,7 +102,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const user = await getUserByEmail(email)
+  // If no @ — treat as alias-based login (e.g. falcon-01)
+  const isAlias = !email.includes('@')
+  const user = isAlias ? await getUserByAlias(email) : await getUserByEmail(email)
 
   if (!user) {
     // Don't reveal whether email exists
