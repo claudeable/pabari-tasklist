@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
@@ -43,6 +43,7 @@ function timeAgo(iso: string): string {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
