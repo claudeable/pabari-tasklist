@@ -1901,6 +1901,15 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                             style={{width:25,height:25,borderRadius:4,border:'1px solid #e5e7eb',background:'white',cursor:'pointer',fontSize:11,color:'#9ca3af'}} title="History">
                             {isExp?'▲':'▼'}
                           </button>
+                          {/* Escalate to HK — one-click for managers on any active task */}
+                          {currentUser.role === 'manager' &&
+                           !['awaiting-hk-approval','resolved','expired','archived'].includes(task.status) && (
+                            <button onClick={e=>{e.stopPropagation();escalateToHK(task)}}
+                              style={{height:25,padding:'0 7px',borderRadius:4,border:'1px solid #fce7f3',background:'#fdf2f8',cursor:'pointer',fontSize:10,fontWeight:700,color:'#9d174d',whiteSpace:'nowrap'}}
+                              title="Send to HK Inbox">
+                              ↑ HK
+                            </button>
+                          )}
                           {perms.canDelete && (
                             <button onClick={e=>{e.stopPropagation();deleteTask(task.id)}}
                               style={{width:25,height:25,borderRadius:4,border:'1px solid #fee2e2',background:'white',cursor:'pointer',fontSize:11,color:'#dc2626'}} title="Delete">
@@ -2268,16 +2277,19 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         {activeTask.hod_comment || 'No HOD comment yet — click Edit to add one.'}
                       </div>
                   }
-                  {/* Approval buttons when task is awaiting HOD approval */}
-                  {activeTask.status === 'awaiting-hod-approval' && currentUser.role === 'manager' &&
-                    subordinates.some(s => nameMatch(activeTask.responsible, s)) && (
+                  {/* Approval / escalation buttons for managers */}
+                  {currentUser.role === 'manager' &&
+                   !['awaiting-hk-approval','resolved','expired','archived'].includes(activeTask.status) && (
                     <div style={{display:'flex',gap:6,marginTop:10}}>
-                      <button onClick={()=>approveTask(activeTask)}
-                        style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                        ✓ Approve & Resolve
-                      </button>
+                      {activeTask.status === 'awaiting-hod-approval' &&
+                       subordinates.some(s => nameMatch(activeTask.responsible, s)) && (
+                        <button onClick={()=>approveTask(activeTask)}
+                          style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                          ✓ Approve & Resolve
+                        </button>
+                      )}
                       <button onClick={()=>escalateToHK(activeTask)}
-                        style={{flex:1,background:'white',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        style={{flex:1,background:'#fdf2f8',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
                         ↑ Escalate to HK
                       </button>
                     </div>
