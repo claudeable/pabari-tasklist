@@ -66,9 +66,9 @@ async def main() -> None:
             else:
                 org_id = uuid.uuid4()
                 await s.execute(text("""
-                    INSERT INTO organizations (id, name, created_by)
-                    VALUES (:id, :name, :created_by)
-                """), {"id": org_id, "name": ORG_NAME, "created_by": admin_id})
+                    INSERT INTO organizations (id, name, slug, status)
+                    VALUES (:id, :name, :slug, 'active')
+                """), {"id": org_id, "name": ORG_NAME, "slug": "pil-transmission-lines"})
                 print(f"  CREATED org: {ORG_NAME}  (id={org_id})")
 
             # 3. Add members
@@ -90,9 +90,9 @@ async def main() -> None:
                     print(f"  SKIP   {alias:<14}  (already a member)")
                 else:
                     await s.execute(text("""
-                        INSERT INTO organization_members (organization_id, user_id, role, invited_by)
-                        VALUES (:o, :u, :r, :i)
-                    """), {"o": org_id, "u": user_id, "r": org_role, "i": admin_id})
+                        INSERT INTO organization_members (organization_id, user_id, role)
+                        VALUES (:o, :u, :r)
+                    """), {"o": org_id, "u": user_id, "r": org_role})
                     print(f"  ADDED  {alias:<14}  → {org_role}")
 
     await engine.dispose()
