@@ -217,7 +217,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [legalDraft,    setLegalDraft]    = useState('')
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
-  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'>('active')
+  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'>('active')
   const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|''>('')
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
@@ -528,6 +528,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     overdue:  base.filter(t=>t.status!=='resolved'&&t.status!=='expired'&&dueDateStatus(t.due_date)==='overdue').length,
   }), [base])
 
+  const isHK = currentUser.name.toLowerCase().split(' ')[0] === 'harshil'
+
   // ── Pending My Review & Resolved tabs ────────────────────────────
   const pendingMyReview = useMemo(() => {
     if (currentUser.role === 'director' || currentUser.role === 'admin') {
@@ -552,6 +554,18 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     }
     return []
   }, [visibleTasks, currentUser.role, subordinates, teamMembers, allUsers])
+
+  const needsHKApproval = useMemo(() =>
+    visibleTasks.filter(t => t.status === 'awaiting-hk-approval'),
+  [visibleTasks])
+
+  const needsHKComment = useMemo(() =>
+    visibleTasks.filter(t =>
+      !t.hk_comment?.trim() &&
+      (t.priority === 'high' || t.status === 'awaiting-hk-approval') &&
+      !['resolved','expired','archived'].includes(t.status)
+    ),
+  [visibleTasks])
 
   const resolvedTasks = useMemo(() => {
     const all = visibleTasks.filter(t => t.status === 'resolved')
@@ -1129,6 +1143,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           ...(canSeeArchived ? [
             { key:'archived', label:'Archived', count: archivedTasks.length },
           ] : []),
+          ...(isHK ? [
+            { key:'needs-hk-approval', label:'Needs HK Approval', count: needsHKApproval.length },
+            { key:'needs-hk-comment',  label:'Needs HK Comment',  count: needsHKComment.length  },
+          ] : []),
         ] as {key:typeof activeMainTab;label:string;count:number}[]).map(tab=>(
           <button key={tab.key} onClick={()=>setActiveMainTab(tab.key)}
             style={{border:'none',borderBottom:activeMainTab===tab.key?'2px solid #1a3a2a':'2px solid transparent',
@@ -1285,6 +1303,74 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
                 View
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* NEEDS HK APPROVAL TAB */}
+      {activeMainTab === 'needs-hk-approval' && (
+        <div style={{flex:1,overflow:'auto',padding:20}}>
+          {needsHKApproval.length === 0 ? (
+            <div style={{textAlign:'center',color:'#9ca3af',paddingTop:60,fontSize:13}}>No tasks awaiting HK approval.</div>
+          ) : needsHKApproval.map(task => (
+            <div key={task.id} style={{background:'white',border:'1px solid #fce7f3',borderLeft:'4px solid #9d174d',borderRadius:6,padding:16,marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:5}}>
+                    <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
+                    <span className={STATUS_PILL[task.status]}>{STATUS_LABELS[task.status]}</span>
+                    {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{PRIORITY_LABELS[task.priority]}</span>}
+                  </div>
+                  <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
+                  <div style={{fontSize:11,color:'#6b7280',marginBottom:6}}>Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}</div>
+                  {task.task_updates?.[0] && (
+                    <div style={{fontSize:11,color:'#374151',background:'#f9fafb',padding:'6px 10px',borderRadius:4}}>
+                      <strong>{task.task_updates[0].date}:</strong> {task.task_updates[0].text}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+                  <button onClick={()=>approveTask(task)}
+                    style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                    ✓ Approve & Resolve
+                  </button>
+                  <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                    style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:5,padding:'7px 16px',fontSize:12,cursor:'pointer'}}>
+                    View Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* NEEDS HK COMMENT TAB */}
+      {activeMainTab === 'needs-hk-comment' && (
+        <div style={{flex:1,overflow:'auto',padding:20}}>
+          <div style={{fontSize:12,color:'#6b7280',marginBottom:16}}>
+            High-priority tasks and tasks awaiting HK approval that have no HK comment yet.
+          </div>
+          {needsHKComment.length === 0 ? (
+            <div style={{textAlign:'center',color:'#9ca3af',paddingTop:60,fontSize:13}}>All caught up — no tasks need a comment.</div>
+          ) : needsHKComment.map(task => (
+            <div key={task.id} style={{background:'white',border:'1px solid #fef3c7',borderLeft:'4px solid #b5833a',borderRadius:6,padding:16,marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:5}}>
+                    <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
+                    <span className={STATUS_PILL[task.status]}>{STATUS_LABELS[task.status]}</span>
+                    {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{PRIORITY_LABELS[task.priority]}</span>}
+                  </div>
+                  <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
+                  <div style={{fontSize:11,color:'#6b7280'}}>Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}</div>
+                </div>
+                <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
+                  style={{background:'#b5833a',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                  Add Comment
+                </button>
+              </div>
             </div>
           ))}
         </div>
