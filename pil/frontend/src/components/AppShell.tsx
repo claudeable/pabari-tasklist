@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
-import { apiFetch, setAccessToken } from "@/lib/api-client";
+import { apiFetch } from "@/lib/api-client";
 
 interface MeResponse {
   id: string;
@@ -43,7 +43,6 @@ function timeAgo(iso: string): string {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -84,12 +83,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
   async function handleMarkAllRead() {
     await apiFetch("/api/v1/notifications/read-all", { method: "POST" }).catch(() => {});
     setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
-  }
-
-  async function handleLogout() {
-    await apiFetch("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
-    setAccessToken(null);
-    router.push("/login");
   }
 
   function isActive(href: string): boolean {
@@ -142,20 +135,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           )}
         </nav>
         <div className="border-t border-vault-border p-3">
-          <Link
-            href="/dashboard/change-password"
-            className="mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5"
+          <a
+            href={process.env.NEXT_PUBLIC_PABARI_URL ?? "https://pabari-workspace.up.railway.app"}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5"
           >
-            <span className="w-4 text-center">⚙</span>
-            Change Password
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/5"
-          >
-            <span className="w-4 text-center">⏻</span>
-            Sign out
-          </button>
+            <span className="w-4 text-center">←</span>
+            Back to Workspace
+          </a>
         </div>
       </aside>
 
