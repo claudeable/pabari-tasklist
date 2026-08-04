@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import secrets
+import uuid
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -10,9 +14,13 @@ from app.core.config import settings
 from app.core.deps import get_current_user, get_db
 from app.core.security import create_access_token, verify_password
 from app.models.login_attempt import LoginAttempt
+from app.models.organization import Organization
+from app.models.role import Role
 from app.models.user import User
 from app.schemas.token import LoginRequest, Token
 from app.schemas.user import UserReadWithRole
+
+_pwd_context = CryptContext(schemes=["bcrypt"])
 
 router = APIRouter()
 
@@ -149,7 +157,24 @@ async def sso_login(body: SsoRequest, response: Response, db: Session = Depends(
 
     user = db.query(User).filter(User.email == pabari_email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="No Smart Ops account linked to this Pabari email")
+        # Auto-provision: create a Smart Ops account on first SSO login
+        pabari_name: str = data.get("name", pabari_email.split("@")[0])
+        org = db.query(Organization).first()
+        role = db.query(Role).filter(Role.name == "member").first() or db.query(Role).first()
+        if not org or not role:
+            raise HTTPException(status_code=500, detail="Smart Ops not initialised — no organisation or role found")
+        user = User(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            full_name=pabari_name,
+            email=pabari_email,
+            hashed_password=_pwd_context.hash(secrets.token_urlsafe(32)),
+            role_id=role.id,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Inactive user")
 
