@@ -1151,10 +1151,6 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           ...(canSeeArchived ? [
             { key:'archived', label:'Archived', count: archivedTasks.length },
           ] : []),
-          ...(isHK ? [
-            { key:'needs-hk-approval', label:'Needs HK Approval', count: needsHKApproval.length },
-            { key:'needs-hk-comment',  label:'Needs HK Comment',  count: needsHKComment.length  },
-          ] : []),
         ] as {key:typeof activeMainTab;label:string;count:number}[]).map(tab=>(
           <button key={tab.key} onClick={()=>setActiveMainTab(tab.key)}
             style={{border:'none',borderBottom:activeMainTab===tab.key?'2px solid #1a3a2a':'2px solid transparent',
@@ -1398,10 +1394,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </div>
               {[
                 ...(perms.showAttentionPanel ? [
-                  {label:'⚡ HK Inbox',           val:'awaiting-hk-approval' as const, count:needsHKApproval.length,          dot:'#9d174d', desc:'Tasks waiting for your approval — quick resolve or send back'},
-                  {label:'Pending My Review',   val:'pending-review'         as const, count:dirAttention.pendingReview.length,   dot:'#1d4ed8', desc:'In-review — ready for sign-off'},
-                  {label:'High Priority Queue',  val:'needs-comment'          as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'High-priority or awaiting approval — no HK comment yet'},
-                  {label:'Action Required',     val:'action-required'         as const, count:dirAttention.actionRequired.length,  dot:'#dc2626', desc:'Flagged for escalation'},
+                  {label:'⚡ HK Inbox',          val:'awaiting-hk-approval' as const, count:needsHKApproval.length,         dot:'#9d174d', desc:'Tasks formally escalated — resolve or send back'},
+                  {label:'Action Required',      val:'action-required'        as const, count:dirAttention.actionRequired.length, dot:'#dc2626', desc:'Flagged for escalation'},
                 ] : []),
                 ...(canSeeFinance ? [
                   {label:'Finance',             val:'finance'          as const, count:dirAttention.financeCategory.length, dot:'#15803d', desc:'Active Finance category tasks'},
