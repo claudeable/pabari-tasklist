@@ -32,6 +32,8 @@ async function ensureParentId() {
     ).catch(() => {})
   }
 
+  // ── Attribution on task updates ───────────────────────────────────────────
+  await execute("ALTER TABLE task_updates ADD COLUMN IF NOT EXISTS added_by TEXT NOT NULL DEFAULT ''").catch(() => {})
   // ── Multi-portal hub SSO ──────────────────────────────────────────────────
   // portals: which sub-portals each user can access ('pil', 'smartops', 'property')
   await execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS portals TEXT[] NOT NULL DEFAULT '{}'").catch(() => {})
@@ -90,6 +92,7 @@ function rowToTask(row: Record<string, unknown>): Task {
       task_id:    String(u.task_id),
       date:       String(u.date || ''),
       text:       String(u.text || ''),
+      added_by:   String(u.added_by || ''),
       created_at: String(u.created_at || ''),
     })) as TaskUpdate[],
   }
@@ -224,14 +227,14 @@ export async function deleteTask(id: string): Promise<boolean> {
 
 export async function addUpdate(
   taskId: string,
-  data: { date: string; text: string }
+  data: { date: string; text: string; added_by?: string }
 ): Promise<TaskUpdate | null> {
   const task = await queryOne('SELECT id FROM tasks WHERE id = $1', [taskId])
   if (!task) return null
 
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO task_updates (task_id, date, text) VALUES ($1, $2, $3) RETURNING *`,
-    [taskId, data.date, data.text]
+    `INSERT INTO task_updates (task_id, date, text, added_by) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [taskId, data.date, data.text, data.added_by || '']
   )
   if (!row) return null
 

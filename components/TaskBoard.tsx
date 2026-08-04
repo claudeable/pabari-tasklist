@@ -75,6 +75,12 @@ function fmtDate() {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   return `${d.getDate()}-${m[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`
 }
+function isoToTaskDate(iso: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${parseInt(d,10)}-${months[parseInt(m,10)-1]}-${y.slice(2)}`
+}
 function isoToDisplayDate(iso: string): string {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
@@ -218,7 +224,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'>('active')
-  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|''>('')
+  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|''>('')
+  const [hkInboxDrafts, setHkInboxDrafts] = useState<Record<string, string>>({}) // taskId → quick comment draft
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
   const [pwError,        setPwError]        = useState('')
@@ -502,10 +509,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   const filtered = useMemo(() => {
     let list = base
-    if (directorFilter === 'pending-review')   list = visibleTasks.filter(t => t.status === 'in-review')
-    if (directorFilter === 'needs-comment')     list = visibleTasks.filter(t => !t.hk_comment?.trim() && (t.priority === 'high' || t.status === 'awaiting-hk-approval') && t.status !== 'resolved' && t.status !== 'expired' && t.status !== 'archived')
-    if (directorFilter === 'action-required')   list = visibleTasks.filter(t => t.status === 'action-required')
-    if (directorFilter === 'finance')           list = canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
+    if (directorFilter === 'pending-review')       list = visibleTasks.filter(t => t.status === 'in-review')
+    if (directorFilter === 'needs-comment')         list = visibleTasks.filter(t => !t.hk_comment?.trim() && (t.priority === 'high' || t.status === 'awaiting-hk-approval') && t.status !== 'resolved' && t.status !== 'expired' && t.status !== 'archived')
+    if (directorFilter === 'action-required')       list = visibleTasks.filter(t => t.status === 'action-required')
+    if (directorFilter === 'finance')               list = canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
+    if (directorFilter === 'awaiting-hk-approval')  list = visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
@@ -1390,9 +1398,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </div>
               {[
                 ...(perms.showAttentionPanel ? [
-                  {label:'Pending My Review',   val:'pending-review'   as const, count:dirAttention.pendingReview.length,   dot:'#1d4ed8', desc:'In-review — ready for sign-off'},
-                  {label:'High Priority Queue',  val:'needs-comment'    as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'High-priority or awaiting approval — no HK comment yet'},
-                  {label:'Action Required',     val:'action-required'  as const, count:dirAttention.actionRequired.length,  dot:'#dc2626', desc:'Flagged for escalation'},
+                  {label:'⚡ HK Inbox',           val:'awaiting-hk-approval' as const, count:needsHKApproval.length,          dot:'#9d174d', desc:'Tasks waiting for your approval — quick resolve or send back'},
+                  {label:'Pending My Review',   val:'pending-review'         as const, count:dirAttention.pendingReview.length,   dot:'#1d4ed8', desc:'In-review — ready for sign-off'},
+                  {label:'High Priority Queue',  val:'needs-comment'          as const, count:dirAttention.needsComment.length,    dot:'#b5833a', desc:'High-priority or awaiting approval — no HK comment yet'},
+                  {label:'Action Required',     val:'action-required'         as const, count:dirAttention.actionRequired.length,  dot:'#dc2626', desc:'Flagged for escalation'},
                 ] : []),
                 ...(canSeeFinance ? [
                   {label:'Finance',             val:'finance'          as const, count:dirAttention.financeCategory.length, dot:'#15803d', desc:'Active Finance category tasks'},
@@ -1856,15 +1865,46 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       })()}
                     </div>
                     <div style={{padding:'9px 6px',display:'flex',gap:3,alignItems:'center'}}>
-                      <button onClick={e=>{e.stopPropagation();toggleRow(task.id)}}
-                        style={{width:25,height:25,borderRadius:4,border:'1px solid #e5e7eb',background:'white',cursor:'pointer',fontSize:11,color:'#9ca3af'}} title="History">
-                        {isExp?'▲':'▼'}
-                      </button>
-                      {perms.canDelete && (
-                        <button onClick={e=>{e.stopPropagation();deleteTask(task.id)}}
-                          style={{width:25,height:25,borderRadius:4,border:'1px solid #fee2e2',background:'white',cursor:'pointer',fontSize:11,color:'#dc2626'}} title="Delete">
-                          ✕
-                        </button>
+                      {directorFilter === 'awaiting-hk-approval' && perms.canHKComment ? (
+                        <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:4,width:'100%'}}>
+                          <input
+                            value={hkInboxDrafts[task.id] ?? ''}
+                            onChange={e=>setHkInboxDrafts(d=>({...d,[task.id]:e.target.value}))}
+                            placeholder="Comment (optional)…"
+                            style={{fontSize:10,border:'1px solid #d1d5db',borderRadius:4,padding:'3px 6px',width:'100%',minWidth:120}}
+                          />
+                          <div style={{display:'flex',gap:3}}>
+                            <button onClick={async()=>{
+                              const comment = hkInboxDrafts[task.id]?.trim() || ''
+                              if (comment) await saveHKComment(task.id, comment)
+                              await approveTask(task)
+                            }}
+                              style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}>
+                              ✓ Resolve
+                            </button>
+                            <button onClick={async()=>{
+                              const comment = hkInboxDrafts[task.id]?.trim() || ''
+                              if (comment) await saveHKComment(task.id, comment)
+                              await changeStatus(task, 'action-required')
+                            }}
+                              style={{flex:1,background:'#dc2626',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}>
+                              ↩ Back
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={e=>{e.stopPropagation();toggleRow(task.id)}}
+                            style={{width:25,height:25,borderRadius:4,border:'1px solid #e5e7eb',background:'white',cursor:'pointer',fontSize:11,color:'#9ca3af'}} title="History">
+                            {isExp?'▲':'▼'}
+                          </button>
+                          {perms.canDelete && (
+                            <button onClick={e=>{e.stopPropagation();deleteTask(task.id)}}
+                              style={{width:25,height:25,borderRadius:4,border:'1px solid #fee2e2',background:'white',cursor:'pointer',fontSize:11,color:'#dc2626'}} title="Delete">
+                              ✕
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>}
@@ -1878,7 +1918,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         {(appUpdates).map((u)=>(
                           <div key={u.id} style={{position:'relative'}}>
                             <div style={{position:'absolute',left:-18,top:4,width:8,height:8,borderRadius:'50%',background:'#1a3a2a',border:'2px solid white',outline:'2px solid #1a3a2a'}}/>
-                            <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:1}}>{u.date}</div>
+                            <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:1}}>
+                              {u.date}{u.added_by ? <span style={{fontWeight:400,color:'#6b7280',textTransform:'none',marginLeft:5}}>· {u.added_by}</span> : null}
+                            </div>
                             <div style={{fontSize:12,color:'#374151',lineHeight:1.45}}>{u.text}</div>
                           </div>
                         ))}
@@ -1959,15 +2001,25 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 </div>
               )}
 
-              {[
-                {l:'Date',    v:activeTask.date},
-                {l:'Payment', v:activeTask.payment},
-              ].map(r=>(
-                <div key={r.l} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
-                  <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:1}}>{r.l}</div>
-                  <div style={{fontSize:12,color:'#111827'}}>{r.v}</div>
-                </div>
-              ))}
+              {/* Date — editable for admin/director */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Date</div>
+                {(currentUser.role === 'admin' || currentUser.role === 'director')
+                  ? <input type="date" value={taskDateToISO(activeTask.date)} onChange={async e=>{
+                      const displayDate = isoToTaskDate(e.target.value)
+                      if (!displayDate) return
+                      await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({date:displayDate})})
+                      setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,date:displayDate}:t))
+                      setActiveTask(p=>p?{...p,date:displayDate}:p)
+                    }} style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}/>
+                  : <div style={{fontSize:12,color:'#111827'}}>{activeTask.date}</div>
+                }
+              </div>
+              {/* Payment */}
+              <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
+                <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:1}}>Payment</div>
+                <div style={{fontSize:12,color:'#111827'}}>{activeTask.payment}</div>
+              </div>
 
               {/* Category — editable for admin/director/manager */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
@@ -2318,7 +2370,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                           <div key={u.id} style={{position:'relative'}}>
                             <div style={{position:'absolute',left:-17,top:4,width:8,height:8,borderRadius:'50%',background:'#1a3a2a',border:'2px solid white',outline:'2px solid #1a3a2a'}}/>
                             <div style={{fontSize:9.5,fontWeight:700,color:'#2d6a4f',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:2,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                              <span>{u.date}</span>
+                              <span>{u.date}{u.added_by ? <span style={{fontWeight:400,color:'#6b7280',textTransform:'none',marginLeft:5}}>· {u.added_by}</span> : null}</span>
                               {canEditUpdates && editUpdateId !== u.id && (
                                 <button onClick={()=>{setEditUpdateId(u.id);setEditUpdateText(u.text)}}
                                   style={{fontSize:9,color:'#9ca3af',background:'none',border:'none',cursor:'pointer',padding:'0 2px',lineHeight:1}}>✏️</button>

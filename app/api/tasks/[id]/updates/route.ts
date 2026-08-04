@@ -11,7 +11,7 @@ export async function POST(
   const token = req.cookies.get('pabari-session')?.value
   const user  = token ? await verifyToken(token) : null
 
-  const update = await addUpdate(params.id, { date: body.date, text: body.text })
+  const update = await addUpdate(params.id, { date: body.date, text: body.text, added_by: user?.name || '' })
   if (!update) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
 
   if (user) {

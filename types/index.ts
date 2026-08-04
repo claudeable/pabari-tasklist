@@ -142,6 +142,7 @@ export interface TaskUpdate {
   task_id:    string
   date:       string
   text:       string
+  added_by:   string
   created_at: string
 }
 
