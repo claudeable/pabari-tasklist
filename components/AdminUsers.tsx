@@ -26,7 +26,7 @@ const ROLE_STYLE: Record<UserRole,{bg:string;color:string}> = {
 // Sub-portals users can be assigned to
 const PORTAL_OPTIONS = [
   { value: 'tasks',    label: 'Task Management', desc: 'Pabari task board'          },
-  { value: 'pil',      label: 'PIL / KETRACO',   desc: 'Transmission lines portal'  },
+  { value: 'pil',      label: 'PIL Transmission Lines',   desc: 'Transmission lines portal'  },
   { value: 'smartops', label: 'Smart Ops',        desc: 'Joint operations portal'    },
   { value: 'property', label: 'Property Mgmt',    desc: 'Property management portal' },
 ]

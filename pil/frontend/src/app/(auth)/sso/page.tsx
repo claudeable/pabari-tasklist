@@ -44,7 +44,7 @@ function SsoContent() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-lg border border-vault-border bg-vault-surface p-8 text-center">
-        <h1 className="mb-2 text-lg font-semibold text-slate-100">PIL / KETRACO</h1>
+        <h1 className="mb-2 text-lg font-semibold text-slate-100">PIL Transmission Lines</h1>
 
         {!error ? (
           <>
