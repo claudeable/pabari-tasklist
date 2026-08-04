@@ -102,7 +102,7 @@ const TASK_SELECT = `
   SELECT t.*,
     COALESCE(
       json_agg(
-        json_build_object('id', tu.id, 'task_id', tu.task_id, 'date', tu.date, 'text', tu.text, 'created_at', tu.created_at)
+        json_build_object('id', tu.id, 'task_id', tu.task_id, 'date', tu.date, 'text', tu.text, 'added_by', tu.added_by, 'created_at', tu.created_at)
         ORDER BY tu.created_at DESC
       ) FILTER (WHERE tu.id IS NOT NULL),
       '[]'

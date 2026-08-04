@@ -1433,7 +1433,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
           <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Status</div>
           {[
-            {label:'All Tasks',          val:'',                  count:base.length},
+            {label:'All Staff Tasks',     val:'',                  count:base.length},
             {label:'Action Required',    val:'action-required',   count:kpis.action},
             {label:'Pending Discussion', val:'pending-discussion', count:kpis.pending},
             {label:'In Review',          val:'in-review',         count:kpis.review},
@@ -1798,7 +1798,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   )}
                   {/* Desktop grid row */}
                   {!isMobile && <div onClick={()=>setActiveTask(activeTask?.id===task.id?null:task)}
-                    style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',
+                    style={{display:'grid',gridTemplateColumns:
+                      (directorFilter === 'awaiting-hk-approval' && perms.canHKComment)
+                        ? (showCompanyCol ? '38px 72px 88px 108px 96px 155px 1fr 115px 112px 240px' : '38px 72px 108px 96px 165px 1fr 115px 112px 240px')
+                        : (showCompanyCol ? '38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px'  : '38px 72px 108px 96px 165px 1fr 115px 112px 60px'),
                       borderBottom:'1px solid #f3f4f6',padding:'0 6px',cursor:'pointer',
                       borderLeft:`3px solid ${BORDER[task.status]}`,
                       background:activeTask?.id===task.id?'#f8faff':'white'}}>
