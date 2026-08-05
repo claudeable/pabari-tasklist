@@ -224,7 +224,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'>('active')
-  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|''>('')
+  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|''>('')
   const [hkInboxDrafts, setHkInboxDrafts] = useState<Record<string, string>>({}) // taskId → quick comment draft
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
@@ -383,8 +383,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     canViewAs:       ['admin','director'].includes(currentUser.role),
     canPostUpdate:   (task: Task) =>
       effectiveRole !== 'staff' || nameMatch(task.responsible, effectiveName) || currentUser.email === 'yaynalem@usm.co.ke' || currentUser.email === 'skumar@usm.co.ke',
-    // MY ATTENTION panel: all directors (Harshil, Benson) and admin
-    showAttentionPanel: currentUser.role === 'admin' || currentUser.role === 'director',
+    // MY ATTENTION panel: directors, admin, and Paul (Nairobi ops head)
+    showAttentionPanel: currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.email === 'pmureithi@usm.co.ke',
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [currentUser.role, currentUser.email, currentUser.department, effectiveRole, effectiveName])
 
@@ -418,7 +418,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         const myNames = [currentUser.name, ...subordinates]
         return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
       }
-      // Operations HOD and Group CEO have full cross-company visibility
+      // Paul (Nairobi ops head) and Operations HOD have full cross-company visibility
+      if (currentUser.email === 'pmureithi@usm.co.ke') return accessible
       const FULL_ACCESS_DEPTS = ['Operations / AOB', 'Group CEO']
       if (FULL_ACCESS_DEPTS.includes(currentUser.department)) return accessible
       // Legal counsel sees all tasks flagged for legal review
@@ -514,6 +515,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     if (directorFilter === 'action-required')       list = visibleTasks.filter(t => t.status === 'action-required')
     if (directorFilter === 'finance')               list = canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
     if (directorFilter === 'awaiting-hk-approval')  list = visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
+    if (directorFilter === 'needs-paul-review')      list = visibleTasks.filter(t => t.status === 'in-review')
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
@@ -536,21 +538,30 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     overdue:  base.filter(t=>t.status!=='resolved'&&t.status!=='expired'&&dueDateStatus(t.due_date)==='overdue').length,
   }), [base])
 
-  const isHK = currentUser.name.toLowerCase().split(' ')[0] === 'harshil'
+  const isHK   = currentUser.name.toLowerCase().split(' ')[0] === 'harshil'
+  const isPaul = currentUser.email === 'pmureithi@usm.co.ke'
+
+  // ── Pending Review (shared pool for Paul + HK + admin) ───────────
+  // Tasks in 'in-review' status are the shared senior review queue.
+  // Either Paul or HK can pick them up, resolve, or escalate.
+  const pendingReviewPool = useMemo(() =>
+    visibleTasks.filter(t => t.status === 'in-review'),
+  [visibleTasks])
 
   // ── Pending My Review & Resolved tabs ────────────────────────────
   const pendingMyReview = useMemo(() => {
+    // Paul sees the shared in-review pool
+    if (isPaul) return pendingReviewPool
     if (currentUser.role === 'director' || currentUser.role === 'admin') {
-      // Harshil/admin sees awaiting-hk-approval tasks, plus awaiting-hod-approval tasks
-      // where the responsible person is themselves a manager (HODs report directly to Harshil)
+      // HK/admin sees awaiting-hk-approval tasks, plus awaiting-hod-approval from managers
       const hodNames = allUsers.filter(u => u.role === 'manager' || u.role === 'ceo').map(u => u.name)
       return visibleTasks.filter(t =>
         t.status === 'awaiting-hk-approval' ||
+        t.status === 'in-review' ||
         (t.status === 'awaiting-hod-approval' && hodNames.some(n => nameMatch(t.responsible, n)))
       )
     }
     if (currentUser.role === 'ceo') {
-      // CEO (Ahmad) sees KISCOL tasks staff has submitted for his review
       return visibleTasks.filter(t => t.status === 'awaiting-hod-approval')
     }
     if (currentUser.role === 'manager') {
@@ -561,7 +572,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       )
     }
     return []
-  }, [visibleTasks, currentUser.role, subordinates, teamMembers, allUsers])
+  }, [visibleTasks, currentUser.role, isPaul, pendingReviewPool, subordinates, teamMembers, allUsers])
 
   const needsHKApproval = useMemo(() =>
     visibleTasks.filter(t => t.status === 'awaiting-hk-approval'),
@@ -1145,7 +1156,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         {([
           { key:'active',         label:'Active Tasks',       count: visibleTasks.filter(t=>t.status!=='resolved'&&t.status!=='archived').length },
           ...(currentUser.role==='staff' ? [] : [
-            { key:'pending-review', label:'Pending My Review', count: pendingMyReview.length },
+            { key:'pending-review', label: isPaul ? 'Pending Review' : 'Pending My Review', count: pendingMyReview.length },
           ]),
           { key:'resolved',       label:'Resolved',           count: resolvedTasks.length },
           ...(canSeeArchived ? [
@@ -1394,7 +1405,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </div>
               {[
                 ...(perms.showAttentionPanel ? [
-                  {label:'⚡ HK Inbox',          val:'awaiting-hk-approval' as const, count:needsHKApproval.length,         dot:'#9d174d', desc:'Tasks formally escalated — resolve or send back'},
+                  ...(isPaul ? [
+                    {label:'📋 Pending Review',  val:'needs-paul-review'      as const, count:pendingReviewPool.length,          dot:'#1d4ed8', desc:'In-review tasks — resolve or escalate to HK'},
+                  ] : [
+                    {label:'⚡ HK Inbox',        val:'awaiting-hk-approval'   as const, count:needsHKApproval.length,           dot:'#9d174d', desc:'Tasks formally escalated — resolve or send back'},
+                  ]),
                   {label:'Action Required',      val:'action-required'        as const, count:dirAttention.actionRequired.length, dot:'#dc2626', desc:'Flagged for escalation'},
                 ] : []),
                 ...(canSeeFinance ? [
@@ -2271,8 +2286,25 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         {activeTask.hod_comment || 'No HOD comment yet — click Edit to add one.'}
                       </div>
                   }
-                  {/* Approval / escalation buttons for managers */}
-                  {currentUser.role === 'manager' &&
+                  {/* Paul — resolve, send back, or escalate to HK on any in-review task */}
+                  {isPaul && activeTask.status === 'in-review' && (
+                    <div style={{display:'flex',gap:6,marginTop:10}}>
+                      <button onClick={()=>approveTask(activeTask)}
+                        style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        ✓ Resolve
+                      </button>
+                      <button onClick={async()=>{ await changeStatus(activeTask,'action-required'); setActiveTask(null) }}
+                        style={{flex:1,background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        ↩ Send Back
+                      </button>
+                      <button onClick={()=>escalateToHK(activeTask)}
+                        style={{flex:1,background:'#fdf2f8',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                        ↑ HK
+                      </button>
+                    </div>
+                  )}
+                  {/* Other managers — approval / escalation */}
+                  {currentUser.role === 'manager' && !isPaul &&
                    !['awaiting-hk-approval','resolved','expired','archived'].includes(activeTask.status) && (
                     <div style={{display:'flex',gap:6,marginTop:10}}>
                       {activeTask.status === 'awaiting-hod-approval' &&
