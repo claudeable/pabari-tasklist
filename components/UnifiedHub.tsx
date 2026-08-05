@@ -112,7 +112,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       icon:    '🏢',
       accent:  '#818cf8',
       desc:    'Property management portal',
-      url:     '',
+      url:     'https://pabari-property-production.up.railway.app',
       visible: isAdmin || portals.includes('property'),
     },
   ].filter(p => p.visible)

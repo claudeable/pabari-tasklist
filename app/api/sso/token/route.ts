@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
 const PORTAL_URLS: Record<string, string> = {
   pil:      'https://pil-frontend-production.up.railway.app',
   smartops: 'https://smart-ops-frontend-production.up.railway.app',
-  property: '',
+  property: 'https://pabari-property-production.up.railway.app',
 }
 
 export async function POST(req: Request) {
