@@ -1374,6 +1374,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <div style={{fontSize:11,color:'#9ca3af'}}>{task.responsible} · {task.section} · Task date: {task.date}</div>
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  {/* Restore to active — available to anyone who can see the task */}
+                  <button onClick={async()=>{
+                    await fetch(`/api/tasks/${task.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'action-required'})})
+                    setTasks(ts=>ts.map(t=>t.id===task.id?{...t,status:'action-required'}:t))
+                    setActiveMainTab('active')
+                  }} style={{background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe',borderRadius:4,padding:'5px 10px',fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                    ↩ Restore
+                  </button>
                   {canAct && isStale && (
                     <button onClick={async()=>{
                       await fetch(`/api/tasks/${task.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'expired'})})
