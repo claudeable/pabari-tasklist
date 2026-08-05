@@ -223,7 +223,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [legalDraft,    setLegalDraft]    = useState('')
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
-  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'>('active')
+  const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'|'expired'>('active')
   const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|''>('')
   const [hkInboxDrafts, setHkInboxDrafts] = useState<Record<string, string>>({}) // taskId → quick comment draft
   const [showChangePw,   setShowChangePw]   = useState(false)
@@ -585,6 +585,17 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       !['resolved','expired','archived'].includes(t.status)
     ),
   [visibleTasks])
+
+  // Expired = already expired status, OR not updated since before Jan 2026 (stale backlog)
+  const STALE_CUTOFF = '2026-01-01'
+  const expiredTasks = useMemo(() => {
+    const all = tasks.filter(t =>
+      t.status === 'expired' ||
+      (t.updated_at < STALE_CUTOFF && !['resolved','archived'].includes(t.status))
+    )
+    if (currentUser.role === 'admin' || isHK || isPaul) return all
+    return all.filter(t => nameMatch(t.responsible, currentUser.name))
+  }, [tasks, currentUser.role, currentUser.name, isHK, isPaul])
 
   const resolvedTasks = useMemo(() => {
     const all = visibleTasks.filter(t => t.status === 'resolved')
@@ -1159,6 +1170,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             { key:'pending-review', label: isPaul ? 'Pending Review' : 'Pending My Review', count: pendingMyReview.length },
           ]),
           { key:'resolved',       label:'Resolved',           count: resolvedTasks.length },
+          { key:'expired',        label:'Expired / Stale',    count: expiredTasks.length  },
           ...(canSeeArchived ? [
             { key:'archived', label:'Archived', count: archivedTasks.length },
           ] : []),
@@ -1320,6 +1332,72 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* EXPIRED / STALE TAB */}
+      {activeMainTab === 'expired' && (
+        <div style={{flex:1,overflow:'auto',padding:20}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14,flexWrap:'wrap'}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search expired tasks…"
+              style={{border:'1px solid #d1d5db',borderRadius:4,padding:'6px 10px',fontSize:13,width:260,outline:'none'}}/>
+            <span style={{fontSize:12,color:'#9ca3af'}}>
+              {expiredTasks.filter(t=>!search||JSON.stringify(t).toLowerCase().includes(search.toLowerCase())).length} tasks
+            </span>
+            {(currentUser.role==='admin'||isHK||isPaul) && (
+              <span style={{fontSize:11,color:'#b45309',background:'#fffbeb',border:'1px solid #fde68a',borderRadius:4,padding:'4px 10px'}}>
+                ⚠ Includes tasks with no updates since before Jan 2026 — review and archive or expire each one
+              </span>
+            )}
+          </div>
+          {expiredTasks.length === 0 ? (
+            <div style={{textAlign:'center',color:'#9ca3af',paddingTop:60,fontSize:13}}>No expired or stale tasks.</div>
+          ) : expiredTasks
+              .filter(t=>!search||JSON.stringify(t).toLowerCase().includes(search.toLowerCase()))
+              .sort((a,b)=>a.updated_at.localeCompare(b.updated_at))
+              .map(task => {
+            const isStale = task.status !== 'expired' && task.updated_at < STALE_CUTOFF
+            const canAct   = currentUser.role==='admin' || isHK || isPaul
+            const lastUpd  = task.updated_at ? task.updated_at.slice(0,10) : task.date
+            return (
+              <div key={task.id} style={{background:'white',border:'1px solid #e5e7eb',borderLeft:`4px solid ${isStale?'#d97706':'#7f1d1d'}`,borderRadius:6,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3,flexWrap:'wrap'}}>
+                    <span style={{fontSize:10,fontWeight:700,color:'#9ca3af'}}>{task.company}</span>
+                    {isStale
+                      ? <span style={{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#fffbeb',color:'#d97706',border:'1px solid #fde68a',textTransform:'uppercase'}}>Stale — no update since {lastUpd}</span>
+                      : <span style={{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#fef2f2',color:'#7f1d1d',textTransform:'uppercase'}}>Expired</span>
+                    }
+                    {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{task.priority}</span>}
+                  </div>
+                  <div style={{fontWeight:600,fontSize:13,color:'#374151',marginBottom:2}}>{task.particulars}</div>
+                  <div style={{fontSize:11,color:'#9ca3af'}}>{task.responsible} · {task.section} · Task date: {task.date}</div>
+                </div>
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  {canAct && isStale && (
+                    <button onClick={async()=>{
+                      await fetch(`/api/tasks/${task.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'expired'})})
+                      setTasks(ts=>ts.map(t=>t.id===task.id?{...t,status:'expired'}:t))
+                    }} style={{background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'5px 10px',fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                      Mark Expired
+                    </button>
+                  )}
+                  {canAct && (
+                    <button onClick={async()=>{
+                      await fetch(`/api/tasks/${task.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'archived'})})
+                      setTasks(ts=>ts.map(t=>t.id===task.id?{...t,status:'archived'}:t))
+                    }} style={{background:'#f3f4f6',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 10px',fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                      Archive
+                    </button>
+                  )}
+                  <button onClick={()=>setActiveTask(task)}
+                    style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 10px',fontSize:11,cursor:'pointer'}}>
+                    View
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
