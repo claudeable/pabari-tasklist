@@ -145,7 +145,7 @@ export default function UnifiedHub({ currentUser }: Props) {
       accent:  '#6366f1',
       desc:    'Central document library',
       url:     'https://pabari-shelf-production.up.railway.app',
-      visible: isAdmin || portals.includes('shelf'),
+      visible: isAdmin,
     },
   ].filter(p => p.visible)
   // ────────────────────────────────────────────────────────────────────────────
