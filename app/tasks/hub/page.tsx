@@ -22,6 +22,11 @@ export default async function TasksHubPage() {
     ? { ...tokenUser, companies: dbUser.companies, reports_to: dbUser.reports_to, hod_email: dbUser.hod_email }
     : tokenUser
 
+  // Portal access guard
+  const portals: string[] = dbUser?.portals ?? []
+  const hasTasksAccess = currentUser.role === 'admin' || portals.length === 0 || portals.includes('tasks')
+  if (!hasTasksAccess) redirect('/')
+
   const email     = currentUser.email.toLowerCase()
   const firstName = currentUser.name.toLowerCase().split(' ')[0]
   const isAdmin   = currentUser.role === 'admin'

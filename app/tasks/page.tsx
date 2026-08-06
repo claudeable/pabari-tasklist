@@ -21,6 +21,11 @@ export default async function TasksPage() {
     ? { ...tokenUser, companies: dbUser.companies, reports_to: dbUser.reports_to, hod_email: dbUser.hod_email }
     : tokenUser
 
+  // Portal access guard: users with explicit portal assignments must have 'tasks' to enter Task Management
+  const portals: string[] = dbUser?.portals ?? []
+  const hasTasksAccess = currentUser.role === 'admin' || portals.length === 0 || portals.includes('tasks')
+  if (!hasTasksAccess) redirect('/')
+
   const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([
     getTasks(),
     getPublicUsers(),
