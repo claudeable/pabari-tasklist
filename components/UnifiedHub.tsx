@@ -33,6 +33,13 @@ export default function UnifiedHub({ currentUser }: Props) {
   const [isMobile,    setIsMobile]    = useState(false)
   const [openTasks,   setOpenTasks]   = useState<number | null>(null)
   const [ssoLoading,  setSsoLoading]  = useState<string | null>(null)
+  const [showPwModal, setShowPwModal] = useState(false)
+  const [pwCurrent,   setPwCurrent]   = useState('')
+  const [pwNew,       setPwNew]       = useState('')
+  const [pwConfirm,   setPwConfirm]   = useState('')
+  const [pwLoading,   setPwLoading]   = useState(false)
+  const [pwError,     setPwError]     = useState('')
+  const [pwSuccess,   setPwSuccess]   = useState(false)
 
   const firstName    = (currentUser.name?.split(' ')[0] ?? 'there')
   const role         = currentUser.role
@@ -59,6 +66,22 @@ export default function UnifiedHub({ currentUser }: Props) {
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
     window.location.href = '/login'
+  }
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (pwNew !== pwConfirm) { setPwError('New passwords do not match.'); return }
+    setPwLoading(true); setPwError('')
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
+    })
+    const data = await res.json()
+    setPwLoading(false)
+    if (!res.ok) { setPwError(data.error ?? 'Failed to change password.'); return }
+    setPwSuccess(true)
+    setTimeout(() => { setShowPwModal(false); setPwCurrent(''); setPwNew(''); setPwConfirm(''); setPwSuccess(false) }, 2000)
   }
 
   async function launchPortal(portalKey: string) {
@@ -241,14 +264,84 @@ export default function UnifiedHub({ currentUser }: Props) {
 
         </div>
 
-        {/* Signed-in badge */}
-        <div style={{ marginTop:36, display:'flex', alignItems:'center', gap:8 }}>
+        {/* Signed-in badge + Change Password */}
+        <div style={{ marginTop:36, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
           <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em' }}>Signed in as</span>
           <span style={{ fontSize:10, fontWeight:700, color:'#475569', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:20, padding:'2px 10px', textTransform:'capitalize' }}>
             {currentUser.name} · {role}
           </span>
+          <button
+            onClick={() => setShowPwModal(true)}
+            style={{ fontSize:10, fontWeight:700, color:'#22c55e', background:'transparent', border:'1px solid #22c55e44', borderRadius:20, padding:'2px 10px', cursor:'pointer', letterSpacing:'0.04em' }}
+          >
+            Change password
+          </button>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showPwModal && (
+        <div
+          onClick={() => setShowPwModal(false)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background:'white', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}
+          >
+            <div style={{ fontSize:18, fontWeight:800, color:'#0f172a', marginBottom:4 }}>Change Password</div>
+            <div style={{ fontSize:12, color:'#64748b', marginBottom:22 }}>Must be 8+ chars with uppercase, number, and special character.</div>
+
+            {pwSuccess ? (
+              <div style={{ textAlign:'center', padding:'24px 0' }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>✅</div>
+                <div style={{ fontWeight:700, color:'#22c55e' }}>Password updated successfully!</div>
+              </div>
+            ) : (
+              <form onSubmit={changePassword}>
+                <div style={{ marginBottom:14 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#475569', display:'block', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.06em' }}>Current Password</label>
+                  <input
+                    type="password" required value={pwCurrent}
+                    onChange={e => setPwCurrent(e.target.value)}
+                    style={{ width:'100%', border:'1px solid #e2e8f0', borderRadius:8, padding:'9px 12px', fontSize:13, outline:'none', boxSizing:'border-box' }}
+                    placeholder="Your current password"
+                  />
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#475569', display:'block', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.06em' }}>New Password</label>
+                  <input
+                    type="password" required value={pwNew}
+                    onChange={e => setPwNew(e.target.value)}
+                    style={{ width:'100%', border:'1px solid #e2e8f0', borderRadius:8, padding:'9px 12px', fontSize:13, outline:'none', boxSizing:'border-box' }}
+                    placeholder="New password"
+                  />
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#475569', display:'block', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.06em' }}>Confirm New Password</label>
+                  <input
+                    type="password" required value={pwConfirm}
+                    onChange={e => setPwConfirm(e.target.value)}
+                    style={{ width:'100%', border:'1px solid #e2e8f0', borderRadius:8, padding:'9px 12px', fontSize:13, outline:'none', boxSizing:'border-box' }}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+                {pwError && <div style={{ fontSize:12, color:'#ef4444', marginBottom:14, background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'8px 12px' }}>{pwError}</div>}
+                <div style={{ display:'flex', gap:10 }}>
+                  <button
+                    type="button" onClick={() => setShowPwModal(false)}
+                    style={{ flex:1, padding:'10px', border:'1px solid #e2e8f0', borderRadius:8, background:'white', fontSize:13, fontWeight:600, color:'#64748b', cursor:'pointer' }}
+                  >Cancel</button>
+                  <button
+                    type="submit" disabled={pwLoading}
+                    style={{ flex:1, padding:'10px', border:'none', borderRadius:8, background:'#22c55e', fontSize:13, fontWeight:700, color:'white', cursor: pwLoading ? 'wait' : 'pointer', opacity: pwLoading ? 0.7 : 1 }}
+                  >{pwLoading ? 'Saving…' : 'Update Password'}</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
