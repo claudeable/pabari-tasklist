@@ -5,15 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 
 const LINKS = [
   { href: '/dashboard', label: 'Dashboard',       icon: '📊' },
-  { href: '/tasks',     label: 'Finance Tasks',   icon: '✅' },
   { href: '/invoices',  label: 'Invoices & LPOs', icon: '📄' },
   { href: '/payments',  label: 'Payments',        icon: '💸' },
   { href: '/budgets',   label: 'Budgets',         icon: '📈' },
-  { href: '/assets',    label: 'Assets',          icon: '🏗️' },
-  { href: '/vehicles',  label: 'Fleet & Vehicles',icon: '🚗' },
 ]
-
-const MAIN_APP_URL = 'https://pabari-tasklist-production.up.railway.app'
 
 export default function Nav({ userName, userEmail }: { userName: string; userEmail: string }) {
   const path = usePathname()
@@ -46,11 +41,6 @@ export default function Nav({ userName, userEmail }: { userName: string; userEma
           )
         })}
 
-        <div className="nav-section-label" style={{ marginTop: 20 }}>Switch Portal</div>
-        <a href={MAIN_APP_URL} target="_blank" rel="noopener noreferrer" className="nav-ext-link">
-          <span className="nav-link-icon">🗂️</span>
-          Task Board ↗
-        </a>
       </div>
 
       {/* Footer */}
