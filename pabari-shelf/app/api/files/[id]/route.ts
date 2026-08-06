@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 
   if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return new NextResponse(file.file_data, {
+  return new NextResponse(new Uint8Array(file.file_data), {
     headers: {
       "Content-Type": file.mime_type,
       "Content-Disposition": `inline; filename="${encodeURIComponent(file.original_name)}"`,
