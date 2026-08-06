@@ -15,14 +15,15 @@ type Crumb = { id: string; name: string; parent_id: string | null };
 export default async function FilesPage({
   searchParams,
 }: {
-  searchParams: { folder?: string; search?: string; view?: string };
+  searchParams: Promise<{ folder?: string; search?: string; view?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/sso");
 
-  const folderId = searchParams.folder ?? null;
-  const search   = searchParams.search?.trim() ?? "";
-  const view     = searchParams.view === "list" ? "list" : "grid";
+  const sp = await searchParams;
+  const folderId = sp.folder ?? null;
+  const search   = sp.search?.trim() ?? "";
+  const view     = sp.view === "list" ? "list" : "grid";
 
   const [folders, files, breadcrumb, allFolders] = await Promise.all([
     // Sub-folders
