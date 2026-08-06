@@ -29,6 +29,7 @@ const PORTAL_OPTIONS = [
   { value: 'pil',      label: 'PIL Transmission Lines',   desc: 'Transmission lines portal'  },
   { value: 'smartops', label: 'Smart Ops',        desc: 'Joint operations portal'    },
   { value: 'property', label: 'Property Mgmt',    desc: 'Property management portal' },
+  { value: 'shelf',    label: 'Pabari Shelf',     desc: 'Central document library'   },
 ]
 
 const BLANK = { name:'', email:'', role:'staff' as UserRole, department:'', reports_to:'', hod_email:'', companies: ['ALL'] as string[], portals: [] as string[] }

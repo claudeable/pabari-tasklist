@@ -115,6 +115,15 @@ export default function UnifiedHub({ currentUser }: Props) {
       url:     'https://pabari-property-production.up.railway.app',
       visible: isAdmin || portals.includes('property'),
     },
+    {
+      key:     'shelf',
+      label:   'Pabari Shelf',
+      icon:    '📁',
+      accent:  '#6366f1',
+      desc:    'Central document library',
+      url:     'https://pabari-shelf-production.up.railway.app',
+      visible: isAdmin || portals.includes('shelf'),
+    },
   ].filter(p => p.visible)
   // ────────────────────────────────────────────────────────────────────────────
 
