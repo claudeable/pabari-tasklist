@@ -43,7 +43,7 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
 
   const { data: unreadData } = useUnreadNotificationsCount();
   const { data: notifications } = useNotifications();
-  const unreadNotifications = unreadData?.count ?? 0;
+  const unreadNotifications = unreadData?.unread_count ?? 0;
   const recentNotifications = useMemo(() => (notifications ?? []).slice(0, 5), [notifications]);
 
   return (
