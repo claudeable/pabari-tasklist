@@ -56,7 +56,10 @@ export default function ShelfBrowser({
   const [folderName, setFolderName]   = useState("");
   const [folderColor, setFolderColor] = useState("#6366f1");
   const [deleting, setDeleting]       = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [folderUploading, setFolderUploading] = useState(false);
+  const [folderProgress, setFolderProgress]   = useState({ phase: "", current: 0, total: 0 });
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
 
   function nav(p: Record<string, string | null>) {
     const sp = new URLSearchParams(params.toString());
@@ -94,6 +97,55 @@ export default function ShelfBrowser({
       body: JSON.stringify({ name: folderName, parentId: folderId, color: folderColor }),
     });
     setShowFolder(false); setFolderName(""); router.refresh();
+  }
+
+  async function uploadFolderFiles(rawFiles: File[]) {
+    if (!rawFiles.length) return;
+    setFolderUploading(true);
+
+    // Build unique sorted dir paths (shortest first = top-down)
+    const dirs = new Set<string>();
+    for (const f of rawFiles) {
+      const parts = (f as File & { webkitRelativePath: string }).webkitRelativePath.split("/");
+      for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
+    }
+    const sortedDirs = Array.from(dirs).sort((a, b) => a.split("/").length - b.split("/").length);
+
+    // Create folders, track path → id
+    const folderMap = new Map<string, string>();
+    setFolderProgress({ phase: "Creating folders", current: 0, total: sortedDirs.length });
+    for (let i = 0; i < sortedDirs.length; i++) {
+      const dir = sortedDirs[i];
+      const parts = dir.split("/");
+      const name = parts[parts.length - 1];
+      const parentPath = parts.slice(0, -1).join("/");
+      const parentId = parentPath ? (folderMap.get(parentPath) ?? null) : (folderId ?? null);
+      const res = await fetch("/api/folders", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, parentId, color: "#6366f1" }),
+      });
+      const data = await res.json();
+      if (data.id) folderMap.set(dir, data.id);
+      setFolderProgress({ phase: "Creating folders", current: i + 1, total: sortedDirs.length });
+    }
+
+    // Upload files
+    setFolderProgress({ phase: "Uploading files", current: 0, total: rawFiles.length });
+    for (let i = 0; i < rawFiles.length; i++) {
+      const f = rawFiles[i] as File & { webkitRelativePath: string };
+      const parts = f.webkitRelativePath.split("/");
+      const dirPath = parts.slice(0, -1).join("/");
+      const targetFolderId = folderMap.get(dirPath) ?? folderId ?? null;
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("name", f.name);
+      if (targetFolderId) fd.append("folderId", targetFolderId);
+      await fetch("/api/files", { method: "POST", body: fd });
+      setFolderProgress({ phase: "Uploading files", current: i + 1, total: rawFiles.length });
+    }
+
+    setFolderUploading(false);
+    router.refresh();
   }
 
   async function deleteFile(id: string) {
@@ -171,16 +223,29 @@ export default function ShelfBrowser({
               padding: "8px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
             + New folder
           </button>
+          <button onClick={() => folderRef.current?.click()}
+            style={{ background: "white", border: "1px solid #6366f1", color: "#6366f1", borderRadius: 8,
+              padding: "8px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+            Upload Folder
+          </button>
           <button onClick={() => { setShowUpload(true); fileRef.current?.click(); }}
             style={{ background: "#6366f1", color: "white", border: "none", borderRadius: 8,
               padding: "8px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
-            Upload
+            Upload Files
           </button>
           <input ref={fileRef} type="file" multiple style={{ display: "none" }}
             onChange={e => {
               const fs = Array.from(e.target.files ?? []);
               if (!fs.length) return;
               setFiles(fs); setUpName(fs[0].name.replace(/\.[^.]+$/, "")); setShowUpload(true);
+            }} />
+          <input ref={folderRef} type="file" style={{ display: "none" }}
+            // @ts-expect-error webkitdirectory is non-standard but widely supported
+            webkitdirectory=""
+            onChange={e => {
+              const fs = Array.from(e.target.files ?? []);
+              if (fs.length) uploadFolderFiles(fs);
+              e.target.value = "";
             }} />
         </div>
 
@@ -377,6 +442,28 @@ export default function ShelfBrowser({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Folder upload progress overlay */}
+      {folderUploading && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300,
+          display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "white", borderRadius: 16, padding: "40px 36px", width: "100%",
+            maxWidth: 400, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>📂</div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>Uploading folder…</h2>
+            <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>{folderProgress.phase}</p>
+            <div style={{ background: "#f1f5f9", borderRadius: 99, height: 8, overflow: "hidden", marginBottom: 12 }}>
+              <div style={{
+                height: "100%", borderRadius: 99, background: "#6366f1", transition: "width 0.3s",
+                width: folderProgress.total ? `${(folderProgress.current / folderProgress.total) * 100}%` : "0%",
+              }} />
+            </div>
+            <p style={{ fontSize: 12, color: "#94a3b8" }}>
+              {folderProgress.current} / {folderProgress.total}
+            </p>
           </div>
         </div>
       )}

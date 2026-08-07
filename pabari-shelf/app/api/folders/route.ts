@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { query, execute } from "@/lib/db";
+import { query, queryOne, execute } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
   const { name, parentId, color } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
-  await execute(
-    `INSERT INTO shelf_folders (name, parent_id, color, created_by) VALUES ($1, $2, $3, $4)`,
+  const row = await queryOne<{ id: string }>(
+    `INSERT INTO shelf_folders (name, parent_id, color, created_by) VALUES ($1, $2, $3, $4) RETURNING id`,
     [name.trim(), parentId || null, color || "#6366f1", session.email]
   );
 
-  return NextResponse.json({ ok: true }, { status: 201 });
+  return NextResponse.json({ ok: true, id: row?.id }, { status: 201 });
 }
