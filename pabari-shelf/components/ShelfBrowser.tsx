@@ -56,8 +56,9 @@ export default function ShelfBrowser({
   const [folderName, setFolderName]   = useState("");
   const [folderColor, setFolderColor] = useState("#6366f1");
   const [deleting, setDeleting]       = useState<string | null>(null);
-  const [folderUploading, setFolderUploading] = useState(false);
-  const [folderProgress, setFolderProgress]   = useState({ phase: "", current: 0, total: 0 });
+  const [folderUploading, setFolderUploading]   = useState(false);
+  const [folderProgress, setFolderProgress]     = useState({ phase: "", current: 0, total: 0 });
+  const [settingUpCompanies, setSettingUpCompanies] = useState(false);
   const fileRef   = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
 
@@ -155,6 +156,20 @@ export default function ShelfBrowser({
     setDeleting(null); router.refresh();
   }
 
+  async function setupCompanyFolders() {
+    if (!confirm("This will create a folder for each Pabari company with standard subfolders. Already-existing companies will be skipped. Continue?")) return;
+    setSettingUpCompanies(true);
+    const res = await fetch("/api/setup/company-folders", { method: "POST" });
+    const data = await res.json();
+    setSettingUpCompanies(false);
+    if (res.ok) {
+      alert(`Done! ${data.created} companies created, ${data.skipped} already existed.`);
+      router.refresh();
+    } else {
+      alert("Setup failed: " + (data.error ?? "unknown error"));
+    }
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = HUB;
@@ -218,6 +233,14 @@ export default function ShelfBrowser({
               style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", cursor: "pointer",
                 background: view === "list" ? "#0f172a" : "white", color: view === "list" ? "white" : "#64748b", fontSize: 14 }}>≡</button>
           </div>
+          {user.role === "admin" && !folderId && (
+            <button onClick={setupCompanyFolders} disabled={settingUpCompanies}
+              style={{ background: "white", border: "1px solid #b5833a", color: "#b5833a", borderRadius: 8,
+                padding: "8px 16px", fontSize: 13, cursor: settingUpCompanies ? "wait" : "pointer", fontWeight: 600,
+                opacity: settingUpCompanies ? 0.7 : 1 }}>
+              {settingUpCompanies ? "Setting up…" : "Setup company folders"}
+            </button>
+          )}
           <button onClick={() => setShowFolder(true)}
             style={{ background: "white", border: "1px solid #e2e8f0", color: "#374151", borderRadius: 8,
               padding: "8px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
