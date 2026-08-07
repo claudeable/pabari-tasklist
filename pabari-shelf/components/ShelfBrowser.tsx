@@ -68,12 +68,21 @@ export default function ShelfBrowser({
     router.push(`/files?${sp.toString()}`);
   }
 
+  function openUploadModal(fs: File[]) {
+    setFiles(fs);
+    setUpName(fs[0].name.replace(/\.[^.]+$/, ""));
+    setUpFolder(folderId ?? "");   // always reset to current folder
+    setUpError("");
+    setShowUpload(true);
+  }
+
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);
     const fs = Array.from(e.dataTransfer.files);
     if (!fs.length) return;
-    setFiles(fs); setUpName(fs[0].name.replace(/\.[^.]+$/, "")); setShowUpload(true);
-  }, []);
+    openUploadModal(fs);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderId]);
 
   async function upload(e: React.FormEvent) {
     e.preventDefault();
@@ -251,7 +260,7 @@ export default function ShelfBrowser({
               padding: "8px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
             Upload Folder
           </button>
-          <button onClick={() => { setShowUpload(true); fileRef.current?.click(); }}
+          <button onClick={() => fileRef.current?.click()}
             style={{ background: "#6366f1", color: "white", border: "none", borderRadius: 8,
               padding: "8px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
             Upload Files
@@ -260,7 +269,8 @@ export default function ShelfBrowser({
             onChange={e => {
               const fs = Array.from(e.target.files ?? []);
               if (!fs.length) return;
-              setFiles(fs); setUpName(fs[0].name.replace(/\.[^.]+$/, "")); setShowUpload(true);
+              openUploadModal(fs);
+              e.target.value = "";
             }} />
           <input ref={folderRef} type="file" style={{ display: "none" }}
             // @ts-expect-error webkitdirectory is non-standard but widely supported
@@ -449,8 +459,13 @@ export default function ShelfBrowser({
                 <select value={upFolder} onChange={e => setUpFolder(e.target.value)}
                   style={{ width: "100%", border: "1px solid #e2e8f0", borderRadius: 8,
                     padding: "9px 14px", fontSize: 13, outline: "none", background: "white" }}>
-                  <option value="">— Root —</option>
-                  {allFolders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  {folderId
+                    ? <option value={folderId}>📂 {breadcrumb[breadcrumb.length - 1]?.name ?? "Current folder"} (current)</option>
+                    : <option value="">📁 Root — Pabari Shelf</option>
+                  }
+                  {allFolders.filter(f => f.id !== folderId).map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
                 </select>
               </div>
               {upError && <p style={{ color: "#dc2626", fontSize: 12, marginBottom: 12 }}>{upError}</p>}

@@ -66,8 +66,13 @@ export default async function FilesPage({
         )
       : Promise.resolve([] as Crumb[]),
 
-    // All folders (for upload destination picker)
-    query<{ id: string; name: string }>(`SELECT id, name FROM shelf_folders ORDER BY name`),
+    // Folders at current level only (for upload destination picker — keeps list short)
+    query<{ id: string; name: string }>(
+      `SELECT id, name FROM shelf_folders
+       WHERE parent_id IS NOT DISTINCT FROM $1
+       ORDER BY name`,
+      [folderId]
+    ),
   ]);
 
   return (
