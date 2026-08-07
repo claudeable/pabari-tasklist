@@ -6,6 +6,7 @@ import { Waves, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUnreadMessageCount } from "@/lib/hooks/use-notifications";
 
 interface SidebarNavProps {
   collapsed?: boolean;
@@ -15,6 +16,8 @@ interface SidebarNavProps {
 
 export function SidebarNav({ collapsed, onToggleCollapse, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
+  const { data: unreadMessages } = useUnreadMessageCount();
+  const unreadCount = unreadMessages?.unread_count ?? 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -42,6 +45,9 @@ export function SidebarNav({ collapsed, onToggleCollapse, onNavigate }: SidebarN
           const isActive =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
+          const isCommunication = item.href === "/communication";
+          const showBadge = isCommunication && unreadCount > 0;
+
           return (
             <Link
               key={item.href}
@@ -56,8 +62,20 @@ export function SidebarNav({ collapsed, onToggleCollapse, onNavigate }: SidebarN
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
-              <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-primary")} />
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              <div className="relative shrink-0">
+                <Icon className={cn("h-4 w-4", isActive && "text-primary")} />
+                {showBadge && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold leading-none text-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </div>
+              {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+              {!collapsed && showBadge && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}

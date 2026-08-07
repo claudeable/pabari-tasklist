@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessagesSquare, Plus, Send, Hash, Users } from "lucide-react";
+import { MessagesSquare, Plus, Send, Hash, Users, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-custom/page-header";
 import { EmptyState } from "@/components/ui-custom/empty-state";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -36,12 +37,20 @@ import {
   useChannels,
   useCreateChannel,
   useCreateDirectChannel,
+  useCreateGroupChannel,
   useDirectChannels,
+  useGroupChannels,
   useSendChannelMessage,
 } from "@/lib/hooks/use-communication";
 import { useCurrentUser } from "@/lib/hooks/use-auth";
 import { useUsers } from "@/lib/hooks/use-users";
-import type { ChannelMessage } from "@/lib/types";
+import type { Channel, ChannelMessage } from "@/lib/types";
+
+function isAdmin(user: { role?: string | { name?: string } } | undefined): boolean {
+  if (!user?.role) return false;
+  if (typeof user.role === "string") return user.role.toLowerCase().includes("admin");
+  return (user.role.name ?? "").toLowerCase().includes("admin");
+}
 
 export default function CommunicationPage() {
   return (
@@ -57,6 +66,10 @@ export default function CommunicationPage() {
             <Hash className="h-3.5 w-3.5" />
             Project Channels
           </TabsTrigger>
+          <TabsTrigger value="groups" className="gap-1.5">
+            <UsersRound className="h-3.5 w-3.5" />
+            Groups
+          </TabsTrigger>
           <TabsTrigger value="direct" className="gap-1.5">
             <Users className="h-3.5 w-3.5" />
             Direct Messages
@@ -65,6 +78,9 @@ export default function CommunicationPage() {
 
         <TabsContent value="channels">
           <ProjectChannels />
+        </TabsContent>
+        <TabsContent value="groups">
+          <GroupMessages />
         </TabsContent>
         <TabsContent value="direct">
           <DirectMessages />
@@ -81,7 +97,6 @@ function ProjectChannels() {
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const { data: user } = useCurrentUser();
 
-  // Derive the effective project: the user's selection if valid, otherwise the first project.
   const projectId =
     selectedProjectId && (projects ?? []).some((p) => p.id === selectedProjectId)
       ? selectedProjectId
@@ -94,7 +109,6 @@ function ProjectChannels() {
     refetch: refetchChannels,
   } = useChannels(projectId || undefined);
 
-  // Derive the effective channel the same way, resetting when the project changes.
   const channelId =
     selectedChannelId && (channels ?? []).some((c) => c.id === selectedChannelId)
       ? selectedChannelId
@@ -172,6 +186,170 @@ function ProjectChannels() {
         </div>
       )}
     </div>
+  );
+}
+
+function GroupMessages() {
+  const { data: user } = useCurrentUser();
+  const { data: groups, isLoading, isError, refetch } = useGroupChannels();
+  const [activeGroupId, setActiveGroupId] = useState<string>("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const userIsAdmin = isAdmin(user);
+
+  const activeGroup = (groups ?? []).find((g) => g.id === activeGroupId);
+
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_1fr]">
+      <div className="rounded-xl border border-border p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Groups</p>
+          {userIsAdmin && (
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button size="icon-sm" variant="ghost" aria-label="New group">
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </DialogTrigger>
+              <CreateGroupDialog onOpenChange={setCreateOpen} onCreated={setActiveGroupId} />
+            </Dialog>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full rounded-md" />
+            ))}
+          </div>
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
+        ) : (groups ?? []).length === 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">No groups yet</p>
+        ) : (
+          <div className="space-y-1">
+            {(groups ?? []).map((group) => (
+              <button
+                key={group.id}
+                onClick={() => setActiveGroupId(group.id)}
+                className={cn(
+                  "flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted",
+                  group.id === activeGroupId
+                    ? "bg-primary/10 font-medium text-primary"
+                    : "text-foreground",
+                )}
+              >
+                <UsersRound className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{group.name}</span>
+                {group.members && (
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {group.members.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {activeGroup && activeGroup.members && activeGroup.members.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Members: {activeGroup.members.map((m) => m.user_name || "Unknown").join(", ")}
+          </p>
+        )}
+        <MessageThread
+          channelId={activeGroupId}
+          currentUserId={user?.id}
+          emptyTitle="Select a group to start messaging"
+        />
+      </div>
+    </div>
+  );
+}
+
+function CreateGroupDialog({
+  onOpenChange,
+  onCreated,
+}: {
+  onOpenChange: (open: boolean) => void;
+  onCreated: (id: string) => void;
+}) {
+  const { data: users } = useUsers();
+  const { data: currentUser } = useCurrentUser();
+  const createGroup = useCreateGroupChannel();
+  const [name, setName] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  const otherUsers = useMemo(
+    () => (users ?? []).filter((u) => u.id !== currentUser?.id),
+    [users, currentUser?.id],
+  );
+
+  function toggleUser(id: string) {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function handleSubmit() {
+    if (!name.trim()) {
+      toast.error("Group name is required");
+      return;
+    }
+    createGroup.mutate(
+      { name: name.trim(), member_user_ids: selectedUserIds },
+      {
+        onSuccess: (channel) => {
+          toast.success("Group created");
+          setName("");
+          setSelectedUserIds([]);
+          onOpenChange(false);
+          if (channel?.id) onCreated(channel.id);
+        },
+        onError: () => toast.error("Failed to create group"),
+      },
+    );
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>New group</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="group-name">Group name</Label>
+          <Input
+            id="group-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Site Team"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Members</Label>
+          <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+            {otherUsers.map((u) => (
+              <label
+                key={u.id}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted"
+              >
+                <Checkbox
+                  checked={selectedUserIds.includes(u.id)}
+                  onCheckedChange={() => toggleUser(u.id)}
+                />
+                <span className="text-sm">{u.full_name || u.name || u.email}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button onClick={handleSubmit} disabled={createGroup.isPending}>
+          Create group
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
 }
 

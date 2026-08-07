@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # SSO — set PABARI_URL to https://pabari-workspace.up.railway.app in Railway env vars
     PABARI_URL: str = ""
 
+    # Email — Resend API (set RESEND_API_KEY and EMAIL_FROM in Railway env vars)
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "Smart Ops <notifications@pabarigroup.com>"
+    RESEND_ENABLED: bool = True
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]

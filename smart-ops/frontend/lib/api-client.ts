@@ -281,6 +281,16 @@ export const api = {
       method: "POST",
       body: { other_user_id: otherUserId },
     }),
+  groupChannels: () => request<Channel[]>("/channels/groups"),
+  createGroupChannel: (payload: { name: string; member_user_ids: string[] }) =>
+    request<Channel>("/channels/groups", { method: "POST", body: payload }),
+  addGroupMember: (channelId: string, userId: string) =>
+    request<{ id: string; user_id: string; user_name?: string }>(
+      `/channels/${channelId}/members?user_id=${userId}`,
+      { method: "POST" },
+    ),
+  removeGroupMember: (channelId: string, userId: string) =>
+    request<void>(`/channels/${channelId}/members/${userId}`, { method: "DELETE" }),
 
   // Presence
   pingPresence: () => request<void>("/presence/ping", { method: "POST" }),
@@ -322,6 +332,10 @@ export const api = {
   // Notifications
   notifications: () => request<AppNotification[]>("/notifications"),
   unreadNotificationsCount: () => request<UnreadCount>("/notifications/unread-count"),
+  unreadMessagesCount: () =>
+    request<UnreadCount>(
+      "/notifications/unread-count?types=direct_message,message,group_message",
+    ),
   markNotificationRead: (id: string) =>
     request<AppNotification>(`/notifications/${id}/read`, { method: "PUT" }),
   markAllNotificationsRead: () =>

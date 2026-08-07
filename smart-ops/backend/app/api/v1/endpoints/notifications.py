@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -27,15 +28,17 @@ def list_notifications(
 
 @router.get("/unread-count")
 def get_unread_count(
+    types: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    count = (
-        db.query(func.count(Notification.id))
-        .filter(Notification.user_id == current_user.id, Notification.is_read.is_(False))
-        .scalar()
-        or 0
+    q = db.query(func.count(Notification.id)).filter(
+        Notification.user_id == current_user.id, Notification.is_read.is_(False)
     )
+    if types:
+        type_list = [t.strip() for t in types.split(",") if t.strip()]
+        q = q.filter(Notification.type.in_(type_list))
+    count = q.scalar() or 0
     return {"unread_count": count}
 
 

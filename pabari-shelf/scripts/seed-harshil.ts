@@ -2884,9 +2884,9 @@ async function main() {
       await getOrCreate(fileName, companyId, '#94a3b8')
       fileCount++
     }
-    console.log(`  \: \ folders`)
+    console.log(`  ${company}: ${DATA[company].length} folders`)
   }
-  console.log(`Done! \ file folders.`)
+  console.log(`Done! ${fileCount} file folders.`)
   await pool.end()
 }
 

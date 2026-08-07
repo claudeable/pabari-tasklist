@@ -21,6 +21,15 @@ export function useUnreadNotificationsCount() {
   });
 }
 
+export function useUnreadMessageCount() {
+  return useQuery({
+    queryKey: ["notifications", "unread-messages"],
+    queryFn: api.unreadMessagesCount,
+    enabled: isSignedIn(),
+    refetchInterval: 15000,
+  });
+}
+
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({

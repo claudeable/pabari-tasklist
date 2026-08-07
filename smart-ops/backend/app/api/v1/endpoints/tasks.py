@@ -1,11 +1,12 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_activity, notify_user
 from app.core.deps import get_current_user, get_db, require_permission
+from app.core.email import send_notification_email
 from app.models.activity_log import ActivityLog
 from app.models.task import Task
 from app.models.user import User
@@ -181,6 +182,7 @@ def post_task_hk_comment(
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 def create_task(
     payload: TaskCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("tasks.edit")),
 ) -> TaskRead:
@@ -203,6 +205,14 @@ def create_task(
             type="task_assigned",
             title=f"You were assigned: {task.title}",
         )
+        owner = db.get(User, task.owner_user_id)
+        if owner:
+            background_tasks.add_task(
+                send_notification_email,
+                owner.email,
+                f"Task assigned: {task.title}",
+                f"{current_user.full_name} assigned you a task: <strong>{task.title}</strong>",
+            )
     db.commit()
     db.refresh(task)
     return _to_task_read(task)
@@ -212,6 +222,7 @@ def create_task(
 def update_task(
     task_id: uuid.UUID,
     payload: TaskUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("tasks.edit")),
 ) -> TaskRead:
@@ -244,6 +255,14 @@ def update_task(
             type="task_assigned",
             title=f"You were assigned: {task.title}",
         )
+        owner = db.get(User, task.owner_user_id)
+        if owner:
+            background_tasks.add_task(
+                send_notification_email,
+                owner.email,
+                f"Task assigned: {task.title}",
+                f"{current_user.full_name} assigned you a task: <strong>{task.title}</strong>",
+            )
 
     db.commit()
     db.refresh(task)

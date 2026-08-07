@@ -294,14 +294,22 @@ export interface Meeting {
   [key: string]: unknown;
 }
 
+export interface ChannelMember {
+  id: string;
+  user_id: string;
+  user_name?: string;
+}
+
 export interface Channel {
   id: string;
-  project_id: string;
+  project_id?: string;
   name: string;
   is_direct?: boolean;
+  is_group?: boolean;
   user_a_id?: string;
   user_b_id?: string;
   other_user_name?: string;
+  members?: ChannelMember[];
   [key: string]: unknown;
 }
 
@@ -375,7 +383,7 @@ export interface AppNotification {
 }
 
 export interface UnreadCount {
-  count: number;
+  unread_count: number;
   [key: string]: unknown;
 }
 

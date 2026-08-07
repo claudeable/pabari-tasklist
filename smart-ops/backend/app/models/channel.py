@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,7 @@ class Channel(UUIDMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_direct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_group: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     user_a_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
@@ -31,6 +32,25 @@ class Channel(UUIDMixin, Base):
     messages: Mapped[list["Message"]] = relationship(
         back_populates="channel", cascade="all, delete-orphan"
     )
+    members: Mapped[list["ChannelMember"]] = relationship(
+        back_populates="channel", cascade="all, delete-orphan"
+    )
+
+
+class ChannelMember(UUIDMixin, Base):
+    __tablename__ = "channel_members"
+    __table_args__ = (UniqueConstraint("channel_id", "user_id", name="uq_channel_member"),)
+
+    channel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    channel: Mapped["Channel"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship()
 
 
 class Message(UUIDMixin, Base):
@@ -47,3 +67,7 @@ class Message(UUIDMixin, Base):
 
     channel: Mapped["Channel"] = relationship(back_populates="messages")
     user: Mapped["User"] = relationship()
+
+    @property
+    def user_name(self) -> Optional[str]:
+        return self.user.full_name if self.user else None
