@@ -52,6 +52,8 @@ async function ensureParentId() {
   `).catch(() => {})
   // Clean up expired tokens on every boot
   await execute(`DELETE FROM sso_tokens WHERE expires_at < NOW() - INTERVAL '1 hour'`).catch(() => {})
+  // ── Co-assignees: additional people assigned alongside the primary responsible ──
+  await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS co_assignees TEXT[] NOT NULL DEFAULT '{}'").catch(() => {})
   // ─────────────────────────────────────────────────────────────────────────
 
   parentColReady = true
@@ -84,6 +86,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     parent_id:       row.parent_id ? String(row.parent_id) : undefined,
     legal_review:    Boolean(row.legal_review),
     legal_comment:   String(row.legal_comment || ''),
+    co_assignees:    Array.isArray(row.co_assignees) ? (row.co_assignees as string[]) : [],
     created_by:      String(row.created_by || ''),
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
@@ -161,7 +164,8 @@ export async function updateTask(id: string, updates: Partial<Task>, changedBy =
   const allowed = ['status', 'priority', 'hk_comment', 'hod_comment', 'updates', 'responsible',
                    'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk',
                    'approval_type', 'approval_status', 'approved_by', 'approved_at',
-                   'due_date', 'recurrence', 'legal_review', 'legal_comment', 'project_id']
+                   'due_date', 'recurrence', 'legal_review', 'legal_comment', 'project_id',
+                   'co_assignees']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
 

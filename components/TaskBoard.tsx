@@ -38,6 +38,10 @@ const BORDER: Record<TaskStatus, string> = {
   'archived':              '#6b7280',
 }
 
+function effectiveResponsible(task: { responsible: string; co_assignees?: string[] }): string {
+  const co = (task.co_assignees || []).filter(n => n && n !== task.responsible)
+  return co.length > 0 ? `${task.responsible} & ${co.join(' & ')}` : task.responsible
+}
 function nameMatch(responsible: string, name: string): boolean {
   return responsible
     .split(/\s*[&/]\s*/)
@@ -394,9 +398,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     // Finance-whitelisted staff also see all Finance category tasks across all companies.
     if (effectiveRole === 'staff') {
       if (canSeeFinance) {
-        return tasks.filter(t => nameMatch(t.responsible, effectiveName) || t.category === 'Finance')
+        return tasks.filter(t => nameMatch(effectiveResponsible(t), effectiveName) || t.category === 'Finance')
       }
-      return tasks.filter(t => nameMatch(t.responsible, effectiveName))
+      return tasks.filter(t => nameMatch(effectiveResponsible(t), effectiveName))
     }
 
     // For all other roles, apply company access gate first
@@ -406,7 +410,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       ? tasks.filter(t => t.company !== 'KISCOL')
       : tasks.filter(t =>
           currentUser.companies.includes(t.company) ||
-          nameMatch(t.responsible, currentUser.name)
+          nameMatch(effectiveResponsible(t), currentUser.name)
         )
 
     if (effectiveRole === 'ceo') {
@@ -416,7 +420,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       // KISCOL-only managers: company filter + personally assigned already covered by accessible
       if (!currentUser.companies.includes('ALL')) {
         const myNames = [currentUser.name, ...subordinates]
-        return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+        return accessible.filter(t => myNames.some(n => nameMatch(effectiveResponsible(t), n)))
       }
       // Paul (Nairobi ops head) and Operations HOD have full cross-company visibility
       if (currentUser.email === 'pmureithi@usm.co.ke') return accessible
@@ -431,20 +435,20 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           : [currentUser.name, ...allUsers.filter(u => u.department.toLowerCase().includes('legal')).map(u => u.name)]
         return accessible.filter(t =>
           t.legal_review === true ||
-          myNames.some(n => nameMatch(t.responsible, n))
+          myNames.some(n => nameMatch(effectiveResponsible(t), n))
         )
       }
       // Use manually configured team if set; fall back to department-based
       if (teamMembers.length > 0) {
         const myNames = [currentUser.name, ...teamMembers]
-        return accessible.filter(t => myNames.some(n => nameMatch(t.responsible, n)))
+        return accessible.filter(t => myNames.some(n => nameMatch(effectiveResponsible(t), n)))
       }
       const deptNames = allUsers
         .filter(u => u.department === currentUser.department)
         .map(u => u.name)
       return accessible.filter(t =>
-        deptNames.some(n => nameMatch(t.responsible, n)) ||
-        nameMatch(t.responsible, currentUser.name)
+        deptNames.some(n => nameMatch(effectiveResponsible(t), n)) ||
+        nameMatch(effectiveResponsible(t), currentUser.name)
       )
     }
     return accessible // director / admin see everything in their accessible companies
@@ -457,16 +461,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     const base = canSeeFinance
       ? _visibleTasks
       : _visibleTasks.filter(t =>
-          t.category !== 'Finance' || nameMatch(t.responsible, myName) || nameMatch(t.responsible, myFirst)
+          t.category !== 'Finance' || nameMatch(effectiveResponsible(t), myName) || nameMatch(effectiveResponsible(t), myFirst)
         )
-    // All non-admin/director users also see every task they personally created
+    // Non-admin/director users also see every task they personally created
     if (currentUser.role !== 'admin' && currentUser.role !== 'director') {
       const visibleIds = new Set(base.map(t => t.id))
-      const assigned = tasks.filter(t =>
-        !visibleIds.has(t.id) &&
-        (t.created_by || '').toLowerCase() === myName
-      )
-      if (assigned.length > 0) return [...base, ...assigned]
+      const created = tasks.filter(t => !visibleIds.has(t.id) && (t.created_by || '').toLowerCase() === myName)
+      if (created.length > 0) return [...base, ...created]
     }
     return base
   }, [_visibleTasks, canSeeFinance, currentUser.name, currentUser.role, tasks])
@@ -521,7 +522,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
       if (filterCategory  && t.category    !== filterCategory)                             return false
       if (filterPriority  && t.priority     !== filterPriority)                            return false
-      if (filterPerson    && !nameMatch(t.responsible, filterPerson))                      return false
+      if (filterPerson    && !nameMatch(effectiveResponsible(t), filterPerson))                      return false
       if (filterDateFrom  && taskDateToISO(t.date) < filterDateFrom)                       return false
       if (filterDateTo    && taskDateToISO(t.date) > filterDateTo)                         return false
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
@@ -558,7 +559,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       return visibleTasks.filter(t =>
         t.status === 'awaiting-hk-approval' ||
         t.status === 'in-review' ||
-        (t.status === 'awaiting-hod-approval' && hodNames.some(n => nameMatch(t.responsible, n)))
+        (t.status === 'awaiting-hod-approval' && hodNames.some(n => nameMatch(effectiveResponsible(t), n)))
       )
     }
     if (currentUser.role === 'ceo') {
@@ -568,7 +569,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       const reviewers = teamMembers.length > 0 ? teamMembers : subordinates
       return visibleTasks.filter(t =>
         t.status === 'awaiting-hod-approval' &&
-        reviewers.some(s => nameMatch(t.responsible, s))
+        reviewers.some(s => nameMatch(effectiveResponsible(t), s))
       )
     }
     return []
@@ -594,17 +595,17 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       (t.updated_at < STALE_CUTOFF && !['resolved','archived'].includes(t.status))
     )
     if (currentUser.role === 'admin' || isHK || isPaul) return all
-    return all.filter(t => nameMatch(t.responsible, currentUser.name))
+    return all.filter(t => nameMatch(effectiveResponsible(t), currentUser.name))
   }, [tasks, currentUser.role, currentUser.name, isHK, isPaul])
 
   const resolvedTasks = useMemo(() => {
     const all = visibleTasks.filter(t => t.status === 'resolved')
     if (canSeeAllResolved) return all
     if (canSeeFinanceResolved) return all.filter(t =>
-      nameMatch(t.responsible, currentUser.name) || t.category === 'Finance'
+      nameMatch(effectiveResponsible(t), currentUser.name) || t.category === 'Finance'
     )
     // Everyone else: only their own resolved tasks
-    return all.filter(t => nameMatch(t.responsible, currentUser.name))
+    return all.filter(t => nameMatch(effectiveResponsible(t), currentUser.name))
   }, [visibleTasks, canSeeAllResolved, canSeeFinanceResolved, currentUser.name])
 
   const archivedTasks = useMemo(() =>
@@ -696,11 +697,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   }
 
   async function postUpdate() {
-    if (!comment.trim() || !activeTask || !perms.canPostUpdate(activeTask)) return
+    if ((!comment.trim() && !updateFile) || !activeTask || !perms.canPostUpdate(activeTask)) return
     setSaving(true)
     const res = await fetch(`/api/tasks/${activeTask.id}/updates`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ date: updateDate ? isoToDisplayDate(updateDate) : todayStr(), text:comment.trim() }),
+      body: JSON.stringify({ date: updateDate ? isoToDisplayDate(updateDate) : todayStr(), text: comment.trim() || '📎 attachment' }),
     })
     const { update } = await res.json()
     const u = update as TaskUpdate
@@ -1236,7 +1237,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   </div>
                   <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
                   <div style={{fontSize:11,color:'#6b7280',marginBottom:6}}>
-                    Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}
+                    Responsible: <strong>{effectiveResponsible(task)}</strong> · {task.section} · {task.date}
                   </div>
                   {task.task_updates?.[0] && (
                     <div style={{fontSize:11,color:'#374151',background:'#f9fafb',padding:'6px 10px',borderRadius:4}}>
@@ -1295,7 +1296,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <span className="pill pill-resolved">Resolved</span>
                 </div>
                 <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
-                <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
+                <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{effectiveResponsible(task)} · {task.section} · {task.date}</div>
               </div>
               <button onClick={()=>setActiveTask(task)}
                 style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
@@ -1324,7 +1325,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#f3f4f6',color:'#6b7280',textTransform:'uppercase'}}>Archived</span>
                 </div>
                 <div style={{fontWeight:600,fontSize:13,color:'#374151'}}>{task.particulars}</div>
-                <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{task.responsible} · {task.section} · {task.date}</div>
+                <div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{effectiveResponsible(task)} · {task.section} · {task.date}</div>
               </div>
               <button onClick={()=>setActiveTask(task)}
                 style={{background:'white',color:'#374151',border:'1px solid #d1d5db',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer',flexShrink:0}}>
@@ -1371,7 +1372,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{task.priority}</span>}
                   </div>
                   <div style={{fontWeight:600,fontSize:13,color:'#374151',marginBottom:2}}>{task.particulars}</div>
-                  <div style={{fontSize:11,color:'#9ca3af'}}>{task.responsible} · {task.section} · Task date: {task.date}</div>
+                  <div style={{fontSize:11,color:'#9ca3af'}}>{effectiveResponsible(task)} · {task.section} · Task date: {task.date}</div>
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
                   {/* Restore to active — available to anyone who can see the task */}
@@ -1424,7 +1425,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{PRIORITY_LABELS[task.priority]}</span>}
                   </div>
                   <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
-                  <div style={{fontSize:11,color:'#6b7280',marginBottom:6}}>Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}</div>
+                  <div style={{fontSize:11,color:'#6b7280',marginBottom:6}}>Responsible: <strong>{effectiveResponsible(task)}</strong> · {task.section} · {task.date}</div>
                   {task.task_updates?.[0] && (
                     <div style={{fontSize:11,color:'#374151',background:'#f9fafb',padding:'6px 10px',borderRadius:4}}>
                       <strong>{task.task_updates[0].date}:</strong> {task.task_updates[0].text}
@@ -1465,7 +1466,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     {task.priority!=='medium' && <span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:PRIORITY_STYLE[task.priority]?.bg,color:PRIORITY_STYLE[task.priority]?.color,textTransform:'uppercase'}}>{PRIORITY_LABELS[task.priority]}</span>}
                   </div>
                   <div style={{fontWeight:600,fontSize:13,color:'#111',marginBottom:4}}>{task.particulars}</div>
-                  <div style={{fontSize:11,color:'#6b7280'}}>Responsible: <strong>{task.responsible}</strong> · {task.section} · {task.date}</div>
+                  <div style={{fontSize:11,color:'#6b7280'}}>Responsible: <strong>{effectiveResponsible(task)}</strong> · {task.section} · {task.date}</div>
                 </div>
                 <button onClick={()=>setActiveTask(task)}
                   style={{background:'#b5833a',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
@@ -1682,6 +1683,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 12px',fontSize:12,cursor:'pointer',color:'#374151',display:'flex',alignItems:'center',gap:5}}>
               🖨 Print / PDF
             </button>
+            <a href="/api/tasks/export" download
+              style={{border:'1px solid #16a34a',background:'#f0fdf4',borderRadius:4,padding:'5px 12px',fontSize:12,cursor:'pointer',color:'#15803d',display:'flex',alignItems:'center',gap:5,textDecoration:'none'}}>
+              ⬇ Export Excel
+            </a>
           </div>
 
           {/* Add task form */}
@@ -1734,7 +1739,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 <div style={{gridColumn:'1/-1'}}>
                   <label style={{display:'block',fontSize:10,fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:3}}>Initial Update</label>
                   <textarea value={form.initial_update} onChange={e=>setForm(v=>({...v,initial_update:e.target.value}))}
-                    rows={2} placeholder="Background, context, requirements…"
+                    rows={2} placeholder="Background, context, requirements… (paste a screenshot with Ctrl+V)"
+                    onPaste={e=>{
+                      const img = Array.from(e.clipboardData.items).find(i=>i.type.startsWith('image/'))
+                      if(img){e.preventDefault();const f=img.getAsFile();if(f){const ext=f.type.split('/')[1]||'png';const named=new File([f],`paste-${Date.now()}.${ext}`,{type:f.type});setNewTaskFiles(prev=>[...prev,named])}}
+                    }}
                     style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'6px 7px',fontSize:12,resize:'vertical',fontFamily:'inherit'}}/>
                 </div>
                 {perms.canHKComment && (
@@ -1805,6 +1814,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
                     {newTaskFiles.map((f,i) => (
                       <div key={i} style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:4,padding:'3px 8px',fontSize:11,display:'flex',alignItems:'center',gap:5}}>
+                        {f.type.startsWith('image/') && (
+                          <img src={URL.createObjectURL(f)} alt="preview"
+                            style={{height:28,width:28,objectFit:'cover',borderRadius:3,border:'1px solid #bbf7d0'}}/>
+                        )}
                         <span>{f.name.length > 20 ? f.name.slice(0,18)+'…' : f.name}</span>
                         <button onClick={()=>setNewTaskFiles(prev=>prev.filter((_,j)=>j!==i))}
                           style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:12,padding:0,lineHeight:1}}>✕</button>
@@ -1869,7 +1882,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                           <div style={{width:20,height:20,borderRadius:'50%',background:avatarColor(task.responsible),color:'white',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                             {avatarInitials(task.responsible)}
                           </div>
-                          <span style={{fontSize:11,color:'#4b5563'}}>{task.responsible}</span>
+                          <span style={{fontSize:11,color:'#4b5563'}}>{effectiveResponsible(task)}</span>
                         </div>
                         <div style={{display:'flex',gap:4,alignItems:'center'}}>
                           {task.priority !== 'medium' && (
@@ -1932,7 +1945,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       <div style={{width:22,height:22,borderRadius:'50%',background:avatarColor(task.responsible),color:'white',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         {avatarInitials(task.responsible)}
                       </div>
-                      <span style={{fontSize:10.5,color:'#374151'}}>{task.responsible}</span>
+                      <span style={{fontSize:10.5,color:'#374151'}}>{effectiveResponsible(task)}</span>
                     </div>
                     <div style={{padding:'9px 6px',display:'flex',flexDirection:'column',gap:4}}>
                       <span className={STATUS_PILL[task.status]}>{STATUS_LABELS[task.status]}</span>
@@ -2158,9 +2171,56 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     style={{flex:1,border:'1px solid #d1d5db',borderRadius:4,padding:'4px 6px',fontSize:11}}>
                     {PEOPLE.map(p=><option key={p} value={p}>{p}</option>)}
                   </select>
-                  : <span style={{fontSize:12,color:'#111827'}}>{activeTask.responsible}</span>
+                  : <span style={{fontSize:12,color:'#111827'}}>{effectiveResponsible(activeTask)}</span>
                 }
               </div>
+
+              {/* Also Assigned — co-assignees alongside the primary responsible */}
+              {(currentUser.role === 'admin' || currentUser.role === 'director') && (
+                <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
+                  <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:3}}>Also Assigned</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:4}}>
+                      {(activeTask.co_assignees||[]).map(name=>(
+                        <span key={name} style={{display:'inline-flex',alignItems:'center',gap:3,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:12,padding:'2px 8px',fontSize:11,color:'#1d4ed8'}}>
+                          {name}
+                          <button onClick={async()=>{
+                            const next=(activeTask.co_assignees||[]).filter(n=>n!==name)
+                            await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({co_assignees:next})})
+                            setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,co_assignees:next}:t))
+                            setActiveTask(p=>p?{...p,co_assignees:next}:p)
+                          }} style={{background:'none',border:'none',cursor:'pointer',color:'#6b7280',fontSize:12,padding:'0 1px',lineHeight:1}}>✕</button>
+                        </span>
+                      ))}
+                      <select
+                        value=""
+                        onChange={async e=>{
+                          const name=e.target.value
+                          if(!name) return
+                          if((activeTask.co_assignees||[]).includes(name)||name===activeTask.responsible) return
+                          const next=[...(activeTask.co_assignees||[]),name]
+                          await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({co_assignees:next})})
+                          setTasks(ts=>ts.map(t=>t.id===activeTask.id?{...t,co_assignees:next}:t))
+                          setActiveTask(p=>p?{...p,co_assignees:next}:p)
+                        }}
+                        style={{border:'1px dashed #d1d5db',borderRadius:4,padding:'2px 6px',fontSize:11,color:'#6b7280',background:'white',cursor:'pointer'}}>
+                        <option value="">+ Add person</option>
+                        {PEOPLE.filter(p=>p!==activeTask.responsible&&!(activeTask.co_assignees||[]).includes(p)).map(p=><option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {(currentUser.role !== 'admin' && currentUser.role !== 'director') && (activeTask.co_assignees||[]).length > 0 && (
+                <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
+                  <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:3}}>Also Assigned</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                    {(activeTask.co_assignees||[]).map(name=>(
+                      <span key={name} style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:12,padding:'2px 8px',fontSize:11,color:'#1d4ed8'}}>{name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Delegate — managers (HODs) can delegate to a team member */}
               {currentUser.role === 'manager' && (
@@ -2697,7 +2757,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               <div style={{padding:'9px 12px',borderTop:'1px solid #f3f4f6',background:'#f9fafb',flexShrink:0}}>
                 <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',marginBottom:5}}>Add Update</div>
                 <textarea value={comment} onChange={e=>setComment(e.target.value)}
-                  rows={3} placeholder="Add a progress note…"
+                  rows={3} placeholder="Add a progress note… (paste a screenshot with Ctrl+V)"
+                  onPaste={e=>{
+                    const img = Array.from(e.clipboardData.items).find(i=>i.type.startsWith('image/'))
+                    if(img){e.preventDefault();const f=img.getAsFile();if(f){const ext=f.type.split('/')[1]||'png';setUpdateFile(new File([f],`paste-${Date.now()}.${ext}`,{type:f.type}))}}
+                  }}
                   style={{width:'100%',border:'1px solid #d1d5db',borderRadius:4,padding:'7px 8px',fontSize:12,resize:'none',fontFamily:'inherit',marginBottom:6}}/>
                 {/* Image/file attachment for this update */}
                 <input ref={updateFileRef} type="file" accept="image/*,.pdf,.doc,.docx"
@@ -2709,8 +2773,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                     📷 {updateFile ? updateFile.name.slice(0,22) : 'Attach photo / file'}
                   </button>
                   {updateFile && (
-                    <button onClick={()=>setUpdateFile(null)}
-                      style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:13}}>✕</button>
+                    <>
+                      {updateFile.type.startsWith('image/') && (
+                        <img src={URL.createObjectURL(updateFile)} alt="preview"
+                          style={{height:36,width:36,objectFit:'cover',borderRadius:4,border:'1px solid #d1d5db'}}/>
+                      )}
+                      <button onClick={()=>setUpdateFile(null)}
+                        style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:13}}>✕</button>
+                    </>
                   )}
                 </div>
                 <div style={{display:'flex',gap:6,alignItems:'center',justifyContent:'space-between'}}>
@@ -2721,8 +2791,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   </div>
                   <div style={{display:'flex',gap:6}}>
                     <button onClick={()=>setActiveTask(null)} style={{border:'1px solid #d1d5db',background:'white',borderRadius:4,padding:'5px 12px',fontSize:11,cursor:'pointer'}}>Close</button>
-                    <button onClick={postUpdate} disabled={saving||!comment.trim()}
-                      style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'5px 14px',fontSize:11,fontWeight:600,cursor:'pointer',opacity:comment.trim()?1:0.5}}>
+                    <button onClick={postUpdate} disabled={saving||(!comment.trim()&&!updateFile)}
+                      style={{background:'#1a3a2a',color:'white',border:'none',borderRadius:4,padding:'5px 14px',fontSize:11,fontWeight:600,cursor:'pointer',opacity:(comment.trim()||updateFile)?1:0.5}}>
                       {saving?'Posting…':'Post Update'}
                     </button>
                   </div>

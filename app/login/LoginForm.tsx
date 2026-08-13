@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from 'react'
 
-export default function LoginForm() {
+export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
@@ -38,7 +38,8 @@ export default function LoginForm() {
         return
       }
 
-      window.location.href = '/'
+      const dest = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/'
+      window.location.href = dest
     } catch {
       setError('Cannot reach the server — please check your internet connection and try again.')
       setLoading(false)

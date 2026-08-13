@@ -78,11 +78,15 @@ export async function middleware(req: NextRequest) {
   if (!isProtected) return NextResponse.next()
 
   const token = req.cookies.get('pabari-session')?.value
-  if (!token) return NextResponse.redirect(new URL('/login', req.url))
+  const loginUrl = new URL('/login', req.url)
+  const intended = req.nextUrl.pathname + req.nextUrl.search
+  if (intended && intended !== '/') loginUrl.searchParams.set('redirect', intended)
+
+  if (!token) return NextResponse.redirect(loginUrl)
 
   const ok = await verifyHS256(token)
   if (!ok) {
-    const res = NextResponse.redirect(new URL('/login', req.url))
+    const res = NextResponse.redirect(loginUrl)
     res.cookies.set('pabari-session', '', { maxAge: 0, path: '/' })
     return res
   }

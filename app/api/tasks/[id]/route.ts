@@ -79,6 +79,7 @@ export async function PATCH(
         recurrence:      task.recurrence,
         parent_id:       task.id,
         legal_review:    false,
+        co_assignees:    [],
         created_by:      '',
       })
     }
@@ -91,6 +92,9 @@ export async function PATCH(
     )
   }
 
+  const taskUrl = `https://pabari-workspace.up.railway.app/tasks?id=${task.id}`
+  const viewBtn = `<a href="${taskUrl}" style="display:inline-block;background:#1a3a2a;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;margin-top:8px">View Task →</a>`
+
   // Email HK when task is escalated to awaiting-hk-approval
   if (body.status === 'awaiting-hk-approval' && prev?.status !== 'awaiting-hk-approval') {
     getUserByName('Harshil').then(hk => {
@@ -98,7 +102,7 @@ export async function PATCH(
         sendEmail({
           to: hk.email,
           subject: `Action Required: Task needs your approval — ${task.particulars.slice(0, 60)}`,
-          body: `Hi Harshil,\n\nA task has been escalated and is awaiting your approval.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\n\nPlease log in to review and approve this task.\n\nhttps://pabari-workspace.up.railway.app/tasks`,
+          body: `Hi Harshil,\n\nA task has been escalated and is awaiting your approval.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\n\n${viewBtn}`,
         }).catch(() => {})
       }
     }).catch(() => {})
@@ -111,10 +115,27 @@ export async function PATCH(
         sendEmail({
           to: assignee.email,
           subject: `Task Assigned: ${task.particulars.slice(0, 60)}`,
-          body: `Hi ${assignee.name.split(' ')[0]},\n\nA task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\nPlease log in to the portal to view and update this task.\n\nhttps://pabari-workspace.up.railway.app/tasks`,
+          body: `Hi ${assignee.name.split(' ')[0]},\n\nA task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\n${viewBtn}`,
         }).catch(() => {})
       }
     }).catch(() => {})
+  }
+
+  // Email newly added co-assignees
+  if (user && Array.isArray(body.co_assignees)) {
+    const prevCo: string[] = prev?.co_assignees ?? []
+    const newlyAdded = (body.co_assignees as string[]).filter(n => !prevCo.includes(n))
+    for (const name of newlyAdded) {
+      getUserByName(name).then(person => {
+        if (person?.email && person.email.toLowerCase() !== user.email.toLowerCase()) {
+          sendEmail({
+            to: person.email,
+            subject: `Task Assigned: ${task.particulars.slice(0, 60)}`,
+            body: `Hi ${person.name.split(' ')[0]},\n\nYou have been added to a task by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\n\n${viewBtn}`,
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+    }
   }
 
   // Activity log: status changes and comments

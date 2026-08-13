@@ -327,6 +327,7 @@ export interface Task {
   parent_id?:      string   // links follow-ups and recurrence cycles to their origin task
   legal_review:    boolean  // HOD flagged this task as needing legal review
   legal_comment:   string   // Legal counsel's response/notes
+  co_assignees:    string[] // additional people assigned alongside the primary responsible
   created_by:      string
   created_at:      string
   updated_at:      string

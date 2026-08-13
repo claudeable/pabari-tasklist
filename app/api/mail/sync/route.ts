@@ -17,6 +17,7 @@ import {
 } from '@/lib/mail/zoho'
 import { analyseEmail, persistAnalysis } from '@/lib/mail/analyze'
 import { query, execute } from '@/lib/database'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,6 +112,9 @@ export async function POST(req: NextRequest) {
     const session = cookies().get('pabari-session')
     const user = session?.value ? await verifyToken(session.value) : null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (rateLimit(`mail-sync:${user.id}`, 3, 5 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many sync requests. Please wait a few minutes.' }, { status: 429 })
+    }
   }
 
   const all = req.nextUrl.searchParams.get('all') === 'true' && isService

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { query } from '@/lib/database'
+import { rateLimit } from '@/lib/rateLimit'
 import Groq from 'groq-sdk'
 
 async function buildEmailContext(userId: string): Promise<string> {
@@ -445,6 +446,10 @@ export async function POST(req: NextRequest) {
 
   if (!isExecutive(user)) {
     return NextResponse.json({ error: 'Executive AI is available to directors and administrators only.' }, { status: 403 })
+  }
+
+  if (rateLimit(`ai:${user.id}`, 20, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a few minutes.' }, { status: 429 })
   }
 
   const { messages } = await req.json() as {

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { getMailAccount } from '@/lib/mail/zoho'
 import { generateEmailBriefing } from '@/lib/mail/analyze'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,10 @@ export async function GET() {
   const session = cookies().get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (rateLimit(`mail-briefing:${user.id}`, 5, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a few minutes.' }, { status: 429 })
+  }
 
   const account = await getMailAccount(user.id)
   if (!account) return NextResponse.json({ connected: false, briefing: '' })

@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import DocumentsPanel from "@/components/DocumentsPanel";
 import ModulePageShell from "@/components/ModulePageShell";
 import { ensureDefaultWorkspace } from "@/lib/workspace";
 
-export default function DocumentsModulePage() {
+function DocumentsContent() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const autoOpenUpload = searchParams.get("upload") === "1";
 
   useEffect(() => {
     ensureDefaultWorkspace()
@@ -17,10 +20,20 @@ export default function DocumentsModulePage() {
   }, []);
 
   return (
-    <ModulePageShell title="Documents">
+    <>
       {error && <p className="text-sm text-red-400">{error}</p>}
       {!projectId && !error && <p className="text-sm text-slate-400">Loading...</p>}
-      {projectId && <DocumentsPanel projectId={projectId} />}
+      {projectId && <DocumentsPanel projectId={projectId} autoOpenUpload={autoOpenUpload} />}
+    </>
+  );
+}
+
+export default function DocumentsModulePage() {
+  return (
+    <ModulePageShell title="Documents">
+      <Suspense fallback={<p className="text-sm text-slate-400">Loading...</p>}>
+        <DocumentsContent />
+      </Suspense>
     </ModulePageShell>
   );
 }

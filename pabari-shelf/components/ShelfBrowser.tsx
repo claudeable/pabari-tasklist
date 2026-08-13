@@ -426,15 +426,16 @@ export default function ShelfBrowser({
           display: "flex", alignItems: "center", justifyContent: "center" }}
           onClick={() => setShowUpload(false)}>
           <div style={{ background: "white", borderRadius: 16, padding: "32px 28px", width: "100%",
-            maxWidth: 440, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            maxWidth: 440, maxHeight: "90vh", overflowY: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 20 }}>Upload to Shelf</h2>
             <form onSubmit={upload}>
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-                  Files selected
+                  Files selected ({selectedFiles.length})
                 </label>
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8,
-                  padding: "10px 14px", fontSize: 13 }}>
+                  padding: "10px 14px", fontSize: 13, maxHeight: 160, overflowY: "auto" }}>
                   {selectedFiles.length === 0
                     ? <span style={{ color: "#94a3b8" }}>No files selected</span>
                     : selectedFiles.map(f => <div key={f.name} style={{ color: "#374151" }}>{f.name} ({fmtBytes(f.size)})</div>)

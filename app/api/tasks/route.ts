@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     recurrence:      body.recurrence ?? 'none',
     parent_id:       body.parent_id ? String(body.parent_id) : undefined,
     legal_review:    body.legal_review === true,
+    co_assignees:    [],
     project_id:      body.project_id ? Number(body.project_id) : undefined,
     created_by:      user?.name ?? '',
   })
@@ -92,6 +93,9 @@ export async function POST(req: NextRequest) {
       notifyLegal(user, task.particulars, task.company).catch(() => {})
     }
 
+    const taskUrl = `https://pabari-workspace.up.railway.app/tasks?id=${task.id}`
+    const viewBtn = `<a href="${taskUrl}" style="display:inline-block;background:#1a3a2a;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;margin-top:8px">View Task →</a>`
+
     // Email HK when a high-priority task is created
     if (task.priority === 'high') {
       getUserByName('Harshil').then(hk => {
@@ -99,7 +103,7 @@ export async function POST(req: NextRequest) {
           sendEmail({
             to: hk.email,
             subject: `High Priority Task Created: ${task.particulars.slice(0, 60)}`,
-            body: `Hi Harshil,\n\nA high-priority task has been created that may need your comment.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\nCreated by: ${user.name}\n\nhttps://pabari-workspace.up.railway.app/tasks`,
+            body: `Hi Harshil,\n\nA high-priority task has been created that may need your comment.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\nCreated by: ${user.name}\n\n${viewBtn}`,
           }).catch(() => {})
         }
       }).catch(() => {})
@@ -112,7 +116,7 @@ export async function POST(req: NextRequest) {
           sendEmail({
             to: assignee.email,
             subject: `Task Assigned: ${task.particulars.slice(0, 60)}`,
-            body: `Hi ${assignee.name.split(' ')[0]},\n\nA new task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\nPlease log in to the portal to view and update this task.\n\nhttps://pabari-workspace.up.railway.app/tasks`,
+            body: `Hi ${assignee.name.split(' ')[0]},\n\nA new task has been assigned to you by ${user.name}.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\n${viewBtn}`,
           }).catch(() => {})
         }
       }).catch(() => {})
