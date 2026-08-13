@@ -88,11 +88,50 @@ export async function PATCH(
     }
   }
 
-  // When HK saves a comment on an active task, DM the responsible person
+  // When HK saves a comment on an active task — DM + push + email the responsible person
   if (user && body.hk_comment?.trim() && task.status !== 'resolved' && task.status !== 'expired') {
+    const isHKCommenter = user.name.toLowerCase().startsWith('harshil')
     notifyResponsible(user, task, body.hk_comment.trim()).catch(err =>
       console.error('[task PATCH] notifyResponsible failed:', err)
     )
+    if (isHKCommenter) {
+      getUserByName(task.responsible).then(responsible => {
+        if (responsible?.email && responsible.email.toLowerCase() !== user.email.toLowerCase()) {
+          sendEmail({
+            to: responsible.email,
+            subject: `HK Comment on Your Task: ${task.particulars.slice(0, 60)}`,
+            body: `Hi ${responsible.name.split(' ')[0]},\n\nHarshil (HK) has left a comment on your task.\n\n<strong>Task:</strong> ${task.particulars}\n<strong>Company:</strong> ${task.company}\n\n<strong>Comment:</strong>\n${body.hk_comment.trim()}\n\nPlease review and update accordingly.\n\n${viewBtn}`,
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+    }
+  }
+
+  // Email responsible when HK or Paul resolves or sends back a task
+  if (user && body.status && body.status !== prev?.status) {
+    const isHKActor   = user.name.toLowerCase().startsWith('harshil')
+    const isPaulActor = user.email === 'pmureithi@usm.co.ke'
+    if (isHKActor || isPaulActor) {
+      const actorName = isHKActor ? 'Harshil (HK)' : 'Paul'
+      getUserByName(task.responsible).then(responsible => {
+        if (!responsible?.email || responsible.email.toLowerCase() === user.email.toLowerCase()) return
+        const firstName = responsible.name.split(' ')[0]
+        const hkNote   = task.hk_comment ? `\n\n<strong>HK Comment:</strong>\n${task.hk_comment}` : ''
+        if (body.status === 'resolved') {
+          sendEmail({
+            to: responsible.email,
+            subject: `Task Approved: ${task.particulars.slice(0, 60)}`,
+            body: `Hi ${firstName},\n\nYour task has been approved and marked as complete by ${actorName}.${hkNote}\n\n<strong>Task:</strong> ${task.particulars}\n<strong>Company:</strong> ${task.company}\n\n${viewBtn}`,
+          }).catch(() => {})
+        } else if (body.status === 'action-required') {
+          sendEmail({
+            to: responsible.email,
+            subject: `Action Required: Task returned to you — ${task.particulars.slice(0, 60)}`,
+            body: `Hi ${firstName},\n\nYour task has been returned to you by ${actorName} and needs your attention.${hkNote}\n\n<strong>Task:</strong> ${task.particulars}\n<strong>Company:</strong> ${task.company}\n\nPlease review the comment above and update the task.\n\n${viewBtn}`,
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+    }
   }
 
   const taskUrl = `https://pabari-workspace.up.railway.app/tasks?id=${task.id}`
