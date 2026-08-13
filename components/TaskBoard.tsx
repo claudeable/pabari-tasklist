@@ -228,7 +228,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'|'expired'>('active')
-  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|'hk-escalated'|''>('')
+  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|'hk-escalated'|'hk-action'|'hk-all'|'hk-pending'|'hk-stale'|'hk-completed'|''>('')
   const [hkInboxDrafts, setHkInboxDrafts] = useState<Record<string, string>>({}) // taskId → quick comment draft
   // ── Escalation modal ────────────────────────────────────────────────────────
   const [showEscalateModal,  setShowEscalateModal]  = useState(false)
@@ -523,6 +523,21 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     ),
   [visibleTasks])
 
+  // Tasks requiring Harshil's active decision/action (not just awareness)
+  const hkActionRequired = useMemo(() =>
+    hkEscalated.filter(t => t.hk_escalation_type === 'action' || t.status === 'awaiting-hk-approval'),
+  [hkEscalated])
+
+  // Stale tasks for HK view (no update in 30+ days, not resolved/archived)
+  const STALE_DAYS = 30
+  const hkStaleTasks = useMemo(() => {
+    const cutoff = new Date(Date.now() - STALE_DAYS * 86_400_000)
+    return visibleTasks.filter(t =>
+      !['resolved','archived','expired'].includes(t.status) &&
+      new Date(t.updated_at) < cutoff
+    )
+  }, [visibleTasks])
+
   const filtered = useMemo(() => {
     let list = base
     if (directorFilter === 'pending-review')       list = visibleTasks.filter(t => t.status === 'in-review')
@@ -532,6 +547,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     if (directorFilter === 'awaiting-hk-approval')  list = visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
     if (directorFilter === 'needs-paul-review')      list = visibleTasks.filter(t => t.status === 'in-review')
     if (directorFilter === 'hk-escalated')           list = hkEscalated
+    if (directorFilter === 'hk-action')              list = hkActionRequired
+    if (directorFilter === 'hk-all')                 list = visibleTasks.filter(t => !['resolved','archived','expired'].includes(t.status))
+    if (directorFilter === 'hk-pending')             list = visibleTasks.filter(t => t.status === 'pending-discussion' || t.status === 'action-required' || t.status === 'in-review')
+    if (directorFilter === 'hk-stale')               list = hkStaleTasks
+    if (directorFilter === 'hk-completed')           list = visibleTasks.filter(t => t.status === 'resolved')
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
@@ -543,7 +563,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, hkEscalated, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, filterDateFrom, filterDateTo, search])
+  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, hkEscalated, hkActionRequired, hkStaleTasks, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, filterDateFrom, filterDateTo, search])
 
   const kpis = useMemo(() => ({
     total:    base.filter(t=>t.status!=='resolved').length,
@@ -1320,10 +1340,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       </button>
                     </>
                   )}
-                  {(currentUser.role==='director'||currentUser.role==='admin') && (
+                  {(currentUser.role==='director'||currentUser.role==='admin') &&
+                   (task.status === 'awaiting-hk-approval' || (task.hk_escalation_type && task.hk_escalation_type !== 'none')) && (
                     <button onClick={()=>approveTask(task)}
                       style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                      ✓ Approve & Resolve
+                      ✓ Mark Complete
                     </button>
                   )}
                   <button onClick={()=>{setActiveTask(task);setActiveMainTab('active')}}
@@ -1541,86 +1562,167 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         {/* SIDEBAR — hidden on mobile */}
         <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8,display:isMobile?'none':'block'}}>
 
-          {/* My Attention — directors/admin, plus Finance row for whitelist */}
-          {(perms.showAttentionPanel || canSeeFinance) && (
-            <>
-              <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#b5833a',letterSpacing:'0.7px',textTransform:'uppercase'}}>
-                My Attention
-              </div>
-              {[
-                ...(perms.showAttentionPanel ? [
-                  ...(isPaul ? [
-                    {label:'📋 Pending Review',  val:'needs-paul-review'      as const, count:pendingReviewPool.length,          dot:'#1d4ed8', desc:'In-review tasks — resolve or escalate to HK'},
-                  ] : [
-                    {label:'⚡ HK Inbox',        val:'hk-escalated'           as const, count:hkEscalated.length,               dot:'#9d174d', desc:'Tasks escalated to HK — review and resolve'},
-                  ]),
-                  {label:'Action Required',      val:'action-required'        as const, count:dirAttention.actionRequired.length, dot:'#dc2626', desc:'Flagged for escalation'},
-                ] : []),
-                ...(canSeeFinance ? [
-                  {label:'Finance',             val:'finance'          as const, count:dirAttention.financeCategory.length, dot:'#15803d', desc:'Active Finance category tasks'},
-                ] : []),
-              ].map(item=>(
-                <div key={item.val}
-                  onClick={()=>{
-                    setDirectorFilter(directorFilter===item.val ? '' : item.val)
-                    setFilterStatus(''); setFilterSection('')
-                  }}
-                  title={item.desc}
-                  style={{display:'flex',alignItems:'center',gap:8,padding:'7px 14px',cursor:'pointer',
-                    background:directorFilter===item.val?'#fef9ee':'transparent',
-                    borderLeft:directorFilter===item.val?'3px solid #b5833a':'3px solid transparent',
-                    color:directorFilter===item.val?'#92400e':'#4b5563',
-                    fontWeight:directorFilter===item.val?600:400,fontSize:12}}>
-                  <span style={{width:7,height:7,borderRadius:'50%',background:item.dot,flexShrink:0,display:'inline-block'}}/>
-                  <span style={{flex:1,lineHeight:1.3}}>{item.label}</span>
-                  <span style={{background:directorFilter===item.val?'#b5833a':'#f3f4f6',
-                    color:directorFilter===item.val?'white':item.count>0?'#374151':'#9ca3af',
-                    fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
-                    {item.count}
-                  </span>
-                </div>
-              ))}
-              <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
-            </>
-          )}
+          {/* ── HARSHIL SIDEBAR ─────────────────────────────────────── */}
+          {isHK ? (<>
 
-          <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Status</div>
-          {[
-            {label:'All Staff Tasks',     val:'',                  count:base.length},
-            {label:'Action Required',    val:'action-required',   count:kpis.action},
-            {label:'Pending Discussion', val:'pending-discussion', count:kpis.pending},
-            {label:'In Review',          val:'in-review',         count:kpis.review},
-            {label:'Resolved',           val:'resolved',          count:kpis.resolved},
-          ].map(item=>(
-            <div key={item.val} onClick={()=>{setFilterStatus(item.val);setDirectorFilter('')}}
-              style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',cursor:'pointer',
-                background:!directorFilter && filterStatus===item.val?'#f0fdf4':'transparent',
-                borderLeft:!directorFilter && filterStatus===item.val?'3px solid #1a3a2a':'3px solid transparent',
-                color:!directorFilter && filterStatus===item.val?'#1a3a2a':'#4b5563',
-                fontWeight:!directorFilter && filterStatus===item.val?600:400,fontSize:12.5}}>
-              <span style={{flex:1}}>{item.label}</span>
-              <span style={{background:!directorFilter && filterStatus===item.val?'#1a3a2a':'#f3f4f6',
-                color:!directorFilter && filterStatus===item.val?'white':'#9ca3af',
-                fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10}}>
-                {item.count}
-              </span>
-            </div>
-          ))}
-
-          {availableSections.length>0 && !directorFilter && <>
-            <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
-            <div style={{padding:'6px 14px 4px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Sections</div>
-            {[{label:'All Sections',val:''}, ...availableSections.map(s=>({label:s,val:s}))].map(item=>(
-              <div key={item.val} onClick={()=>setFilterSection(item.val)}
-                style={{padding:'6px 14px',cursor:'pointer',fontSize:11.5,lineHeight:1.35,
-                  color:filterSection===item.val?'#1a3a2a':'#4b5563',
-                  fontWeight:filterSection===item.val?600:400,
-                  background:filterSection===item.val?'#f0fdf4':'transparent',
-                  borderLeft:filterSection===item.val?'3px solid #1a3a2a':'3px solid transparent'}}>
-                {item.label||'All Sections'}
+            {/* MY ATTENTION */}
+            <div style={{padding:'8px 14px 5px',fontSize:10,fontWeight:700,color:'#9d174d',letterSpacing:'0.7px',textTransform:'uppercase'}}>My Attention</div>
+            {([
+              {label:'⚡ HK Inbox',       val:'hk-escalated' as const, count:hkEscalated.length,      dot:'#9d174d', desc:'Tasks explicitly escalated to you'},
+              {label:'🎯 Action Required', val:'hk-action'    as const, count:hkActionRequired.length, dot:'#dc2626', desc:'Tasks requiring your active decision'},
+            ] as const).map(item=>(
+              <div key={item.val}
+                onClick={()=>{ setDirectorFilter(directorFilter===item.val ? '' : item.val); setFilterStatus(''); setFilterSection('') }}
+                title={item.desc}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'7px 14px',cursor:'pointer',
+                  background:directorFilter===item.val?'#fdf2f8':'transparent',
+                  borderLeft:directorFilter===item.val?'3px solid #9d174d':'3px solid transparent',
+                  color:directorFilter===item.val?'#7b0f38':'#4b5563',fontWeight:directorFilter===item.val?600:400,fontSize:12}}>
+                <span style={{width:7,height:7,borderRadius:'50%',background:item.dot,flexShrink:0}}/>
+                <span style={{flex:1,lineHeight:1.3}}>{item.label}</span>
+                <span style={{background:directorFilter===item.val?'#9d174d':'#f3f4f6',
+                  color:directorFilter===item.val?'white':item.count>0?'#374151':'#9ca3af',
+                  fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
+                  {item.count}
+                </span>
               </div>
             ))}
-          </>}
+
+            {/* SPECIAL ACCESS */}
+            {canSeeFinance && <>
+              <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
+              <div style={{padding:'6px 14px 5px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Special Access</div>
+              <div onClick={()=>{ setDirectorFilter(directorFilter==='finance' ? '' : 'finance'); setFilterStatus(''); setFilterSection('') }}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'7px 14px',cursor:'pointer',
+                  background:directorFilter==='finance'?'#f0fdf4':'transparent',
+                  borderLeft:directorFilter==='finance'?'3px solid #15803d':'3px solid transparent',
+                  color:directorFilter==='finance'?'#14532d':'#4b5563',fontWeight:directorFilter==='finance'?600:400,fontSize:12}}>
+                <span style={{width:7,height:7,borderRadius:'50%',background:'#15803d',flexShrink:0}}/>
+                <span style={{flex:1}}>🔐 Finance</span>
+                <span style={{background:directorFilter==='finance'?'#15803d':'#f3f4f6',
+                  color:directorFilter==='finance'?'white':dirAttention.financeCategory.length>0?'#374151':'#9ca3af',
+                  fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
+                  {dirAttention.financeCategory.length}
+                </span>
+              </div>
+            </>}
+
+            {/* TASK VIEWS */}
+            <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
+            <div style={{padding:'6px 14px 5px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Task Views</div>
+            {([
+              {label:'All Tasks',   val:'hk-all'       as const, count: visibleTasks.filter(t=>!['resolved','archived','expired'].includes(t.status)).length},
+              {label:'Active',      val:'hk-pending'   as const, count: visibleTasks.filter(t=>t.status==='pending-discussion'||t.status==='action-required'||t.status==='in-review').length},
+              {label:'Stale',       val:'hk-stale'     as const, count: hkStaleTasks.length},
+              {label:'Completed',   val:'hk-completed' as const, count: visibleTasks.filter(t=>t.status==='resolved').length},
+            ] as const).map(item=>(
+              <div key={item.val}
+                onClick={()=>{ setDirectorFilter(directorFilter===item.val ? '' : item.val); setFilterStatus(''); setFilterSection('') }}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'7px 14px',cursor:'pointer',
+                  background:directorFilter===item.val?'#f0fdf4':'transparent',
+                  borderLeft:directorFilter===item.val?'3px solid #1a3a2a':'3px solid transparent',
+                  color:directorFilter===item.val?'#1a3a2a':'#4b5563',fontWeight:directorFilter===item.val?600:400,fontSize:12}}>
+                <span style={{flex:1}}>{item.label}</span>
+                <span style={{background:directorFilter===item.val?'#1a3a2a':'#f3f4f6',
+                  color:directorFilter===item.val?'white':'#9ca3af',
+                  fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
+                  {item.count}
+                </span>
+              </div>
+            ))}
+
+            {/* SECTIONS */}
+            {availableSections.length>0 && <>
+              <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
+              <div style={{padding:'6px 14px 4px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Sections</div>
+              {[{label:'All Sections',val:''}, ...availableSections.map(s=>({label:s,val:s}))].map(item=>(
+                <div key={item.val} onClick={()=>setFilterSection(item.val)}
+                  style={{padding:'6px 14px',cursor:'pointer',fontSize:11.5,lineHeight:1.35,
+                    color:filterSection===item.val?'#1a3a2a':'#4b5563',fontWeight:filterSection===item.val?600:400,
+                    background:filterSection===item.val?'#f0fdf4':'transparent',
+                    borderLeft:filterSection===item.val?'3px solid #1a3a2a':'3px solid transparent'}}>
+                  {item.label||'All Sections'}
+                </div>
+              ))}
+            </>}
+
+          </>) : (<>
+
+            {/* ── STANDARD SIDEBAR (Paul, admin, staff) ─────────────── */}
+            {(perms.showAttentionPanel || canSeeFinance) && (
+              <>
+                <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#b5833a',letterSpacing:'0.7px',textTransform:'uppercase'}}>My Attention</div>
+                {[
+                  ...(perms.showAttentionPanel ? [
+                    ...(isPaul ? [
+                      {label:'📋 Pending Review', val:'needs-paul-review' as const, count:pendingReviewPool.length, dot:'#1d4ed8', desc:'In-review tasks — resolve or escalate to HK'},
+                    ] : [
+                      {label:'⚡ HK Inbox',       val:'hk-escalated'    as const, count:hkEscalated.length,       dot:'#9d174d', desc:'Tasks escalated to HK'},
+                    ]),
+                    {label:'Action Required',     val:'action-required' as const, count:dirAttention.actionRequired.length, dot:'#dc2626', desc:'Flagged for escalation'},
+                  ] : []),
+                  ...(canSeeFinance ? [
+                    {label:'Finance', val:'finance' as const, count:dirAttention.financeCategory.length, dot:'#15803d', desc:'Active Finance category tasks'},
+                  ] : []),
+                ].map(item=>(
+                  <div key={item.val}
+                    onClick={()=>{ setDirectorFilter(directorFilter===item.val ? '' : item.val); setFilterStatus(''); setFilterSection('') }}
+                    title={item.desc}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'7px 14px',cursor:'pointer',
+                      background:directorFilter===item.val?'#fef9ee':'transparent',
+                      borderLeft:directorFilter===item.val?'3px solid #b5833a':'3px solid transparent',
+                      color:directorFilter===item.val?'#92400e':'#4b5563',fontWeight:directorFilter===item.val?600:400,fontSize:12}}>
+                    <span style={{width:7,height:7,borderRadius:'50%',background:item.dot,flexShrink:0,display:'inline-block'}}/>
+                    <span style={{flex:1,lineHeight:1.3}}>{item.label}</span>
+                    <span style={{background:directorFilter===item.val?'#b5833a':'#f3f4f6',
+                      color:directorFilter===item.val?'white':item.count>0?'#374151':'#9ca3af',
+                      fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>
+                      {item.count}
+                    </span>
+                  </div>
+                ))}
+                <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
+              </>
+            )}
+
+            <div style={{padding:'4px 14px 5px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Status</div>
+            {[
+              {label:'All Staff Tasks',    val:'',                  count:base.length},
+              {label:'Action Required',    val:'action-required',   count:kpis.action},
+              {label:'Pending Discussion', val:'pending-discussion', count:kpis.pending},
+              {label:'In Review',          val:'in-review',         count:kpis.review},
+              {label:'Resolved',           val:'resolved',          count:kpis.resolved},
+            ].map(item=>(
+              <div key={item.val} onClick={()=>{setFilterStatus(item.val);setDirectorFilter('')}}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',cursor:'pointer',
+                  background:!directorFilter && filterStatus===item.val?'#f0fdf4':'transparent',
+                  borderLeft:!directorFilter && filterStatus===item.val?'3px solid #1a3a2a':'3px solid transparent',
+                  color:!directorFilter && filterStatus===item.val?'#1a3a2a':'#4b5563',
+                  fontWeight:!directorFilter && filterStatus===item.val?600:400,fontSize:12.5}}>
+                <span style={{flex:1}}>{item.label}</span>
+                <span style={{background:!directorFilter && filterStatus===item.val?'#1a3a2a':'#f3f4f6',
+                  color:!directorFilter && filterStatus===item.val?'white':'#9ca3af',
+                  fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10}}>
+                  {item.count}
+                </span>
+              </div>
+            ))}
+
+            {availableSections.length>0 && !directorFilter && <>
+              <div style={{height:1,background:'#f3f4f6',margin:'8px 12px'}}/>
+              <div style={{padding:'6px 14px 4px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.7px',textTransform:'uppercase'}}>Sections</div>
+              {[{label:'All Sections',val:''}, ...availableSections.map(s=>({label:s,val:s}))].map(item=>(
+                <div key={item.val} onClick={()=>setFilterSection(item.val)}
+                  style={{padding:'6px 14px',cursor:'pointer',fontSize:11.5,lineHeight:1.35,
+                    color:filterSection===item.val?'#1a3a2a':'#4b5563',fontWeight:filterSection===item.val?600:400,
+                    background:filterSection===item.val?'#f0fdf4':'transparent',
+                    borderLeft:filterSection===item.val?'3px solid #1a3a2a':'3px solid transparent'}}>
+                  {item.label||'All Sections'}
+                </div>
+              ))}
+            </>}
+
+          </>)}
 
           {/* My Team — managers with full company access only */}
           {currentUser.role === 'manager' && <>
@@ -1674,22 +1776,92 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         {/* MAIN */}
         <div style={{flex:1,overflowY:'auto',padding:'15px 17px',background:'#f9fafb'}}>
 
-          {/* KPI strip */}
-          <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(3,1fr)':'repeat(6,1fr)',gap:isMobile?8:10,marginBottom:isMobile?10:13}}>
-            {[
-              {label:'Total',           val:kpis.total,    col:'#1e40af'},
-              {label:'Action Required', val:kpis.action,   col:'#b91c1c'},
-              {label:'Pending',         val:kpis.pending,  col:'#b45309'},
-              {label:'In Review',       val:kpis.review,   col:'#1d4ed8'},
-              {label:'Resolved',        val:kpis.resolved, col:'#15803d'},
-              {label:'Overdue',         val:kpis.overdue,  col:kpis.overdue>0?'#dc2626':'#9ca3af'},
-            ].map(k=>(
-              <div key={k.label} style={{background:k.label==='Overdue'&&kpis.overdue>0?'#fef2f2':'white',border:k.label==='Overdue'&&kpis.overdue>0?'1px solid #fecaca':'1px solid #e5e7eb',borderRadius:6,padding:'10px 13px'}}>
-                <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'0.5px',color:'#9ca3af',fontWeight:600}}>{k.label}</div>
-                <div style={{fontSize:26,fontWeight:800,color:k.col,lineHeight:1.1,marginTop:2}}>{k.val}</div>
+          {/* KPI strip — compact header for HK, full cards for others */}
+          {isHK ? (
+            <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:8,padding:'14px 18px',marginBottom:13,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'#111827',letterSpacing:'0.2px'}}>TASK BOARD</div>
+                <div style={{fontSize:11.5,color:'#6b7280',marginTop:1}}>
+                  {filterCompany ? filterCompany + ' · ' : ''}{base.length} organizational task{base.length!==1?'s':''}
+                </div>
               </div>
-            ))}
-          </div>
+              <div style={{display:'flex',gap:6}}>
+                <button
+                  onClick={()=>{ setDirectorFilter('hk-escalated'); setFilterStatus(''); setFilterSection('') }}
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12.5,fontWeight:600,
+                    background: directorFilter==='hk-escalated'||directorFilter==='hk-action' ? '#9d174d' : '#f9fafb',
+                    color:       directorFilter==='hk-escalated'||directorFilter==='hk-action' ? 'white' : '#374151',
+                    boxShadow:   directorFilter==='hk-escalated'||directorFilter==='hk-action' ? '0 1px 4px rgba(157,23,77,0.25)' : 'none',
+                  }}>
+                  🎯 My Attention
+                  {hkEscalated.length > 0 && (
+                    <span style={{background: directorFilter==='hk-escalated'||directorFilter==='hk-action' ? 'rgba(255,255,255,0.25)' : '#9d174d',
+                      color: directorFilter==='hk-escalated'||directorFilter==='hk-action' ? 'white' : 'white',
+                      fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:10,minWidth:20,textAlign:'center'}}>
+                      {hkEscalated.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={()=>{ setDirectorFilter(''); setFilterStatus(''); setFilterSection('') }}
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12.5,fontWeight:600,
+                    background: !directorFilter || (directorFilter!=='hk-escalated'&&directorFilter!=='hk-action'&&directorFilter!=='hk-stale'&&directorFilter!=='hk-pending'&&directorFilter!=='hk-completed') ? '#1a3a2a' : '#f9fafb',
+                    color: !directorFilter || (directorFilter!=='hk-escalated'&&directorFilter!=='hk-action'&&directorFilter!=='hk-stale'&&directorFilter!=='hk-pending'&&directorFilter!=='hk-completed') ? 'white' : '#374151',
+                  }}>
+                  🗂 All Tasks
+                  <span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:10,minWidth:20,textAlign:'center',
+                    color: (!directorFilter||(directorFilter!=='hk-escalated'&&directorFilter!=='hk-action'&&directorFilter!=='hk-stale'&&directorFilter!=='hk-pending'&&directorFilter!=='hk-completed')) ? 'white' : '#374151',
+                    background: (!directorFilter||(directorFilter!=='hk-escalated'&&directorFilter!=='hk-action'&&directorFilter!=='hk-stale'&&directorFilter!=='hk-pending'&&directorFilter!=='hk-completed')) ? 'rgba(255,255,255,0.25)' : '#f3f4f6',
+                  }}>
+                    {base.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(3,1fr)':'repeat(6,1fr)',gap:isMobile?8:10,marginBottom:isMobile?10:13}}>
+              {[
+                {label:'Total',           val:kpis.total,    col:'#1e40af'},
+                {label:'Action Required', val:kpis.action,   col:'#b91c1c'},
+                {label:'Pending',         val:kpis.pending,  col:'#b45309'},
+                {label:'In Review',       val:kpis.review,   col:'#1d4ed8'},
+                {label:'Resolved',        val:kpis.resolved, col:'#15803d'},
+                {label:'Overdue',         val:kpis.overdue,  col:kpis.overdue>0?'#dc2626':'#9ca3af'},
+              ].map(k=>(
+                <div key={k.label} style={{background:k.label==='Overdue'&&kpis.overdue>0?'#fef2f2':'white',border:k.label==='Overdue'&&kpis.overdue>0?'1px solid #fecaca':'1px solid #e5e7eb',borderRadius:6,padding:'10px 13px'}}>
+                  <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'0.5px',color:'#9ca3af',fontWeight:600}}>{k.label}</div>
+                  <div style={{fontSize:26,fontWeight:800,color:k.col,lineHeight:1.1,marginTop:2}}>{k.val}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* HK context heading */}
+          {isHK && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <div>
+                {directorFilter === 'hk-escalated' && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#9d174d',letterSpacing:'0.2px'}}>MY ATTENTION</div>
+                )}
+                {directorFilter === 'hk-action' && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#dc2626',letterSpacing:'0.2px'}}>ACTION REQUIRED</div>
+                )}
+                {directorFilter === 'finance' && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#15803d',letterSpacing:'0.2px'}}>FINANCE TASKS</div>
+                )}
+                {directorFilter === 'hk-stale' && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#d97706',letterSpacing:'0.2px'}}>STALE TASKS</div>
+                )}
+                {directorFilter === 'hk-completed' && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#6b7280',letterSpacing:'0.2px'}}>COMPLETED TASKS</div>
+                )}
+                {(directorFilter === '' || directorFilter === 'hk-all' || directorFilter === 'hk-pending') && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#374151',letterSpacing:'0.2px'}}>ALL ORGANIZATIONAL TASKS</div>
+                )}
+                <div style={{fontSize:11,color:'#9ca3af',marginTop:1}}>{filtered.length} task{filtered.length!==1?'s':''}{filterCompany ? ` · ${filterCompany}` : ''}</div>
+              </div>
+            </div>
+          )}
 
           {/* Filter bar */}
           <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:6,padding:'9px 13px',display:'flex',gap:8,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
@@ -1906,10 +2078,22 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
             </div>}
 
             {filtered.length===0 && (
-              <div style={{padding:48,textAlign:'center',color:'#9ca3af',fontSize:13}}>
-                {effectiveRole==='staff' && !viewAs
-                  ? `No tasks assigned to ${currentUser.name}`
-                  : 'No tasks match your filters'}
+              <div style={{padding:48,textAlign:'center'}}>
+                {isHK && directorFilter === 'hk-escalated' ? (<>
+                  <div style={{fontSize:32,marginBottom:12}}>✓</div>
+                  <div style={{fontSize:15,fontWeight:700,color:'#374151',marginBottom:6}}>You're all caught up</div>
+                  <div style={{fontSize:13,color:'#9ca3af'}}>No requests currently require your attention.</div>
+                </>) : isHK && directorFilter === 'hk-action' ? (<>
+                  <div style={{fontSize:32,marginBottom:12}}>✓</div>
+                  <div style={{fontSize:15,fontWeight:700,color:'#374151',marginBottom:6}}>No action required</div>
+                  <div style={{fontSize:13,color:'#9ca3af'}}>No tasks are waiting for your decision.</div>
+                </>) : (
+                  <div style={{fontSize:13,color:'#9ca3af'}}>
+                    {effectiveRole==='staff' && !viewAs
+                      ? `No tasks assigned to ${currentUser.name}`
+                      : 'No tasks match your filters'}
+                  </div>
+                )}
               </div>
             )}
 
@@ -2555,11 +2739,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       </button>
                     </div>
                   )}
-                  {/* HK approval button */}
-                  {activeTask.status === 'awaiting-hk-approval' && (currentUser.role === 'director' || currentUser.role === 'admin') && (
+                  {/* HK can mark complete only on tasks explicitly escalated to them */}
+                  {(currentUser.role === 'director' || currentUser.role === 'admin') &&
+                   (activeTask.status === 'awaiting-hk-approval' ||
+                    (activeTask.hk_escalation_type && activeTask.hk_escalation_type !== 'none')) && (
                     <button onClick={()=>approveTask(activeTask)}
                       style={{width:'100%',marginTop:10,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'8px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                      ✓ Approve & Resolve
+                      ✓ Mark Complete
                     </button>
                   )}
                 </>
@@ -2969,11 +3155,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 )}
               </div>
 
-              {/* Approve button if awaiting HK approval */}
-              {activeTask.status === 'awaiting-hk-approval' && (
+              {/* Mark complete only when explicitly escalated to HK */}
+              {(activeTask.status === 'awaiting-hk-approval' ||
+                (activeTask.hk_escalation_type && activeTask.hk_escalation_type !== 'none')) &&
+               (currentUser.role === 'director' || currentUser.role === 'admin') && (
                 <button onClick={()=>{approveTask(activeTask);setActiveTask(null)}}
                   style={{width:'100%',background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'9px 0',fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:14}}>
-                  ✓ Approve & Resolve
+                  ✓ Mark Complete
                 </button>
               )}
 
