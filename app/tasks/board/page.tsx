@@ -8,30 +8,21 @@ import TaskBoard from '@/components/TaskBoard'
 
 export const dynamic = 'force-dynamic'
 
-export default async function TasksPage({
-  searchParams,
-}: {
-  searchParams: { id?: string }
-}) {
+export default async function TaskBoardPage() {
   const cookieStore = cookies()
   const session     = cookieStore.get('pabari-session')
   const tokenUser   = session?.value ? await verifyToken(session.value) : null
 
   if (!tokenUser) redirect('/login')
 
-  // Always hydrate companies/reports_to from DB so stale JWTs pick up changes
   const dbUser = await getUserByEmail(tokenUser.email)
   const currentUser = dbUser
     ? { ...tokenUser, companies: dbUser.companies, reports_to: dbUser.reports_to, hod_email: dbUser.hod_email }
     : tokenUser
 
-  // Portal access guard: users with explicit portal assignments must have 'tasks' to enter Task Management
   const portals: string[] = dbUser?.portals ?? []
   const hasTasksAccess = currentUser.role === 'admin' || portals.length === 0 || portals.includes('tasks')
   if (!hasTasksAccess) redirect('/')
-
-  // Feature preview: redirect Pedro to dashboard unless a specific task is being opened
-  if (currentUser.email === 'hpedro@usm.co.ke' && !searchParams?.id) redirect('/tasks/dashboard')
 
   const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([
     getTasks(),
