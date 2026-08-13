@@ -78,9 +78,12 @@ export async function PATCH(
         due_date:        nextDue,
         recurrence:      task.recurrence,
         parent_id:       task.id,
-        legal_review:    false,
-        co_assignees:    [],
-        created_by:      '',
+        legal_review:        false,
+        co_assignees:        [],
+        hk_escalation_type:  'none',
+        hk_escalation_note:  '',
+        hk_escalation_by:    '',
+        created_by:          '',
       })
     }
   }
@@ -103,6 +106,29 @@ export async function PATCH(
           to: hk.email,
           subject: `Action Required: Task needs your approval — ${task.particulars.slice(0, 60)}`,
           body: `Hi Harshil,\n\nA task has been escalated and is awaiting your approval.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\n\n${viewBtn}`,
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }
+
+  // Email HK when a new structured escalation is created
+  const escalationType = body.hk_escalation_type as string | undefined
+  if (escalationType && escalationType !== 'none' && prev?.hk_escalation_type === 'none') {
+    const TYPE_LABELS: Record<string, string> = {
+      decision: 'Decision Required',
+      guidance: 'Management Guidance',
+      action:   'Executive Escalation',
+      info:     'Information & Awareness',
+    }
+    const typeLabel = TYPE_LABELS[escalationType] ?? escalationType
+    const by = changedBy
+    const note = (body.hk_escalation_note as string)?.trim()
+    getUserByName('Harshil').then(hk => {
+      if (hk?.email) {
+        sendEmail({
+          to: hk.email,
+          subject: `${typeLabel}: Task escalated to you — ${task.particulars.slice(0, 60)}`,
+          body: `Hi Harshil,\n\n${by} has escalated a task to you.\n\n<strong>Reason:</strong> ${typeLabel}${note ? `\n<strong>Note:</strong> ${note}` : ''}\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nResponsible: ${task.responsible}\n\n${viewBtn}`,
         }).catch(() => {})
       }
     }).catch(() => {})

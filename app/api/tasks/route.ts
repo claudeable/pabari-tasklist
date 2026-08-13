@@ -72,10 +72,13 @@ export async function POST(req: NextRequest) {
     due_date:        body.due_date ?? '',
     recurrence:      body.recurrence ?? 'none',
     parent_id:       body.parent_id ? String(body.parent_id) : undefined,
-    legal_review:    body.legal_review === true,
-    co_assignees:    [],
-    project_id:      body.project_id ? Number(body.project_id) : undefined,
-    created_by:      user?.name ?? '',
+    legal_review:        body.legal_review === true,
+    co_assignees:        [],
+    hk_escalation_type:  'none',
+    hk_escalation_note:  '',
+    hk_escalation_by:    '',
+    project_id:          body.project_id ? Number(body.project_id) : undefined,
+    created_by:          user?.name ?? '',
   })
 
   if (body.initial_update) {

@@ -228,8 +228,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'|'expired'>('active')
-  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|''>('')
+  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|'hk-escalated'|''>('')
   const [hkInboxDrafts, setHkInboxDrafts] = useState<Record<string, string>>({}) // taskId → quick comment draft
+  // ── Escalation modal ────────────────────────────────────────────────────────
+  const [showEscalateModal,  setShowEscalateModal]  = useState(false)
+  const [escalateTarget,     setEscalateTarget]     = useState<Task | null>(null)
+  const [escalateType,       setEscalateType]       = useState<'decision'|'guidance'|'action'|'info'>('decision')
+  const [escalateNote,       setEscalateNote]       = useState('')
+  const [escalateSaving,     setEscalateSaving]     = useState(false)
   const [showChangePw,   setShowChangePw]   = useState(false)
   const [pwForm,         setPwForm]         = useState({ current:'', next:'', confirm:'' })
   const [pwError,        setPwError]        = useState('')
@@ -509,6 +515,14 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     financeCategory: canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired'),
   }), [visibleTasks, canSeeFinance, allFinanceTasks])
 
+  // Tasks deliberately escalated to HK (structured escalation OR legacy awaiting-hk-approval)
+  const hkEscalated = useMemo(() =>
+    visibleTasks.filter(t =>
+      (t.hk_escalation_type && t.hk_escalation_type !== 'none') ||
+      t.status === 'awaiting-hk-approval'
+    ),
+  [visibleTasks])
+
   const filtered = useMemo(() => {
     let list = base
     if (directorFilter === 'pending-review')       list = visibleTasks.filter(t => t.status === 'in-review')
@@ -517,6 +531,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
     if (directorFilter === 'finance')               list = canSeeFinance ? allFinanceTasks : visibleTasks.filter(t => t.category === 'Finance' && t.status !== 'resolved' && t.status !== 'expired')
     if (directorFilter === 'awaiting-hk-approval')  list = visibleTasks.filter(t => t.status === 'awaiting-hk-approval')
     if (directorFilter === 'needs-paul-review')      list = visibleTasks.filter(t => t.status === 'in-review')
+    if (directorFilter === 'hk-escalated')           list = hkEscalated
     return list.filter(t => {
       if (!directorFilter && filterSection  && t.section   !== filterSection)              return false
       if (!directorFilter && filterStatus   && t.status    !== filterStatus)               return false
@@ -528,7 +543,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       if (search && !JSON.stringify(t).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, filterDateFrom, filterDateTo, search])
+  }, [base, visibleTasks, allFinanceTasks, canSeeFinance, hkEscalated, directorFilter, filterSection, filterStatus, filterCategory, filterPriority, filterPerson, filterDateFrom, filterDateTo, search])
 
   const kpis = useMemo(() => ({
     total:    base.filter(t=>t.status!=='resolved').length,
@@ -660,6 +675,48 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   async function escalateToHK(task: Task) {
     await changeStatus(task, 'awaiting-hk-approval')
+  }
+
+  function openEscalateModal(task: Task) {
+    setEscalateTarget(task)
+    setEscalateType('decision')
+    setEscalateNote('')
+    setShowEscalateModal(true)
+  }
+
+  async function submitEscalation() {
+    if (!escalateTarget) return
+    setEscalateSaving(true)
+    const body = {
+      hk_escalation_type: escalateType,
+      hk_escalation_note: escalateNote.trim(),
+      hk_escalation_by:   currentUser.name,
+    }
+    const res = await fetch(`/api/tasks/${escalateTarget.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify(body),
+    })
+    if (res.ok) {
+      setTasks(prev => prev.map(t => t.id === escalateTarget.id ? { ...t, ...body } : t))
+      if (activeTask?.id === escalateTarget.id) setActiveTask(p => p ? { ...p, ...body } : p)
+    }
+    setEscalateSaving(false)
+    setShowEscalateModal(false)
+    setEscalateTarget(null)
+  }
+
+  async function resolveHKEscalation(task: Task) {
+    const body = {
+      hk_escalation_type: 'none' as const,
+      hk_escalation_note: '',
+      hk_escalation_by:   '',
+    }
+    await fetch(`/api/tasks/${task.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify(body),
+    })
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...body } : t))
+    if (activeTask?.id === task.id) setActiveTask(p => p ? { ...p, ...body } : p)
   }
 
   async function saveHKComment(taskId: string, comment: string) {
@@ -1257,7 +1314,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         style={{background:'#15803d',color:'white',border:'none',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
                         ✓ Approve
                       </button>
-                      <button onClick={()=>escalateToHK(task)}
+                      <button onClick={()=>openEscalateModal(task)}
                         style={{background:'white',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:5,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
                         ↑ Escalate to HK
                       </button>
@@ -1495,7 +1552,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   ...(isPaul ? [
                     {label:'📋 Pending Review',  val:'needs-paul-review'      as const, count:pendingReviewPool.length,          dot:'#1d4ed8', desc:'In-review tasks — resolve or escalate to HK'},
                   ] : [
-                    {label:'⚡ HK Inbox',        val:'awaiting-hk-approval'   as const, count:needsHKApproval.length,           dot:'#9d174d', desc:'Tasks formally escalated — resolve or send back'},
+                    {label:'⚡ HK Inbox',        val:'hk-escalated'           as const, count:hkEscalated.length,               dot:'#9d174d', desc:'Tasks escalated to HK — review and resolve'},
                   ]),
                   {label:'Action Required',      val:'action-required'        as const, count:dirAttention.actionRequired.length, dot:'#dc2626', desc:'Flagged for escalation'},
                 ] : []),
@@ -1839,10 +1896,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
           {/* Task table */}
           <div style={{background:'white',border:'1px solid #e5e7eb',borderRadius:6,overflow:'hidden'}}>
-            {!isMobile && <div style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px':'38px 72px 108px 96px 165px 1fr 115px 112px 60px',background:'#f9fafb',borderBottom:'1px solid #e5e7eb',padding:'0 6px'}}>
+            {!isMobile && <div style={{display:'grid',gridTemplateColumns:showCompanyCol?'38px 90px 1fr 190px 115px 112px 70px':'38px 1fr 190px 115px 112px 70px',background:'#f9fafb',borderBottom:'1px solid #e5e7eb',padding:'0 6px'}}>
               {(showCompanyCol
-                ? ['#','Date','Company','Section','Category','Particulars','Latest Update','Responsible','Status','']
-                : ['#','Date','Section','Category','Particulars','Latest Update','Responsible','Status','']
+                ? ['#','Company','Task','Latest Update','Responsible','Status','']
+                : ['#','Task','Latest Update','Responsible','Status','']
               ).map(h=>(
                 <div key={h} style={{padding:'8px 6px',fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.5px',textTransform:'uppercase'}}>{h}</div>
               ))}
@@ -1907,28 +1964,27 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   {/* Desktop grid row */}
                   {!isMobile && <div onClick={()=>setActiveTask(activeTask?.id===task.id?null:task)}
                     style={{display:'grid',gridTemplateColumns:
-                      (directorFilter === 'awaiting-hk-approval' && perms.canHKComment)
-                        ? (showCompanyCol ? '38px 72px 88px 108px 96px 155px 1fr 115px 112px 240px' : '38px 72px 108px 96px 165px 1fr 115px 112px 240px')
-                        : (showCompanyCol ? '38px 72px 88px 108px 96px 155px 1fr 115px 112px 60px'  : '38px 72px 108px 96px 165px 1fr 115px 112px 60px'),
+                      (directorFilter === 'hk-escalated' && perms.canHKComment)
+                        ? (showCompanyCol ? '38px 90px 1fr 190px 115px 112px 240px' : '38px 1fr 190px 115px 112px 240px')
+                        : (showCompanyCol ? '38px 90px 1fr 190px 115px 112px 70px' : '38px 1fr 190px 115px 112px 70px'),
                       borderBottom:'1px solid #f3f4f6',padding:'0 6px',cursor:'pointer',
                       borderLeft:`3px solid ${BORDER[task.status]}`,
                       background:activeTask?.id===task.id?'#f8faff':'white'}}>
                     <div style={{padding:'9px 6px',fontSize:11,color:'#9ca3af',fontWeight:700}}>{task.sno}</div>
-                    <div style={{padding:'9px 6px',fontSize:11,color:'#6b7280'}}>{task.date}</div>
                     {showCompanyCol && (
                       <div style={{padding:'9px 6px'}}>
                         <span style={{background:'#eff6ff',border:'1px solid #bfdbfe',padding:'2px 6px',borderRadius:8,fontSize:9,fontWeight:700,color:'#1d4ed8',display:'inline-block',lineHeight:1.4}}>{task.company}</span>
                       </div>
                     )}
                     <div style={{padding:'9px 6px'}}>
-                      <span style={{background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'2px 6px',borderRadius:8,fontSize:9.5,fontWeight:600,color:'#166534',display:'inline-block',lineHeight:1.4}}>
-                        {sectionShort(task.section)}
-                      </span>
+                      <div style={{fontSize:12,fontWeight:600,color:'#111827',lineHeight:1.35}}>{task.particulars}</div>
+                      <div style={{display:'flex',gap:4,marginTop:4,flexWrap:'wrap'}}>
+                        <span style={{background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'1px 5px',borderRadius:6,fontSize:9,fontWeight:600,color:'#166534'}}>{sectionShort(task.section)}</span>
+                        {task.hk_escalation_type && task.hk_escalation_type !== 'none' && (
+                          <span style={{background:'#fdf2f8',border:'1px solid #fce7f3',padding:'1px 5px',borderRadius:6,fontSize:9,fontWeight:700,color:'#9d174d'}}>📫 HK</span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{padding:'9px 6px'}}>
-                      <span style={{background:'#f9fafb',border:'1px solid #e5e7eb',padding:'2px 7px',borderRadius:10,fontSize:10,color:'#4b5563'}}>{task.category}</span>
-                    </div>
-                    <div style={{padding:'9px 6px',fontSize:12,fontWeight:600,color:'#111827',lineHeight:1.35}}>{task.particulars}</div>
                     <div style={{padding:'9px 6px',fontSize:11,color:'#4b5563',lineHeight:1.4}}>
                       {latestApp
                         ? <><strong style={{color:'#111827'}}>{latestApp.date}:</strong>{' '}{latestApp.text.slice(0,80)}{latestApp.text.length>80?'…':''}</>
@@ -1976,7 +2032,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                       })()}
                     </div>
                     <div style={{padding:'9px 6px',display:'flex',gap:3,alignItems:'center'}}>
-                      {directorFilter === 'awaiting-hk-approval' && perms.canHKComment ? (
+                      {directorFilter === 'hk-escalated' && perms.canHKComment ? (
                         <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:4,width:'100%'}}>
                           <input
                             value={hkInboxDrafts[task.id] ?? ''}
@@ -1988,10 +2044,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                             <button onClick={async()=>{
                               const comment = hkInboxDrafts[task.id]?.trim() || ''
                               if (comment) await saveHKComment(task.id, comment)
-                              await approveTask(task)
+                              await resolveHKEscalation(task)
                             }}
-                              style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}>
-                              ✓ Resolve
+                              style={{flex:1,background:'#6d28d9',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}
+                              title="Mark HK review done (does not close the task)">
+                              ✓ Done
                             </button>
                             <button onClick={async()=>{
                               const comment = hkInboxDrafts[task.id]?.trim() || ''
@@ -2009,14 +2066,21 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                             style={{width:25,height:25,borderRadius:4,border:'1px solid #e5e7eb',background:'white',cursor:'pointer',fontSize:11,color:'#9ca3af'}} title="History">
                             {isExp?'▲':'▼'}
                           </button>
-                          {/* Escalate to HK — one-click for managers on any active task */}
+                          {/* Escalate to HK — opens modal to explain why */}
                           {currentUser.role === 'manager' &&
-                           !['awaiting-hk-approval','resolved','expired','archived'].includes(task.status) && (
-                            <button onClick={e=>{e.stopPropagation();escalateToHK(task)}}
+                           !['resolved','expired','archived'].includes(task.status) &&
+                           task.hk_escalation_type === 'none' && (
+                            <button onClick={e=>{e.stopPropagation();openEscalateModal(task)}}
                               style={{height:25,padding:'0 7px',borderRadius:4,border:'1px solid #fce7f3',background:'#fdf2f8',cursor:'pointer',fontSize:10,fontWeight:700,color:'#9d174d',whiteSpace:'nowrap'}}
-                              title="Send to HK Inbox">
+                              title="Escalate to HK">
                               ↑ HK
                             </button>
+                          )}
+                          {/* Show HK escalation badge when already escalated */}
+                          {task.hk_escalation_type && task.hk_escalation_type !== 'none' && (
+                            <span style={{height:25,padding:'0 7px',borderRadius:4,border:'1px solid #fce7f3',background:'#fdf2f8',fontSize:10,fontWeight:700,color:'#9d174d',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center'}}>
+                              📫 HK
+                            </span>
                           )}
                           {perms.canDelete && (
                             <button onClick={e=>{e.stopPropagation();deleteTask(task.id)}}
@@ -2120,6 +2184,31 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   Due soon — {fmtDueDate(activeTask.due_date)}
                 </div>
               )}
+
+              {/* HK Escalation banner */}
+              {activeTask.hk_escalation_type && activeTask.hk_escalation_type !== 'none' && (()=>{
+                const ET_LABELS: Record<string,string> = { decision:'Decision Required', guidance:'Management Guidance', action:'Executive Escalation', info:'Information & Awareness' }
+                const label = ET_LABELS[activeTask.hk_escalation_type] ?? activeTask.hk_escalation_type
+                return (
+                  <div style={{background:'#fdf2f8',border:'1px solid #fce7f3',borderRadius:6,padding:'10px 12px',marginBottom:10}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+                      <div>
+                        <span style={{fontSize:10.5,fontWeight:700,color:'#9d174d',textTransform:'uppercase',letterSpacing:'0.4px'}}>📫 HK Escalation — {label}</span>
+                        {activeTask.hk_escalation_note && (
+                          <div style={{fontSize:11.5,color:'#6b021a',marginTop:3}}>"{activeTask.hk_escalation_note}"</div>
+                        )}
+                        <div style={{fontSize:10.5,color:'#c4557a',marginTop:3}}>by {activeTask.hk_escalation_by}</div>
+                      </div>
+                      {isHK && (
+                        <button onClick={()=>resolveHKEscalation(activeTask)}
+                          style={{flexShrink:0,background:'#6d28d9',color:'white',border:'none',borderRadius:4,padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                          ✓ Done
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Date — editable for admin/director */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
@@ -2443,7 +2532,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                         style={{flex:1,background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',borderRadius:4,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer'}}>
                         ↩ Send Back
                       </button>
-                      <button onClick={()=>escalateToHK(activeTask)}
+                      <button onClick={()=>openEscalateModal(activeTask)}
                         style={{flex:1,background:'#fdf2f8',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
                         ↑ HK
                       </button>
@@ -2460,7 +2549,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                           ✓ Approve & Resolve
                         </button>
                       )}
-                      <button onClick={()=>escalateToHK(activeTask)}
+                      <button onClick={()=>openEscalateModal(activeTask)}
                         style={{flex:1,background:'#fdf2f8',color:'#9d174d',border:'1px solid #fce7f3',borderRadius:4,padding:'7px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
                         ↑ Escalate to HK
                       </button>
@@ -2912,6 +3001,69 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ESCALATION MODAL */}
+      {showEscalateModal && escalateTarget && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:9000,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 16px'}}
+          onClick={e=>{ if(e.target===e.currentTarget){setShowEscalateModal(false);setEscalateTarget(null)} }}>
+          <div style={{background:'white',borderRadius:10,width:'100%',maxWidth:440,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            {/* Modal header */}
+            <div style={{background:'#9d174d',borderRadius:'10px 10px 0 0',padding:'16px 20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{color:'white',fontWeight:700,fontSize:14}}>Escalate to Harshil</div>
+                <div style={{color:'rgba(255,255,255,0.7)',fontSize:11,marginTop:2,maxWidth:360,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {escalateTarget.particulars}
+                </div>
+              </div>
+              <button onClick={()=>{setShowEscalateModal(false);setEscalateTarget(null)}}
+                style={{background:'none',border:'none',color:'rgba(255,255,255,0.6)',cursor:'pointer',fontSize:18,lineHeight:1}}>✕</button>
+            </div>
+            {/* Modal body */}
+            <div style={{padding:'20px 20px 0'}}>
+              <div style={{fontSize:12.5,fontWeight:600,color:'#374151',marginBottom:12}}>Why does this need Harshil's attention?</div>
+              {([
+                { type:'decision', label:'Decision Required',     desc:'Needs HK to make or approve a decision' },
+                { type:'guidance', label:'Management Guidance',   desc:'Needs HK direction on how to proceed' },
+                { type:'action',   label:'Executive Escalation',  desc:'Requires HK to take direct action' },
+                { type:'info',     label:'Information & Awareness', desc:'HK should be aware, no action needed' },
+              ] as const).map(opt=>(
+                <label key={opt.type} onClick={()=>setEscalateType(opt.type)}
+                  style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 10px',borderRadius:6,marginBottom:6,cursor:'pointer',
+                    background:escalateType===opt.type?'#fdf2f8':'#f9fafb',
+                    border:`1.5px solid ${escalateType===opt.type?'#fce7f3':'#e5e7eb'}`,
+                  }}>
+                  <span style={{marginTop:2,width:14,height:14,borderRadius:'50%',border:`2px solid ${escalateType===opt.type?'#9d174d':'#d1d5db'}`,
+                    display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {escalateType===opt.type && <span style={{width:6,height:6,borderRadius:'50%',background:'#9d174d',display:'block'}}/>}
+                  </span>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,color:'#111827'}}>{opt.label}</div>
+                    <div style={{fontSize:10.5,color:'#6b7280',marginTop:1}}>{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+              <textarea
+                placeholder="Add a brief note (optional)..."
+                value={escalateNote}
+                onChange={e=>setEscalateNote(e.target.value)}
+                rows={2}
+                style={{width:'100%',border:'1px solid #d1d5db',borderRadius:6,padding:'8px 10px',fontSize:12,resize:'vertical',marginTop:4,boxSizing:'border-box',fontFamily:'inherit'}}
+              />
+            </div>
+            {/* Modal footer */}
+            <div style={{padding:'14px 20px 20px',display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button onClick={()=>{setShowEscalateModal(false);setEscalateTarget(null)}}
+                style={{padding:'8px 18px',borderRadius:6,border:'1px solid #d1d5db',background:'white',cursor:'pointer',fontSize:13,color:'#374151'}}>
+                Cancel
+              </button>
+              <button onClick={submitEscalation} disabled={escalateSaving}
+                style={{padding:'8px 18px',borderRadius:6,border:'none',background:escalateSaving?'#e5e7eb':'#9d174d',cursor:escalateSaving?'default':'pointer',fontSize:13,fontWeight:600,color:'white'}}>
+                {escalateSaving ? 'Sending…' : 'Send to HK →'}
+              </button>
             </div>
           </div>
         </div>

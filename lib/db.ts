@@ -54,6 +54,10 @@ async function ensureParentId() {
   await execute(`DELETE FROM sso_tokens WHERE expires_at < NOW() - INTERVAL '1 hour'`).catch(() => {})
   // ── Co-assignees: additional people assigned alongside the primary responsible ──
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS co_assignees TEXT[] NOT NULL DEFAULT '{}'").catch(() => {})
+  // ── HK Escalation: structured reason when a task is surfaced to Harshil ──
+  await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hk_escalation_type TEXT NOT NULL DEFAULT 'none'").catch(() => {})
+  await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hk_escalation_note TEXT NOT NULL DEFAULT ''").catch(() => {})
+  await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hk_escalation_by   TEXT NOT NULL DEFAULT ''").catch(() => {})
   // ─────────────────────────────────────────────────────────────────────────
 
   parentColReady = true
@@ -79,9 +83,12 @@ function rowToTask(row: Record<string, unknown>): Task {
     approved_by:     String(row.approved_by || ''),
     approved_at:     String(row.approved_at || ''),
     status_wk:       String(row.status_wk || ''),
-    hk_comment:      String(row.hk_comment || ''),
-    hod_comment:     String(row.hod_comment || ''),
-    due_date:        row.due_date ? String(row.due_date).slice(0, 10) : '',
+    hk_comment:         String(row.hk_comment || ''),
+    hod_comment:        String(row.hod_comment || ''),
+    hk_escalation_type: (row.hk_escalation_type as Task['hk_escalation_type']) || 'none',
+    hk_escalation_note: String(row.hk_escalation_note || ''),
+    hk_escalation_by:   String(row.hk_escalation_by || ''),
+    due_date:           row.due_date ? String(row.due_date).slice(0, 10) : '',
     recurrence:      (row.recurrence as Recurrence) || 'none',
     parent_id:       row.parent_id ? String(row.parent_id) : undefined,
     legal_review:    Boolean(row.legal_review),
@@ -165,7 +172,8 @@ export async function updateTask(id: string, updates: Partial<Task>, changedBy =
                    'section', 'category', 'particulars', 'date', 'company', 'payment', 'status_wk',
                    'approval_type', 'approval_status', 'approved_by', 'approved_at',
                    'due_date', 'recurrence', 'legal_review', 'legal_comment', 'project_id',
-                   'co_assignees']
+                   'co_assignees',
+                   'hk_escalation_type', 'hk_escalation_note', 'hk_escalation_by']
   const fields = Object.keys(updates).filter(k => allowed.includes(k))
   if (fields.length === 0) return (await getTaskById(id)) ?? null
 

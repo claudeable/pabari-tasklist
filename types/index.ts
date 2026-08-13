@@ -319,9 +319,12 @@ export interface Task {
   approved_by:     string
   approved_at:     string
   status_wk:       string
-  hk_comment:      string
-  hod_comment:     string
-  due_date:        string   // YYYY-MM-DD, '' if not set
+  hk_comment:         string
+  hod_comment:        string
+  hk_escalation_type: 'none' | 'info' | 'action' | 'decision' | 'guidance'
+  hk_escalation_note: string
+  hk_escalation_by:   string
+  due_date:           string   // YYYY-MM-DD, '' if not set
   recurrence:      Recurrence
   project_id?:     number   // optional link to a project
   parent_id?:      string   // links follow-ups and recurrence cycles to their origin task
