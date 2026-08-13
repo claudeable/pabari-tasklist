@@ -412,9 +412,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
     // For all other roles, apply company access gate first
     // Non-ALL users also see any task they're personally responsible for (cross-company assignments)
-    // Hide all KISCOL-company tasks (KISCOL removed from the task board)
     const accessible = currentUser.companies.includes('ALL')
-      ? tasks.filter(t => t.company !== 'KISCOL')
+      ? tasks
       : tasks.filter(t =>
           currentUser.companies.includes(t.company) ||
           nameMatch(effectiveResponsible(t), currentUser.name)
@@ -424,7 +423,6 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       return accessible // CEO (Ahmad) sees all their company's tasks
     }
     if (effectiveRole === 'manager') {
-      // KISCOL-only managers: company filter + personally assigned already covered by accessible
       if (!currentUser.companies.includes('ALL')) {
         const myNames = [currentUser.name, ...subordinates]
         return accessible.filter(t => myNames.some(n => nameMatch(effectiveResponsible(t), n)))
