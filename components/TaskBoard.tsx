@@ -264,8 +264,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const canSeeFinance  = currentUser.role === 'admin' || FINANCE_VISIBLE_EMAILS.has((currentUser.email || '').toLowerCase())
   const _firstName     = (currentUser.name || '').trim().split(' ')[0].toLowerCase()
   const canArchive     = currentUser.role === 'admin' || _firstName === 'paul' || _firstName === 'benson'
-  const canSeeArchived = canArchive
-  const canSeeAllResolved = currentUser.role === 'admin' || _firstName === 'paul' || _firstName === 'benson'
+  const canSeeArchived = canArchive || _firstName === 'harshil'
+  const canSeeAllResolved = currentUser.role === 'admin' || _firstName === 'paul' || _firstName === 'benson' || _firstName === 'harshil'
   const canSeeFinanceResolved = _firstName === 'yalelet' || _firstName === 'krishina'
 
   // ── Update editing (admin / director only) ───────────────────────
@@ -480,7 +480,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   // ── Per-company counts (based on visible tasks) ──────────────────
   const companyCounts = useMemo(() => {
     const m: Record<string,number> = {}
-    visibleTasks.forEach(t => { m[t.company] = (m[t.company]||0)+1 })
+    visibleTasks
+      .filter(t => t.status !== 'resolved' && t.status !== 'archived')
+      .forEach(t => { m[t.company] = (m[t.company]||0)+1 })
     return m
   }, [visibleTasks])
 
