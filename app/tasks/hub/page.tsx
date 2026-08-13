@@ -7,7 +7,7 @@ import TaskManagementHub from '@/components/TaskManagementHub'
 export const dynamic = 'force-dynamic'
 
 const INTEL_EMAILS  = ['bnzuka@usm.co.ke', 'pmureithi@usm.co.ke']
-const INTEL_NAMES   = ['benson']
+const INTEL_NAMES   = ['benson', 'harshil']
 const YALELET_EMAIL = 'yaynalem@usm.co.ke'
 const PAUL_EMAILS   = ['pmureithi@usm.co.ke', 'hkotecha@kwale-group.com']
 
