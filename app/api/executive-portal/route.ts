@@ -205,6 +205,89 @@ export async function GET() {
     )
   } catch { /**/ }
 
+  // ── HK Attention tasks (escalated + legacy awaiting-hk-approval) ─────────
+  let hkAttentionTasks: {
+    id: string; particulars: string; company: string; section: string
+    responsible: string; status: string; priority: string
+    hk_escalation_type: string; hk_escalation_note: string; hk_escalation_by: string
+    latest_update: string | null; days_waiting: string
+  }[] = []
+  try {
+    hkAttentionTasks = await query<{
+      id: string; particulars: string; company: string; section: string
+      responsible: string; status: string; priority: string
+      hk_escalation_type: string; hk_escalation_note: string; hk_escalation_by: string
+      latest_update: string | null; days_waiting: string
+    }>(`
+      SELECT
+        t.id::text,
+        t.particulars,
+        t.company,
+        t.section,
+        t.responsible,
+        t.status,
+        t.priority,
+        COALESCE(t.hk_escalation_type,'none') AS hk_escalation_type,
+        COALESCE(t.hk_escalation_note,'')     AS hk_escalation_note,
+        COALESCE(t.hk_escalation_by,'')       AS hk_escalation_by,
+        GREATEST(0, EXTRACT(DAY FROM NOW() - t.updated_at))::int::text AS days_waiting,
+        (SELECT text FROM task_updates WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) AS latest_update
+      FROM tasks t
+      WHERE (
+        (t.hk_escalation_type IS NOT NULL AND t.hk_escalation_type != 'none')
+        OR t.status = 'awaiting-hk-approval'
+      )
+      AND t.status NOT IN ('resolved','expired','archived')
+      ORDER BY
+        CASE COALESCE(t.hk_escalation_type,'none')
+          WHEN 'decision' THEN 0 WHEN 'action' THEN 1
+          WHEN 'guidance' THEN 2 WHEN 'info'   THEN 3 ELSE 4
+        END,
+        CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+        t.updated_at DESC
+      LIMIT 10
+    `)
+  } catch { /**/ }
+
+  // ── Three metric card counts ─────────────────────────────────────────────
+  let needsDecision = 0, awaitingInput = 0, forAwareness = 0
+  try {
+    const counts = await query<{ needs_decision: string; awaiting_input: string; for_awareness: string }>(`
+      SELECT
+        COUNT(CASE WHEN hk_escalation_type IN ('decision','action')
+                     OR (status='awaiting-hk-approval' AND (hk_escalation_type IS NULL OR hk_escalation_type='none'))
+                   THEN 1 END)::text AS needs_decision,
+        COUNT(CASE WHEN hk_escalation_type = 'guidance' THEN 1 END)::text AS awaiting_input,
+        COUNT(CASE WHEN hk_escalation_type = 'info' THEN 1 END)::text AS for_awareness
+      FROM tasks
+      WHERE status NOT IN ('resolved','expired','archived')
+    `)
+    needsDecision = parseInt(counts[0]?.needs_decision ?? '0', 10)
+    awaitingInput = parseInt(counts[0]?.awaiting_input ?? '0', 10)
+    forAwareness  = parseInt(counts[0]?.for_awareness ?? '0', 10)
+  } catch { /**/ }
+
+  // ── Weekly stats for "Your Week" section ─────────────────────────────────
+  let resolvedThisWeek = 0, escalatedThisWeek = 0, pendingCount = 0, longRunningCount = 0
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const stats = await query<{
+      resolved_this_week: string; escalated_this_week: string
+      pending_count: string; long_running_count: string
+    }>(`
+      SELECT
+        COUNT(CASE WHEN status='resolved' AND LEFT(updated_at::text,10) >= $1 THEN 1 END)::text AS resolved_this_week,
+        COUNT(CASE WHEN hk_escalation_type != 'none' AND LEFT(updated_at::text,10) >= $1 THEN 1 END)::text AS escalated_this_week,
+        COUNT(CASE WHEN status NOT IN ('resolved','expired','archived') THEN 1 END)::text AS pending_count,
+        COUNT(CASE WHEN status NOT IN ('resolved','expired','archived') AND created_at < NOW() - INTERVAL '30 days' THEN 1 END)::text AS long_running_count
+      FROM tasks
+    `, [weekAgo])
+    resolvedThisWeek  = parseInt(stats[0]?.resolved_this_week  ?? '0', 10)
+    escalatedThisWeek = parseInt(stats[0]?.escalated_this_week ?? '0', 10)
+    pendingCount      = parseInt(stats[0]?.pending_count       ?? '0', 10)
+    longRunningCount  = parseInt(stats[0]?.long_running_count  ?? '0', 10)
+  } catch { /**/ }
+
   return NextResponse.json({
     today,
     totalOpen, actionRequired, needsHkComment,
@@ -214,5 +297,7 @@ export async function GET() {
     dnTotal, dnThisWeek, dnCancelled,
     actionTasks, approvalTasks, legalReviewTasks, pcrItems,
     activityFeed, workload, byCompany,
+    hkAttentionTasks, needsDecision, awaitingInput, forAwareness,
+    resolvedThisWeek, escalatedThisWeek, pendingCount, longRunningCount,
   })
 }

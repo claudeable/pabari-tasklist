@@ -30,8 +30,11 @@ export default async function TasksPage({
   const hasTasksAccess = currentUser.role === 'admin' || portals.length === 0 || portals.includes('tasks')
   if (!hasTasksAccess) redirect('/')
 
-  // Feature preview: redirect Pedro to dashboard unless a specific task is being opened
+  // Redirect Pedro to his personal dashboard unless opening a specific task
   if (currentUser.email === 'hpedro@usm.co.ke' && !searchParams?.id) redirect('/tasks/dashboard')
+  // Redirect Harshil to the Executive Intelligence dashboard
+  const isHK = currentUser.name.toLowerCase().startsWith('harshil')
+  if (isHK && !searchParams?.id) redirect('/intelligence')
 
   const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([
     getTasks(),

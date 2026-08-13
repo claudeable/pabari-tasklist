@@ -1,320 +1,191 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SessionUser } from '@/types'
 import NotificationBell from './NotificationBell'
 
-// ── Design tokens ─────────────────────────────────────────────────────────
+// ── Design tokens ──────────────────────────────────────────────────────────
 const T = {
-  bg:      '#060c08',
-  card:    '#0b1610',
-  card2:   '#0f1c13',
-  border:  '#162214',
-  border2: '#1e2e1a',
-  text:    '#e2ede7',
-  text2:   '#7aaa87',
-  text3:   '#4a7055',
-  green:   '#22c55e',
-  greenDim:'#16a34a',
-  amber:   '#f59e0b',
-  red:     '#ef4444',
-  gold:    '#b5833a',
-  blue:    '#60a5fa',
+  bg:       '#060c08',
+  card:     '#0b1610',
+  card2:    '#0f1c13',
+  border:   '#162214',
+  border2:  '#1e2e1a',
+  text:     '#e2ede7',
+  text2:    '#7aaa87',
+  text3:    '#4a7055',
+  green:    '#22c55e',
+  greenDim: '#16a34a',
+  amber:    '#f59e0b',
+  red:      '#ef4444',
+  gold:     '#b5833a',
+  blue:     '#60a5fa',
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────
-interface ActionTask {
-  id: string; particulars: string; company: string
-  responsible: string; priority: string; days_waiting: string
+// ── Escalation type config ─────────────────────────────────────────────────
+const TYPE_CFG: Record<string, { tag: string; action: string; color: string; bg: string; border: string }> = {
+  decision: { tag: 'DECISION REQUIRED',   action: 'Decide',  color: T.red,   bg: `${T.red}18`,   border: `${T.red}33`   },
+  action:   { tag: 'EXECUTIVE ESCALATION',action: 'Approve', color: T.amber, bg: `${T.amber}18`, border: `${T.amber}33` },
+  guidance: { tag: 'MANAGEMENT GUIDANCE', action: 'Comment', color: T.blue,  bg: `${T.blue}18`,  border: `${T.blue}33`  },
+  info:     { tag: 'FOR AWARENESS',       action: 'View',    color: T.text2, bg: `${T.border}88`, border: T.border2      },
+  none:     { tag: 'AWAITING APPROVAL',   action: 'Approve', color: T.amber, bg: `${T.amber}18`, border: `${T.amber}33` },
 }
-interface ApprovalTask {
-  id: string; particulars: string; company: string
-  responsible: string; days_waiting: string
+
+// ── Types ──────────────────────────────────────────────────────────────────
+interface HKAttentionTask {
+  id: string; particulars: string; company: string; section: string
+  responsible: string; status: string; priority: string
+  hk_escalation_type: string; hk_escalation_note: string; hk_escalation_by: string
+  latest_update: string | null; days_waiting: string
 }
-interface LegalTask {
-  id: string; particulars: string; company: string
-  responsible: string; days_waiting: string
-}
-interface PcrItem    { req_no: string; employee_name: string; company: string; total_amount: string; status: string }
-interface Activity   { user_name: string; action: string; details: string; created_at: string }
 interface WorkloadRow { responsible: string; open: string; resolved_week: string }
-interface CompanyRow  { company: string; total: string; action_req: string }
+interface Activity    { user_name: string; action: string; details: string; created_at: string }
+interface HealthItem  { name: string; score: number; color: string; label: string; detail: string }
 
 interface ExecData {
   today: string
   totalOpen: number; actionRequired: number; needsHkComment: number
   awaitingApproval: number; resolvedToday: number
   oldestDays: number; avgWaitDays: number
-  pcrActive: number; pcrHighValue: number; leavePending: number; docCount: number
-  dnTotal: number; dnThisWeek: number; dnCancelled: number
-  actionTasks: ActionTask[]; approvalTasks: ApprovalTask[]; legalReviewTasks: LegalTask[]
-  pcrItems: PcrItem[]; activityFeed: Activity[]
-  workload: WorkloadRow[]; byCompany: CompanyRow[]
+  pcrActive: number; pcrHighValue: number; leavePending: number
+  dnTotal: number; dnCancelled: number
+  activityFeed: Activity[]; workload: WorkloadRow[]
+  // new HK-specific fields
+  hkAttentionTasks: HKAttentionTask[]
+  needsDecision: number; awaitingInput: number; forAwareness: number
+  resolvedThisWeek: number; escalatedThisWeek: number
+  pendingCount: number; longRunningCount: number
 }
 
-interface MailStats {
-  today: { total: number; unread: number; critical: number; high: number; medium: number; low: number; requires_action: number }
-  unread_over_24h: number
-  categories: { category: string; count: string }[]
-  critical_emails: { subject: string; from_name: string; from_email: string; received_at: string }[]
-}
-
-interface ForecastItem {
-  category: string
-  observation: string
-  impact: string
-  recommendation: string
-  confidence: number
-}
-
-interface Rec {
-  title: string
-  reason: string
-  impact: string
-  priority: 'critical' | 'high' | 'medium'
-  confidence: number
-  href: string
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 function getGreeting() {
   const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 }
-
 function fmtDate() {
   return new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
-
-function fmtAmt(v: string | number) {
-  return `KES ${Number(v).toLocaleString()}`
-}
-
 function fmtRelative(ts: string) {
   const diff = Date.now() - new Date(ts).getTime()
   const mins = Math.floor(diff / 60000)
   const hrs  = Math.floor(mins / 60)
   const days = Math.floor(hrs / 24)
-  if (days > 0)  return `${days}d ago`
-  if (hrs  > 0)  return `${hrs}h ago`
-  if (mins > 0)  return `${mins}m ago`
+  if (days > 0) return `${days}d ago`
+  if (hrs  > 0) return `${hrs}h ago`
+  if (mins > 0) return `${mins}m ago`
   return 'just now'
 }
 
-function genRecommendations(data: ExecData, myTasks: ActionTask[], isHK: boolean): Rec[] {
-  const recs: Rec[] = []
-
-  // Critical tasks — scoped to what this user can action
-  const critical = myTasks.filter(t => t.priority === 'critical')
-  if (critical.length > 0) {
-    const t = critical[0]
-    recs.push({
-      title: `Clear ${critical.length} critical item${critical.length > 1 ? 's' : ''}`,
-      reason: `"${t.particulars.slice(0, 58)}" (${t.company}) · ${t.days_waiting}d waiting`,
-      impact: `${critical.length * 2}+ downstream tasks unblocked`,
-      priority: 'critical',
-      confidence: 96,
-      href: `/tasks?id=${t.id}`,
-    })
-  }
-
-  // HK Comment queue — only relevant to Harshil
-  if (isHK && (data.needsHkComment ?? 0) >= 6) {
-    recs.push({
-      title: `Comment on ${data.needsHkComment} high-priority tasks`,
-      reason: `Team is waiting on your direction to proceed — each comment unlocks next steps`,
-      impact: `${data.needsHkComment} high-priority tasks unblocked immediately`,
-      priority: data.needsHkComment > 20 ? 'critical' : 'high',
-      confidence: 99,
-      href: '/tasks',
-    })
-  }
-
-  // Oldest pending task scoped to this user's tasks
-  const sorted = [...myTasks].sort((a, b) => parseInt(b.days_waiting) - parseInt(a.days_waiting))
-  const oldest = sorted[0]
-  if (oldest && parseInt(oldest.days_waiting) >= 7 && oldest.priority !== 'critical') {
-    recs.push({
-      title: `Resolve ${oldest.days_waiting}-day pending item`,
-      reason: `"${oldest.particulars.slice(0, 55)}" from ${oldest.company} — SLA exposure rising`,
-      impact: `Eliminates longest-standing risk in your queue`,
-      priority: 'high',
-      confidence: 88,
-      href: `/tasks?id=${oldest.id}`,
-    })
-  }
-
-  // PCR high value — both executives may action these
-  if ((data.pcrHighValue ?? 0) > 0) {
-    const top = data.pcrItems.find(p => Number(p.total_amount) >= 100000)
-    recs.push({
-      title: `Approve ${data.pcrHighValue} high-value PCR${data.pcrHighValue > 1 ? 's' : ''}`,
-      reason: top
-        ? `${top.employee_name} (${top.company}) — ${fmtAmt(top.total_amount)} awaiting sign-off`
-        : `Finance requests are holding up operations`,
-      impact: `Cash flow maintained, operations unblocked`,
-      priority: 'high',
-      confidence: 94,
-      href: '/forms',
-    })
-  }
-
-  // Awaiting approval — only show for HK since approvals route to him
-  if (isHK && (data.awaitingApproval ?? 0) >= 2) {
-    recs.push({
-      title: `Process ${data.awaitingApproval} pending approvals`,
-      reason: `${data.awaitingApproval} tasks await your sign-off — avg ${data.avgWaitDays}d delay compounds daily`,
-      impact: `${data.awaitingApproval} tasks advance to next stage`,
-      priority: 'medium',
-      confidence: 91,
-      href: '/tasks',
-    })
-  }
-
-  // For non-HK with no tasks, suggest checking forms/leave
-  if (!isHK && recs.length === 0) {
-    recs.push({
-      title: 'Review pending leave requests',
-      reason: `${data.leavePending} leave request${data.leavePending !== 1 ? 's' : ''} pending across the organisation`,
-      impact: `Staff planning clarity restored`,
-      priority: 'medium',
-      confidence: 85,
-      href: '/forms',
-    })
-  }
-
-  const order: Record<string, number> = { critical: 0, high: 1, medium: 2 }
-  return recs.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5)
+function generateBriefing(data: ExecData): string {
+  const total = data.needsDecision + data.awaitingInput + data.forAwareness
+  if (total === 0) return 'Operations are running smoothly today. No executive action is required at this time — the team is managing the queue effectively.'
+  const parts: string[] = []
+  if (data.needsDecision > 0) parts.push(`${data.needsDecision} matter${data.needsDecision !== 1 ? 's' : ''} require${data.needsDecision === 1 ? 's' : ''} your decision`)
+  if (data.awaitingInput  > 0) parts.push(`${data.awaitingInput}  item${data.awaitingInput  !== 1 ? 's' : ''} await your input`)
+  if (data.forAwareness   > 0) parts.push(`${data.forAwareness}   update${data.forAwareness !== 1 ? 's' : ''} for your awareness`)
+  const intro = data.needsDecision > 0 ? 'Your attention is needed.' : 'Operations are generally stable.'
+  return `${intro} ${parts.join(', ')}. Paul and the team are managing the remaining operational tasks.`
 }
 
-function computeHealth(data: ExecData) {
-  const totalOpen = data.totalOpen || 1
+function generateWeeklyReview(data: ExecData): { summary: string; recommendation: string } {
+  const { resolvedThisWeek: r, escalatedThisWeek: e, pendingCount: p, longRunningCount: l } = data
+  const summary =
+    `${r} task${r !== 1 ? 's' : ''} were completed across the organisation this week` +
+    (e > 0 ? `, and ${e} matter${e !== 1 ? 's' : ''} were escalated to you` : '') + '. ' +
+    (l > 0
+      ? `${l} task${l !== 1 ? 's' : ''} have been open for more than 30 days and may require intervention.`
+      : 'No long-standing items of concern this week.')
+  const recommendation = l > 2
+    ? `Review the ${l} long-running matters — some may be stalled and need a decision to unblock the team.`
+    : e > 0
+    ? `Your escalated items are the priority. Once addressed, the operational queue should move efficiently.`
+    : r > 5
+    ? 'Strong completion rate this week. No immediate intervention required — operations are progressing normally.'
+    : 'No immediate intervention required. Continue monitoring the escalation queue.'
+  return { summary, recommendation }
+}
 
-  // TASKS — penalise heavily for HK comment backlog (main bottleneck signal),
-  // action queue, wait time, and age of oldest item
+function computeHealth(data: ExecData): HealthItem[] {
+  const totalOpen = data.totalOpen || 1
   const actionRatio = data.actionRequired / totalOpen
   const hkRatio     = data.needsHkComment / totalOpen
   const taskScore   = Math.max(5, Math.round(
-    100
-    - (actionRatio * 35)  // -35 max if every task is action-required
-    - (hkRatio     * 50)  // -50 max if every task lacks HK comment — biggest signal
-    - (data.avgWaitDays > 14 ? 15 : data.avgWaitDays > 7 ? 8 : data.avgWaitDays > 3 ? 3 : 0)
-    - (data.oldestDays  > 60 ? 10 : data.oldestDays  > 30 ? 5 : 0)
+    100 - (actionRatio * 35) - (hkRatio * 50)
+    - (data.avgWaitDays  > 14 ? 15 : data.avgWaitDays  > 7 ? 8 : 0)
+    - (data.oldestDays   > 60 ? 10 : data.oldestDays   > 30 ? 5 : 0)
   ))
-
-  // PETTY CASH — pending active PCRs and high-value queue
-  const pcrScore = data.pcrActive === 0 ? 95
-    : data.pcrHighValue > 4 ? 40
-    : data.pcrHighValue > 1 ? 60
-    : data.pcrActive    > 8 ? 68
-    : data.pcrActive    > 3 ? 78
-    : 88
-
-  // LEAVE — pending requests
-  const leaveScore = data.leavePending === 0 ? 95
-    : data.leavePending > 8 ? 40
-    : data.leavePending > 4 ? 62
-    : data.leavePending > 1 ? 78
-    : 88
-
-  // LOGISTICS — cancellation rate on delivery notes
-  const dnTotal      = data.dnTotal || 0
-  const cancelRate   = dnTotal > 0 ? data.dnCancelled / dnTotal : 0
-  const logScore     = dnTotal === 0 ? 80
-    : cancelRate > 0.3 ? 40
-    : cancelRate > 0.1 ? 65
-    : 92
-
-  // PEOPLE — workload imbalance across team
-  // If one person carries 3× the team average, that's a serious imbalance
-  const opens        = data.workload.map(p => parseInt(p.open))
-  const maxOpen      = opens.length ? Math.max(...opens) : 0
-  const avgOpen      = opens.length ? opens.reduce((a, b) => a + b, 0) / opens.length : 1
-  const imbalance    = avgOpen > 0 ? maxOpen / avgOpen : 1
-  const heavyCount   = opens.filter(o => o > 30).length
-  const peopleScore  = Math.max(5, Math.round(
-    100
+  const leaveScore = data.leavePending === 0 ? 95 : data.leavePending > 8 ? 40 : data.leavePending > 4 ? 62 : data.leavePending > 1 ? 78 : 88
+  const opens      = (data.workload ?? []).map(p => parseInt(p.open))
+  const maxOpen    = opens.length ? Math.max(...opens) : 0
+  const avgOpen    = opens.length ? opens.reduce((a, b) => a + b, 0) / opens.length : 1
+  const imbalance  = avgOpen > 0 ? maxOpen / avgOpen : 1
+  const heavyCnt   = opens.filter(o => o > 30).length
+  const peopleScore = Math.max(5, Math.round(100
     - (imbalance > 5 ? 45 : imbalance > 3 ? 28 : imbalance > 2 ? 12 : 0)
-    - (heavyCount > 3 ? 20 : heavyCount > 1 ? 12 : heavyCount === 1 ? 6 : 0)
-    - (maxOpen > 60 ? 12 : maxOpen > 40 ? 6 : 0)
+    - (heavyCnt  > 3 ? 20 : heavyCnt  > 1 ? 12 : heavyCnt === 1 ? 6 : 0)
+    - (maxOpen   > 60 ? 12 : maxOpen  > 40 ? 6 : 0)
   ))
-
   const col = (s: number) => s >= 75 ? T.green : s >= 50 ? T.amber : T.red
-  const lbl = (s: number) => s >= 75 ? 'Healthy' : s >= 50 ? 'At Risk' : 'Critical'
-  const bg  = (s: number) => s >= 75 ? 'rgba(34,197,94,0.08)' : s >= 50 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)'
-
-  const hkDetail = hkRatio > 0.5
-    ? `${data.needsHkComment} of ${data.totalOpen} tasks need HK comment`
-    : `${data.actionRequired} tasks need action`
-
-  const overloadedCount = opens.filter(o => o > 30).length
-  const peopleDetail = maxOpen > 0
-    ? `Top load: ${maxOpen} tasks · ${overloadedCount} member${overloadedCount !== 1 ? 's' : ''} over 30`
-    : '0 team members overloaded'
-
+  const lbl = (s: number) => s >= 75 ? 'On Track' : s >= 50 ? 'At Risk' : 'Critical'
   return [
-    { name: 'Tasks',      score: taskScore,   color: col(taskScore),   label: lbl(taskScore),   bg: bg(taskScore),   detail: hkDetail },
-    { name: 'Petty Cash', score: pcrScore,    color: col(pcrScore),    label: lbl(pcrScore),    bg: bg(pcrScore),    detail: `${data.pcrActive} active · ${data.pcrHighValue} high-value` },
-    { name: 'Leave',      score: leaveScore,  color: col(leaveScore),  label: lbl(leaveScore),  bg: bg(leaveScore),  detail: `${data.leavePending} requests pending` },
-    { name: 'Logistics',  score: logScore,    color: col(logScore),    label: lbl(logScore),    bg: bg(logScore),    detail: `${data.dnTotal} notes · ${data.dnCancelled} cancelled` },
-    { name: 'People',     score: peopleScore, color: col(peopleScore), label: lbl(peopleScore), bg: bg(peopleScore), detail: peopleDetail },
+    { name: 'Operations', score: taskScore,   color: col(taskScore),   label: lbl(taskScore),   detail: `${data.actionRequired} tasks need action` },
+    { name: 'People',     score: peopleScore, color: col(peopleScore), label: lbl(peopleScore), detail: heavyCnt > 0 ? `${heavyCnt} member${heavyCnt !== 1 ? 's' : ''} overloaded` : 'Workload balanced' },
+    { name: 'Leave',      score: leaveScore,  color: col(leaveScore),  label: lbl(leaveScore),  detail: `${data.leavePending} request${data.leavePending !== 1 ? 's' : ''} pending` },
   ]
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Tasks:      T.blue,
-  'Petty Cash': T.green,
-  Leave:      T.amber,
-  Logistics:  '#fb923c',
-  People:     '#a78bfa',
+const ACTION_LABELS: Record<string, string> = {
+  login: 'logged in', logout: 'logged out',
+  task_created: 'created a task', task_status_changed: 'updated task status',
+  task_update_posted: 'posted an update', task_commented: 'added HK comment',
+  leave_submitted: 'submitted leave', pcr_submitted: 'submitted petty cash',
+  leave_approved: 'approved leave', leave_rejected: 'rejected leave',
+  petty_cash_hos_approved: 'approved PCR', petty_cash_disbursed: 'disbursed cash',
+  doc_uploaded: 'uploaded document',
 }
+
+const SUGGESTED_QUESTIONS = [
+  'What needs my attention today?',
+  'What did we complete this week?',
+  'What is overdue?',
+  'Which tasks are waiting on me?',
+  'What has Paul handled this week?',
+  'Show me the biggest operational risks.',
+]
 
 async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST' })
   window.location.href = '/login'
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  login: 'logged in', logout: 'logged out',
-  task_created: 'created a task', task_status_changed: 'updated task status',
-  task_update_posted: 'posted task update', task_commented: 'added HK comment',
-  leave_submitted: 'submitted leave', pcr_submitted: 'submitted petty cash',
-  leave_approved: 'approved leave', leave_rejected: 'rejected leave',
-  petty_cash_hos_approved: 'approved PCR (HOS)', petty_cash_hod_approved: 'approved PCR (HOD)',
-  petty_cash_finance_approved: 'approved PCR (Finance)', petty_cash_disbursed: 'disbursed cash',
-  petty_cash_received: 'confirmed receipt', doc_uploaded: 'uploaded document',
-}
-
-// ── Component ─────────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────────
 export default function ExecutivePortal({ currentUser }: { currentUser: SessionUser }) {
-  const [data, setData]               = useState<ExecData | null>(null)
-  const [loading, setLoading]         = useState(true)
-  const [forecasts, setForecasts]     = useState<ForecastItem[]>([])
-  const [fLoading, setFLoading]       = useState(true)
-  const [fTime, setFTime]             = useState('')
-  const [fError, setFError]           = useState(false)
-  const [mailStats, setMailStats]      = useState<MailStats | null>(null)
-  const [actTab, setActTab]           = useState<'all' | 'today'>('all')
-  const [isMobile, setIsMobile]       = useState(false)
-  const [navOpen,  setNavOpen]        = useState(false)
-  const [userMenu, setUserMenu]       = useState(false)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 900)
-    check(); window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
+  const [data,      setData]      = useState<ExecData | null>(null)
+  const [loading,   setLoading]   = useState(true)
+  const [isMobile,  setIsMobile]  = useState(false)
+  const [navOpen,   setNavOpen]   = useState(false)
+  const [userMenu,  setUserMenu]  = useState(false)
+  // Password modal
   const [showPwModal, setShowPwModal] = useState(false)
-  const [pwForm, setPwForm]           = useState({ current: '', next: '', confirm: '' })
-  const [pwError, setPwError]         = useState('')
-  const [pwSuccess, setPwSuccess]     = useState(false)
-  const [pwSaving, setPwSaving]       = useState(false)
+  const [pwForm,      setPwForm]      = useState({ current: '', next: '', confirm: '' })
+  const [pwError,     setPwError]     = useState('')
+  const [pwSuccess,   setPwSuccess]   = useState(false)
+  const [pwSaving,    setPwSaving]    = useState(false)
+  // AI chat
+  const [chatInput,   setChatInput]   = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatHistory, setChatHistory] = useState<{ q: string; a: string }[]>([])
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   const firstName = currentUser.name.split(' ')[0]
   const initials  = currentUser.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
   const isHK      = firstName.toLowerCase() === 'harshil'
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check(); window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => {
     fetch('/api/executive-portal', { credentials: 'include' })
@@ -323,80 +194,157 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
       .finally(() => setLoading(false))
   }, [])
 
-  function loadForecast() {
-    setFLoading(true)
-    setFError(false)
-    fetch('/api/executive-portal/forecast', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.forecasts?.length) {
-          setForecasts(d.forecasts)
-          setFTime(new Date(d.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
-        } else {
-          setFError(true)
-        }
-      })
-      .catch(() => setFError(true))
-      .finally(() => setFLoading(false))
-  }
-  useEffect(() => { loadForecast() }, [])
-
   useEffect(() => {
-    fetch('/api/mail/stats', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.connected) setMailStats(d) })
-      .catch(() => {})
-  }, [])
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatHistory])
 
-  // Scope task lists by role:
-  // HK sees all action-required and approval tasks (he owns those queues)
-  // Non-HK executives see only tasks assigned to them personally
-  const myActionTasks = isHK
-    ? (data?.actionTasks ?? [])
-    : (data?.actionTasks ?? []).filter(t =>
-        t.responsible.toLowerCase().includes(firstName.toLowerCase()))
+  async function askAI(question: string) {
+    if (!question.trim() || chatLoading) return
+    setChatInput('')
+    setChatLoading(true)
+    try {
+      const res = await fetch('/api/intelligence/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      })
+      const d = await res.json()
+      const answer = d.answer ?? d.error ?? 'No response.'
+      setChatHistory(h => [...h.slice(-5), { q: question, a: answer }])
+    } catch {
+      setChatHistory(h => [...h.slice(-5), { q: question, a: 'Connection error. Please try again.' }])
+    } finally {
+      setChatLoading(false)
+    }
+  }
 
-  const myApprovalTasks = isHK
-    ? (data?.approvalTasks ?? [])
-    : [] // HK approval queue belongs to Harshil only
+  const hkAttention  = data?.hkAttentionTasks ?? []
+  const needsDecision = data?.needsDecision ?? 0
+  const awaitingInput = data?.awaitingInput  ?? 0
+  const forAwareness  = data?.forAwareness   ?? 0
+  const totalItems    = needsDecision + awaitingInput + forAwareness
+  const reviewMins    = Math.max(5, totalItems * 4)
+  const health        = data ? computeHealth(data) : []
+  const briefing      = data ? generateBriefing(data) : ''
+  const weekReview    = data ? generateWeeklyReview(data) : { summary: '', recommendation: '' }
+  const recentActivity = (data?.activityFeed ?? []).slice(0, 5)
 
-  const legalTasks   = data?.legalReviewTasks ?? []
-  const decisions    = myActionTasks.length + myApprovalTasks.length + legalTasks.length
-  const reviewMins   = Math.round(decisions * 1.5)
-  const recs         = data ? genRecommendations(data, myActionTasks, isHK) : []
-  const health       = data ? computeHealth(data) : []
-  const mostLoaded   = data?.workload[0]
-  const overloadedPpl = data?.workload.filter(p => parseInt(p.open) > 25).length ?? 0
+  const card: React.CSSProperties = {
+    background: T.card, borderRadius: 12, border: `1px solid ${T.border}`,
+  }
 
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const filteredActivity = actTab === 'today'
-    ? (data?.activityFeed ?? []).filter(a => a.created_at.slice(0, 10) === todayStr)
-    : (data?.activityFeed ?? [])
+  // ── Shared skeleton ────────────────────────────────────────────────────────
+  function Skeleton({ width = '80%', height = 12 }: { width?: string; height?: number }) {
+    return (
+      <div style={{ height, borderRadius: 4, background: T.border, width,
+        animation: 'ep-pulse 1.5s ease-in-out infinite' }} />
+    )
+  }
 
-  // ── Shared card style ─────────────────────────────────────────────────
-  const card = { background: T.card, borderRadius: 10, border: `1px solid ${T.border}` }
+  // ── HK Attention Item ─────────────────────────────────────────────────────
+  function AttentionItem({ task }: { task: HKAttentionTask }) {
+    const cfg  = TYPE_CFG[task.hk_escalation_type] ?? TYPE_CFG.none
+    const days = parseInt(task.days_waiting, 10)
+    const isOld = days >= 3
+    return (
+      <div style={{ padding: isMobile ? '16px 14px' : '18px 22px', borderBottom: `1px solid ${T.border}`,
+        display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {/* Priority dot */}
+        <div style={{ width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
+          background: task.priority === 'high' ? T.red : cfg.color,
+          boxShadow: task.priority === 'high' ? `0 0 8px ${T.red}88` : 'none' }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Tags row */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 9, fontWeight: 800, color: cfg.color,
+              background: cfg.bg, border: `1px solid ${cfg.border}`,
+              borderRadius: 4, padding: '2px 7px', letterSpacing: '0.06em' }}>
+              {cfg.tag}
+            </span>
+            <span style={{ fontSize: 10, color: T.text3, fontWeight: 600 }}>{task.company}</span>
+            {isOld && (
+              <span style={{ fontSize: 9, color: T.amber, background: `${T.amber}12`,
+                border: `1px solid ${T.amber}33`, borderRadius: 4, padding: '2px 6px', fontWeight: 700 }}>
+                {days}d waiting
+              </span>
+            )}
+          </div>
+          {/* Title */}
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 5, lineHeight: 1.35 }}>
+            {task.particulars}
+          </div>
+          {/* Latest update */}
+          {task.latest_update && (
+            <div style={{ fontSize: 11, color: T.text3, marginBottom: 5, lineHeight: 1.4,
+              overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
+              {task.latest_update}
+            </div>
+          )}
+          {/* Note from escalator */}
+          {task.hk_escalation_note && (
+            <div style={{ fontSize: 11, color: T.text2, background: `${T.greenDim}10`,
+              border: `1px solid ${T.border2}`, borderRadius: 6, padding: '5px 9px', marginBottom: 5 }}>
+              <span style={{ color: T.text3 }}>Note:</span> {task.hk_escalation_note}
+              {task.hk_escalation_by && <span style={{ color: T.text3 }}> — {task.hk_escalation_by}</span>}
+            </div>
+          )}
+          {/* Meta */}
+          <div style={{ fontSize: 10, color: T.text3 }}>
+            {task.section} · Owner: <span style={{ color: T.text2, fontWeight: 600 }}>{task.responsible}</span>
+          </div>
+        </div>
+        {/* Action button */}
+        <a href={`/tasks/board?id=${task.id}`}
+          style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+            color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`,
+            borderRadius: 8, padding: '7px 16px', textDecoration: 'none', display: 'block',
+            transition: 'opacity 0.15s' }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+          {cfg.action} →
+        </a>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, fontFamily: 'system-ui,-apple-system,sans-serif', color: T.text }}>
+    <div style={{ minHeight: '100vh', background: T.bg,
+      fontFamily: 'system-ui,-apple-system,sans-serif', color: T.text }}>
+
+      <style>{`@keyframes ep-pulse { 0%,100%{opacity:0.3} 50%{opacity:0.7} }`}</style>
 
       {/* ── NAV ─────────────────────────────────────────────────────────── */}
-      <nav style={{ background: '#060e09', borderBottom: `1px solid ${T.border}`, padding: isMobile ? '0 14px' : '0 28px', display: 'flex', alignItems: 'center', height: 50, gap: isMobile ? 10 : 24, position: 'sticky', top: 0, zIndex: 50 }}>
+      <nav style={{ background: '#060e09', borderBottom: `1px solid ${T.border}`,
+        padding: isMobile ? '0 14px' : '0 28px',
+        display: 'flex', alignItems: 'center', height: 50,
+        gap: isMobile ? 8 : 20, position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontWeight: 900, fontSize: 14, color: T.gold, letterSpacing: '0.15em' }}>PABARI</span>
-          {!isMobile && <span style={{ fontSize: 9, color: T.text3, letterSpacing: '0.08em', fontWeight: 700, background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`, borderRadius: 4, padding: '2px 6px' }}>INTELLIGENCE</span>}
+          {!isMobile && (
+            <span style={{ fontSize: 9, color: T.text3, letterSpacing: '0.08em', fontWeight: 700,
+              background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`,
+              borderRadius: 4, padding: '2px 6px' }}>INTELLIGENCE</span>
+          )}
         </div>
         <div style={{ flex: 1 }} />
 
-        {/* Desktop nav links */}
-        {!isMobile && [['Tasks','/tasks'],['Connect','/connect'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects'],['Centre','/centre']].map(([l, h]) => (
-          <a key={l} href={h} style={{ color: T.text3, fontSize: 12, textDecoration: 'none', fontWeight: 600, letterSpacing: '0.04em', transition: 'color 0.15s' }}
+        {/* Desktop nav */}
+        {!isMobile && (isHK
+          ? [['Tasks', '/tasks/board'], ['Connect', '/connect'], ['Centre', '/centre']]
+          : [['Tasks', '/tasks/board'], ['Connect', '/connect'], ['Documents', '/documents'], ['Finance', '/finance'], ['Projects', '/projects'], ['Centre', '/centre']]
+        ).map(([l, h]) => (
+          <a key={l} href={h} style={{ color: T.text3, fontSize: 12, textDecoration: 'none',
+            fontWeight: 600, letterSpacing: '0.04em' }}
             onMouseEnter={e => (e.currentTarget.style.color = T.text)}
             onMouseLeave={e => (e.currentTarget.style.color = T.text3)}>{l}</a>
         ))}
         {!isMobile && (
-          <a href="/" style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(181,131,58,0.15)', border:'1px solid rgba(181,131,58,0.35)', borderRadius:6, padding:'5px 12px', color:'#b5833a', fontSize:12, fontWeight:700, textDecoration:'none', transition:'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background='rgba(181,131,58,0.25)' }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(181,131,58,0.15)' }}>
+          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 5,
+            background: 'rgba(181,131,58,0.15)', border: '1px solid rgba(181,131,58,0.35)',
+            borderRadius: 6, padding: '5px 12px', color: '#b5833a',
+            fontSize: 12, fontWeight: 700, textDecoration: 'none' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(181,131,58,0.25)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(181,131,58,0.15)' }}>
             ← Workspace
           </a>
         )}
@@ -404,15 +352,26 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
         {/* Mobile hamburger */}
         {isMobile && (
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setNavOpen(n => !n)} style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, color: T.text2, fontSize: 16, padding: '4px 10px', cursor: 'pointer' }}>☰</button>
+            <button onClick={() => setNavOpen(n => !n)}
+              style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6,
+                color: T.text2, fontSize: 16, padding: '4px 10px', cursor: 'pointer' }}>☰</button>
             {navOpen && (
               <>
-                <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
-                <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 99, background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 10, minWidth: 160, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
-                  {[['Tasks','/tasks'],['Connect','/connect'],['Centre','/centre'],['Documents','/documents'],['Finance','/finance'],['Projects','/projects']].map(([l, h]) => (
-                    <a key={l} href={h} onClick={() => setNavOpen(false)} style={{ display: 'block', padding: '11px 16px', fontSize: 13, fontWeight: 600, color: T.text2, textDecoration: 'none', borderBottom: `1px solid ${T.border}` }}>{l}</a>
+                <div onClick={() => setNavOpen(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+                <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 99,
+                  background: '#0e1a12', border: `1px solid ${T.border}`,
+                  borderRadius: 10, minWidth: 160, overflow: 'hidden',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
+                  {[['Tasks', '/tasks/board'], ['Connect', '/connect'], ['Centre', '/centre']].map(([l, h]) => (
+                    <a key={l} href={h} onClick={() => setNavOpen(false)}
+                      style={{ display: 'block', padding: '11px 16px', fontSize: 13,
+                        fontWeight: 600, color: T.text2, textDecoration: 'none',
+                        borderBottom: `1px solid ${T.border}` }}>{l}</a>
                   ))}
-                  <a href="/" onClick={() => setNavOpen(false)} style={{ display: 'block', padding: '11px 16px', fontSize: 13, fontWeight: 700, color: '#b5833a', textDecoration: 'none' }}>← Workspace</a>
+                  <a href="/" onClick={() => setNavOpen(false)}
+                    style={{ display: 'block', padding: '11px 16px', fontSize: 13,
+                      fontWeight: 700, color: '#b5833a', textDecoration: 'none' }}>← Workspace</a>
                 </div>
               </>
             )}
@@ -421,36 +380,39 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
 
         <NotificationBell userEmail={currentUser.email} />
 
-        {/* ── User menu ──────────────────────────────────────────────── */}
+        {/* User menu */}
         <div style={{ position: 'relative' }}>
-          <div
-            onClick={() => setUserMenu(m => !m)}
-            style={{ width: 30, height: 30, borderRadius: '50%', background: `${T.greenDim}33`, border: `1px solid ${T.greenDim}55`, color: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.02em', userSelect: 'none' }}
-          >{initials}</div>
-
+          <div onClick={() => setUserMenu(m => !m)}
+            style={{ width: 30, height: 30, borderRadius: '50%',
+              background: `${T.greenDim}33`, border: `1px solid ${T.greenDim}55`,
+              color: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}>
+            {initials}
+          </div>
           {userMenu && (
             <>
-              {/* Click-away overlay */}
               <div onClick={() => setUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
-              <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 100, background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 10, minWidth: 180, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+              <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 100,
+                background: '#0e1a12', border: `1px solid ${T.border}`,
+                borderRadius: 10, minWidth: 180, overflow: 'hidden',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
                 <div style={{ padding: '10px 14px', borderBottom: `1px solid ${T.border}` }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{currentUser.name}</div>
                   <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>{currentUser.email}</div>
                 </div>
-                <button
-                  onClick={() => { setUserMenu(false); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); setPwSuccess(false); setShowPwModal(true) }}
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 12, color: T.text2, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                <button onClick={() => { setUserMenu(false); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); setPwSuccess(false); setShowPwModal(true) }}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                    padding: '10px 14px', fontSize: 12, color: T.text2, cursor: 'pointer' }}
                   onMouseEnter={e => (e.currentTarget.style.background = `${T.border}44`)}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                   🔑 Change Password
                 </button>
-                <button
-                  onClick={signOut}
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 12, color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderTop: `1px solid ${T.border}` }}
+                <button onClick={signOut}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                    padding: '10px 14px', fontSize: 12, color: '#f87171', cursor: 'pointer',
+                    borderTop: `1px solid ${T.border}` }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                   → Sign Out
                 </button>
               </div>
@@ -459,52 +421,65 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
         </div>
       </nav>
 
-      {/* ── Change Password Modal ─────────────────────────────────────────── */}
+      {/* ── Change Password Modal ──────────────────────────────────────── */}
       {showPwModal && (
         <div onClick={e => e.target === e.currentTarget && setShowPwModal(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#0e1a12', border: `1px solid ${T.border}`, borderRadius: 16, width: '100%', maxWidth: 400, padding: 28 }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#0e1a12', border: `1px solid ${T.border}`,
+            borderRadius: 16, width: '100%', maxWidth: 400, padding: 28 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 20 }}>Change Password</div>
             {pwSuccess ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
                 <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
                 <div style={{ color: T.green, fontSize: 13, fontWeight: 600 }}>Password updated successfully</div>
-                <button onClick={() => setShowPwModal(false)} style={{ marginTop: 20, background: T.green, border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, color: 'white', cursor: 'pointer' }}>Done</button>
+                <button onClick={() => setShowPwModal(false)}
+                  style={{ marginTop: 20, background: T.green, border: 'none', borderRadius: 8,
+                    padding: '10px 24px', fontSize: 13, fontWeight: 700, color: 'white', cursor: 'pointer' }}>Done</button>
               </div>
             ) : (
               <>
-                {[
-                  { label: 'Current Password', key: 'current' },
-                  { label: 'New Password',      key: 'next'    },
-                  { label: 'Confirm New',        key: 'confirm' },
-                ].map(f => (
+                {[{ label: 'Current Password', key: 'current' }, { label: 'New Password', key: 'next' }, { label: 'Confirm New', key: 'confirm' }].map(f => (
                   <div key={f.key} style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: T.text3, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 5 }}>{f.label}</label>
-                    <input
-                      type="password"
-                      value={(pwForm as Record<string,string>)[f.key]}
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: T.text3,
+                      textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 5 }}>{f.label}</label>
+                    <input type="password" value={(pwForm as Record<string, string>)[f.key]}
                       onChange={e => setPwForm(p => ({ ...p, [f.key]: e.target.value }))}
-                      style={{ width: '100%', boxSizing: 'border-box', background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, color: T.text, outline: 'none' }}
-                    />
+                      style={{ width: '100%', boxSizing: 'border-box', background: T.card,
+                        border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px',
+                        fontSize: 13, color: T.text, outline: 'none' }} />
                   </div>
                 ))}
-                {pwError && <div style={{ fontSize: 12, color: '#f87171', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>{pwError}</div>}
-                <div style={{ fontSize: 10, color: T.text3, marginBottom: 16, lineHeight: 1.6 }}>Min 8 chars · uppercase · number · special character</div>
+                {pwError && <div style={{ fontSize: 12, color: '#f87171', background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8,
+                  padding: '8px 12px', marginBottom: 14 }}>{pwError}</div>}
+                <div style={{ fontSize: 10, color: T.text3, marginBottom: 16, lineHeight: 1.6 }}>
+                  Min 8 chars · uppercase · number · special character
+                </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setShowPwModal(false)} style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: 11, fontSize: 13, fontWeight: 600, color: T.text3, cursor: 'pointer' }}>Cancel</button>
-                  <button
-                    disabled={pwSaving}
+                  <button onClick={() => setShowPwModal(false)}
+                    style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`,
+                      borderRadius: 8, padding: 11, fontSize: 13, fontWeight: 600,
+                      color: T.text3, cursor: 'pointer' }}>Cancel</button>
+                  <button disabled={pwSaving}
                     onClick={async () => {
                       if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match'); return }
                       setPwSaving(true); setPwError('')
-                      const res = await fetch('/api/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }) })
+                      const res = await fetch('/api/auth/change-password', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+                      })
                       const d = await res.json()
                       setPwSaving(false)
                       if (!res.ok) { setPwError(d.error ?? 'Error'); return }
                       setPwSuccess(true)
                     }}
-                    style={{ flex: 2, background: T.greenDim, border: 'none', borderRadius: 8, padding: 11, fontSize: 13, fontWeight: 700, color: 'white', cursor: pwSaving ? 'wait' : 'pointer', opacity: pwSaving ? 0.7 : 1 }}
-                  >{pwSaving ? 'Saving…' : 'Update Password'}</button>
+                    style={{ flex: 2, background: T.greenDim, border: 'none', borderRadius: 8,
+                      padding: 11, fontSize: 13, fontWeight: 700, color: 'white',
+                      cursor: pwSaving ? 'wait' : 'pointer', opacity: pwSaving ? 0.7 : 1 }}>
+                    {pwSaving ? 'Saving…' : 'Update Password'}
+                  </button>
                 </div>
               </>
             )}
@@ -512,609 +487,433 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
         </div>
       )}
 
-      {/* ── HERO ────────────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(180deg, #0a1510 0%, ${T.bg} 100%)`, borderBottom: `1px solid ${T.border}`, padding: isMobile ? '20px 16px 20px' : '36px 32px 28px' }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-
-            {/* Left: greeting + decision count */}
-            <div>
-              {!isMobile && <div style={{ fontSize: 11, fontWeight: 800, color: T.text3, letterSpacing: '0.12em', marginBottom: 12, textTransform: 'uppercase' }}>
-                Executive Operating System · Pabari Group
-              </div>}
-              <h1 style={{ margin: 0, fontSize: isMobile ? 24 : 34, fontWeight: 900, color: T.text, lineHeight: 1.1 }}>
-                {getGreeting()}, {firstName}.
-              </h1>
-              <p style={{ margin: '6px 0 0', color: T.text3, fontSize: 12 }}>{fmtDate()}</p>
-
-              {!loading && (
-                <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ fontSize: isMobile ? 32 : 44, fontWeight: 900, color: decisions > 0 ? T.amber : T.green, lineHeight: 1 }}>{decisions}</span>
-                    <span style={{ fontSize: isMobile ? 13 : 16, color: T.text2, fontWeight: 500 }}>executive decisions today</span>
-                  </div>
-                  {decisions > 0 && (
-                    <span style={{ fontSize: 12, color: T.text3, background: `${T.border}88`, border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 12px' }}>
-                      ≈ {reviewMins} min to review
-                    </span>
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {/* Right: PI button + quick stats */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-              <a href="/centre" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: T.greenDim, color: 'white', padding: '14px 28px', borderRadius: 10, textDecoration: 'none', fontWeight: 800, fontSize: 14, border: `1px solid ${T.green}`, boxShadow: `0 0 24px ${T.green}30`, letterSpacing: '0.02em' }}>
-                <span>⚡ Open Pabari Intelligence</span>
-                <span style={{ fontSize: 10, color: '#bbf7d0', fontWeight: 500 }}>Your full briefing →</span>
-              </a>
-              {!loading && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%' }}>
-                  {[
-                    { v: data?.actionRequired ?? 0, l: 'Action Required', c: (data?.actionRequired ?? 0) > 5 ? T.red : T.amber },
-                    { v: data?.awaitingApproval ?? 0, l: 'Awaiting Approval', c: T.blue },
-                    { v: data?.needsHkComment ?? 0, l: 'High Priority Queue', c: T.amber },
-                    { v: data?.resolvedToday ?? 0, l: 'Resolved Today', c: T.green },
-                  ].map(s => (
-                    <div key={s.l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: s.c, lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 9, color: T.text3, marginTop: 3, fontWeight: 600 }}>{s.l}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <div style={{ background: 'linear-gradient(180deg, #0a1a10 0%, #060c08 100%)',
+        borderBottom: `1px solid ${T.border}`,
+        padding: isMobile ? '28px 16px 24px' : '44px 32px 36px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: T.text3,
+            letterSpacing: '0.14em', marginBottom: 14, textTransform: 'uppercase' }}>
+            Executive Briefing · Pabari Group
           </div>
-        </div>
-      </div>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 28 : 42, fontWeight: 900,
+            color: T.text, lineHeight: 1.05, letterSpacing: '-0.5px' }}>
+            {getGreeting()}, {firstName}.
+          </h1>
+          <p style={{ margin: '6px 0 0', color: T.text3, fontSize: 12, fontWeight: 500 }}>{fmtDate()}</p>
 
-      {/* ── AI FORECAST ─────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: 1280, margin: '24px auto 0', padding: '0 24px' }}>
-        <div style={{ ...card, overflow: 'hidden' }}>
-
-          {/* Forecast header */}
-          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#080f0b' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: fLoading ? T.text3 : fError ? T.red : T.green, boxShadow: !fLoading && !fError ? `0 0 8px ${T.green}` : 'none' }} />
-              <span style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.1em' }}>INTELLIGENCE FORECAST</span>
-              {fTime && !fLoading && (
-                <span style={{ fontSize: 10, color: T.text3, marginLeft: 4 }}>Generated {fTime}</span>
-              )}
-            </div>
-            <button onClick={loadForecast} disabled={fLoading}
-              style={{ background: 'none', border: `1px solid ${T.border}`, color: T.text3, borderRadius: 6, padding: '4px 12px', fontSize: 10, cursor: fLoading ? 'not-allowed' : 'pointer', fontWeight: 700, letterSpacing: '0.04em' }}>
-              {fLoading ? 'Generating…' : '↻ Refresh'}
-            </button>
-          </div>
-
-          {/* Forecast cards */}
-          {fLoading ? (
-            <div style={{ padding: isMobile ? '14px 12px' : '24px 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
-              {[1,2,3,4,5].map(i => (
-                <div key={i} style={{ background: T.card2, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[70, 85, 60, 50].map((w, j) => (
-                    <div key={j} style={{ height: 12, borderRadius: 4, background: T.border, width: `${w}%`, animation: 'pi-pulse 1.5s ease-in-out infinite', animationDelay: `${j * 0.1}s` }} />
-                  ))}
-                </div>
-              ))}
-              <style>{`@keyframes pi-pulse { 0%,100%{opacity:0.3} 50%{opacity:0.7} }`}</style>
-            </div>
-          ) : fError ? (
-            <div style={{ padding: '24px 20px', color: T.text3, fontSize: 13 }}>
-              Intelligence engine unavailable — check API connection and refresh.
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))', padding: isMobile ? '12px' : '20px', gap: 12 }}>
-              {forecasts.map((f, i) => {
-                const catColor = CATEGORY_COLORS[f.category] ?? T.text2
-                return (
-                  <div key={i} style={{ background: T.card2, border: `1px solid ${T.border2}`, borderRadius: 8, overflow: 'hidden' }}>
-                    {/* Category top bar */}
-                    <div style={{ height: 2, background: catColor }} />
-                    <div style={{ padding: '14px 16px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <span style={{ fontSize: 9, fontWeight: 800, color: catColor, letterSpacing: '0.12em', background: `${catColor}18`, border: `1px solid ${catColor}33`, borderRadius: 4, padding: '3px 8px' }}>
-                          {f.category.toUpperCase()}
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ height: 4, width: 60, background: T.border, borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${f.confidence}%`, background: f.confidence >= 90 ? T.green : f.confidence >= 75 ? T.amber : T.red, borderRadius: 2 }} />
-                          </div>
-                          <span style={{ fontSize: 10, color: T.text3, fontWeight: 700 }}>{f.confidence}%</span>
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontSize: 9, color: T.text3, fontWeight: 800, letterSpacing: '0.08em', marginBottom: 3 }}>OBSERVATION</div>
-                        <p style={{ margin: 0, fontSize: 12, color: T.text, lineHeight: 1.55, fontWeight: 500 }}>{f.observation}</p>
-                      </div>
-
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontSize: 9, color: T.text3, fontWeight: 800, letterSpacing: '0.08em', marginBottom: 3 }}>IMPACT</div>
-                        <p style={{ margin: 0, fontSize: 12, color: T.amber, lineHeight: 1.5 }}>{f.impact}</p>
-                      </div>
-
-                      <div style={{ background: `${T.greenDim}12`, border: `1px solid ${T.greenDim}30`, borderRadius: 6, padding: '8px 10px' }}>
-                        <div style={{ fontSize: 9, color: T.green, fontWeight: 800, letterSpacing: '0.08em', marginBottom: 3 }}>RECOMMENDATION</div>
-                        <p style={{ margin: 0, fontSize: 12, color: T.text2, lineHeight: 1.5 }}>{f.recommendation}</p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── MAIN GRID ───────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '12px 10px 56px' : '20px 24px 56px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: 20 }}>
-
-        {/* ── LEFT COLUMN ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* AI Recommendations */}
-          {recs.length > 0 && !loading && (
-            <div style={card}>
-              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.08em' }}>AI RECOMMENDATIONS</div>
-                  <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Ranked by business impact</div>
-                </div>
-              </div>
-              <div>
-                {recs.map((r, i) => {
-                  const pc = r.priority === 'critical' ? T.red : r.priority === 'high' ? T.amber : T.blue
-                  return (
-                    <div key={i} style={{ display: 'flex', gap: 14, padding: '14px 18px', borderBottom: i < recs.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'flex-start' }}>
-                      <div style={{ fontSize: 11, fontWeight: 900, color: pc, width: 16, flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{r.title}</span>
-                          <span style={{ fontSize: 9, color: pc, background: `${pc}18`, border: `1px solid ${pc}33`, borderRadius: 4, padding: '2px 6px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{r.priority}</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: T.text3, marginBottom: 4, lineHeight: 1.4 }}>{r.reason}</div>
-                        <div style={{ fontSize: 10, color: T.green, fontWeight: 600 }}>↑ {r.impact}</div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                        <a href={r.href} style={{ fontSize: 11, color: 'white', background: pc, borderRadius: 6, padding: '5px 12px', textDecoration: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          Review →
-                        </a>
-                        <span style={{ fontSize: 9, color: T.text3 }}>{r.confidence}% confidence</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Executive Decisions */}
-          <div style={card}>
-            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: T.text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Executive Decisions</div>
-                <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>
-                  {loading ? 'Loading…' : isHK
-                    ? `${decisions} items require your attention`
-                    : decisions > 0 ? `${decisions} tasks assigned to you` : 'No tasks currently assigned to you'}
-                </div>
-              </div>
-              <a href="/tasks" style={{ fontSize: 11, color: T.green, fontWeight: 700, textDecoration: 'none', background: `${T.greenDim}18`, border: `1px solid ${T.greenDim}33`, borderRadius: 6, padding: '5px 12px' }}>
-                View All →
-              </a>
-            </div>
-
+          {/* Briefing summary */}
+          <div style={{ marginTop: 20, maxWidth: 620 }}>
             {loading ? (
-              <div style={{ padding: 24, color: T.text3, fontSize: 13, textAlign: 'center' }}>Loading decisions…</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Skeleton width="90%" height={14} />
+                <Skeleton width="70%" height={14} />
+              </div>
             ) : (
-              <>
-                {/* Action-required tasks — scoped by role */}
-                {myActionTasks.map(t => {
-                  const days = parseInt(t.days_waiting, 10)
-                  const isOld = days >= 5
-                  const pColor = t.priority === 'critical' ? T.red : t.priority === 'high' ? T.amber : T.text3
-                  return (
-                    <div key={t.id} style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: pColor, marginTop: 5, flexShrink: 0, boxShadow: t.priority === 'critical' ? `0 0 8px ${T.red}88` : 'none' }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: 9, fontWeight: 800, color: T.red, background: `${T.red}18`, border: `1px solid ${T.red}33`, borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Action Required</span>
-                          <span style={{ fontSize: 10, color: T.text3 }}>{t.company}</span>
-                          {isOld && <span style={{ fontSize: 9, color: T.red, background: `${T.red}12`, borderRadius: 4, padding: '2px 6px', fontWeight: 800 }}>⚠ {days}d waiting</span>}
-                          <span style={{ fontSize: 9, color: pColor, fontWeight: 800, textTransform: 'capitalize', marginLeft: 'auto' }}>{t.priority}</span>
-                        </div>
-                        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{t.particulars}</div>
-                        <div style={{ fontSize: 10, color: T.text3 }}>
-                          Owner: <span style={{ color: T.text2, fontWeight: 600 }}>{t.responsible}</span>
-                          {!isOld && days > 0 && <span style={{ marginLeft: 8 }}>· {days}d waiting</span>}
-                        </div>
-                      </div>
-                      <a href={`/tasks?id=${t.id}`} style={{ fontSize: 11, color: T.text3, textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: T.card2, border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}
-                        onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.borderColor = T.border2 }}
-                        onMouseLeave={e => { e.currentTarget.style.color = T.text3; e.currentTarget.style.borderColor = T.border }}>
-                        Review →
-                      </a>
-                    </div>
-                  )
-                })}
-
-                {/* Awaiting approval — HK only */}
-                {myApprovalTasks.map(t => {
-                  const days = parseInt(t.days_waiting, 10)
-                  return (
-                    <div key={t.id} style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.blue, marginTop: 5, flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: 9, fontWeight: 800, color: T.blue, background: `${T.blue}18`, border: `1px solid ${T.blue}33`, borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Awaiting Approval</span>
-                          <span style={{ fontSize: 10, color: T.text3 }}>{t.company}</span>
-                          {days >= 5 && <span style={{ fontSize: 9, color: T.amber, background: `${T.amber}12`, borderRadius: 4, padding: '2px 6px', fontWeight: 800 }}>⚠ {days}d waiting</span>}
-                        </div>
-                        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{t.particulars}</div>
-                        <div style={{ fontSize: 10, color: T.text3 }}>
-                          Owner: <span style={{ color: T.text2, fontWeight: 600 }}>{t.responsible}</span>
-                          {days > 0 && <span style={{ marginLeft: 8 }}>· {days}d waiting</span>}
-                        </div>
-                      </div>
-                      <a href={`/tasks?id=${t.id}`} style={{ fontSize: 11, color: T.blue, textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: `${T.blue}18`, border: `1px solid ${T.blue}33`, borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
-                        Approve →
-                      </a>
-                    </div>
-                  )
-                })}
-
-                {/* Legal review tasks — visible to all executives */}
-                {legalTasks.map(t => {
-                  const days = parseInt(t.days_waiting, 10)
-                  return (
-                    <div key={t.id} style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start', background: 'rgba(124,58,237,0.04)' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', marginTop: 5, flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: 9, fontWeight: 800, color: '#7c3aed', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>⚖ Legal Review</span>
-                          <span style={{ fontSize: 10, color: T.text3 }}>{t.company}</span>
-                          {days >= 3 && <span style={{ fontSize: 9, color: T.amber, background: `${T.amber}12`, borderRadius: 4, padding: '2px 6px', fontWeight: 800 }}>⚠ {days}d open</span>}
-                        </div>
-                        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{t.particulars}</div>
-                        <div style={{ fontSize: 10, color: T.text3 }}>Owner: <span style={{ color: T.text2, fontWeight: 600 }}>{t.responsible}</span></div>
-                      </div>
-                      <a href={`/tasks?id=${t.id}`} style={{ fontSize: 11, color: '#7c3aed', textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
-                        Review →
-                      </a>
-                    </div>
-                  )
-                })}
-
-                {/* HK comment queue — Harshil only */}
-                {isHK && (data?.needsHkComment ?? 0) > 0 && (
-                  <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start', background: `${T.amber}08` }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.amber, marginTop: 5, flexShrink: 0, boxShadow: `0 0 6px ${T.amber}66` }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 800, color: T.amber, background: `${T.amber}18`, border: `1px solid ${T.amber}33`, borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>High Priority Queue</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 3 }}>
-                        {data?.needsHkComment} high-priority tasks need your direction
-                      </div>
-                      <div style={{ fontSize: 10, color: T.text3 }}>High priority or awaiting approval — your comment unblocks the team</div>
-                    </div>
-                    <a href="/tasks" style={{ fontSize: 11, color: T.amber, textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: `${T.amber}18`, border: `1px solid ${T.amber}33`, borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
-                      Review →
-                    </a>
-                  </div>
-                )}
-
-                {/* High-value PCRs */}
-                {data?.pcrItems.filter(r => Number(r.total_amount) >= 100000).map(r => (
-                  <div key={r.req_no} style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.green, marginTop: 5, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 9, fontWeight: 800, color: T.green, background: `${T.green}18`, border: `1px solid ${T.green}33`, borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase' }}>
-                          {Number(r.total_amount) >= 500000 ? 'High Value PCR' : 'PCR Approval'}
-                        </span>
-                        <span style={{ fontSize: 10, color: T.text3 }}>{r.company}</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 3 }}>{r.req_no} — {r.employee_name}</div>
-                      <div style={{ fontSize: 10, color: T.text3 }}>{fmtAmt(r.total_amount)} · {r.status}</div>
-                    </div>
-                    <a href="/forms" style={{ fontSize: 11, color: T.green, textDecoration: 'none', fontWeight: 700, flexShrink: 0, background: `${T.green}18`, border: `1px solid ${T.green}33`, borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
-                      Review →
-                    </a>
-                  </div>
-                ))}
-
-                {!loading && decisions === 0 && legalTasks.length === 0 && (!isHK || (data?.needsHkComment ?? 0) === 0) && (data?.pcrHighValue ?? 0) === 0 && (
-                  <div style={{ padding: '36px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.6 }}>◈</div>
-                    <div style={{ color: T.green, fontSize: 14, fontWeight: 700 }}>All clear — no pending decisions</div>
-                    <div style={{ color: T.text3, fontSize: 12, marginTop: 4 }}>Check back later.</div>
-                  </div>
-                )}
-              </>
+              <p style={{ margin: 0, fontSize: 15, color: T.text2, lineHeight: 1.6, fontWeight: 400 }}>
+                {briefing}
+              </p>
             )}
           </div>
 
-          {/* Team Workload */}
-          <div style={card}>
-            <div style={{ padding: '14px 18px 12px', borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Team Workload</div>
-              <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>
-                {overloadedPpl > 0
-                  ? `${overloadedPpl} team member${overloadedPpl > 1 ? 's' : ''} overloaded — rebalance recommended`
-                  : 'Open task distribution across team'}
+          {/* CTA row */}
+          <div style={{ marginTop: 24, display: 'flex', alignItems: 'center',
+            gap: 14, flexWrap: 'wrap' }}>
+            <a href="/centre"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: T.greenDim, color: 'white', padding: '11px 22px',
+                borderRadius: 10, textDecoration: 'none', fontWeight: 700,
+                fontSize: 13, border: `1px solid ${T.green}`,
+                boxShadow: `0 0 20px ${T.green}25`, letterSpacing: '0.01em' }}>
+              View My Briefing →
+            </a>
+            {!loading && totalItems > 0 && (
+              <span style={{ fontSize: 12, color: T.text3,
+                background: `${T.border}88`, border: `1px solid ${T.border}`,
+                borderRadius: 20, padding: '6px 14px', fontWeight: 500 }}>
+                {totalItems} executive item{totalItems !== 1 ? 's' : ''} · ≈{reviewMins} min
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1100, margin: '0 auto',
+        padding: isMobile ? '20px 14px 60px' : '28px 28px 60px' }}>
+
+        {/* ── THREE METRIC CARDS ──────────────────────────────────────────── */}
+        <div style={{ display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+          gap: 14, marginBottom: 24 }}>
+          {[
+            {
+              label: 'NEEDS YOUR DECISION',
+              value: loading ? '…' : needsDecision,
+              sub: 'Items requiring a decision or approval',
+              color: needsDecision > 0 ? T.red : T.green,
+              href: '/tasks/board',
+            },
+            {
+              label: 'AWAITING YOUR INPUT',
+              value: loading ? '…' : awaitingInput,
+              sub: 'Items where your comment or direction is needed',
+              color: awaitingInput > 0 ? T.amber : T.green,
+              href: '/tasks/board',
+            },
+            {
+              label: 'FOR AWARENESS',
+              value: loading ? '…' : forAwareness,
+              sub: 'Important developments for your awareness',
+              color: forAwareness > 0 ? T.blue : T.text2,
+              href: '/tasks/board',
+            },
+          ].map(m => (
+            <a key={m.label} href={m.href} style={{ textDecoration: 'none' }}>
+              <div style={{ ...card, padding: isMobile ? '20px 18px' : '26px 24px',
+                transition: 'border-color 0.15s', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = T.border2)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = T.border)}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: T.text3,
+                  letterSpacing: '0.12em', marginBottom: 14 }}>{m.label}</div>
+                <div style={{ fontSize: isMobile ? 40 : 52, fontWeight: 900, color: m.color,
+                  lineHeight: 1, marginBottom: 10 }}>{m.value}</div>
+                <div style={{ fontSize: 11, color: T.text3, lineHeight: 1.4 }}>{m.sub}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        {/* ── NEEDS YOUR ATTENTION ────────────────────────────────────────── */}
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ padding: isMobile ? '16px 14px' : '18px 22px',
+            borderBottom: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: T.text,
+                letterSpacing: '0.06em', textTransform: 'uppercase' }}>Needs Your Attention</div>
+              <div style={{ fontSize: 10, color: T.text3, marginTop: 3 }}>
+                {loading ? 'Loading…'
+                  : hkAttention.length === 0 ? 'No items currently require your attention'
+                  : `${Math.min(hkAttention.length, 5)} of ${hkAttention.length} escalated item${hkAttention.length !== 1 ? 's' : ''}`}
               </div>
             </div>
-            <div>
-              {loading ? (
-                <div style={{ padding: '20px 18px', color: T.text3, fontSize: 13 }}>Loading…</div>
-              ) : (data?.workload ?? []).length === 0 ? (
-                <div style={{ padding: '20px 18px', color: T.text3, fontSize: 13 }}>No workload data.</div>
-              ) : (() => {
-                const maxOpen = Math.max(...(data?.workload ?? []).map(p => parseInt(p.open, 10)), 1)
-                return (data?.workload ?? []).map(p => {
-                  const open = parseInt(p.open, 10)
-                  const resolved = parseInt(p.resolved_week, 10)
-                  const overloaded = open > 25
-                  const pct = Math.round((open / maxOpen) * 100)
-                  const barColor = overloaded ? T.red : pct > 60 ? T.amber : T.green
-                  return (
-                    <div key={p.responsible} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', borderBottom: `1px solid ${T.border}` }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: overloaded ? `${T.red}22` : `${T.greenDim}22`, border: `1px solid ${overloaded ? T.red : T.greenDim}44`, color: overloaded ? T.red : T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0 }}>
-                        {p.responsible.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.responsible}</span>
-                          {overloaded && <span style={{ fontSize: 8, color: T.red, background: `${T.red}18`, border: `1px solid ${T.red}33`, borderRadius: 4, padding: '2px 5px', fontWeight: 800, flexShrink: 0, letterSpacing: '0.04em' }}>OVERLOADED</span>}
-                        </div>
-                        <div style={{ background: T.border, borderRadius: 3, height: 4, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', background: barColor, width: `${pct}%`, borderRadius: 3, transition: 'width 0.6s ease' }} />
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 900, color: overloaded ? T.red : T.text }}>{open}</div>
-                        <div style={{ fontSize: 9, color: T.text3 }}>{resolved > 0 ? `+${resolved} this wk` : 'open'}</div>
-                      </div>
-                    </div>
-                  )
-                })
-              })()}
-            </div>
+            <a href="/tasks/board"
+              style={{ fontSize: 11, color: T.green, fontWeight: 700, textDecoration: 'none',
+                background: `${T.greenDim}18`, border: `1px solid ${T.greenDim}33`,
+                borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
+              View all →
+            </a>
           </div>
 
-          {/* Activity Feed */}
-          <div style={card}>
-            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity</div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {(['all', 'today'] as const).map(t => (
-                  <button key={t} onClick={() => setActTab(t)}
-                    style={{ fontSize: 10, padding: '4px 10px', borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 700, background: actTab === t ? T.greenDim : T.card2, color: actTab === t ? 'white' : T.text3 }}>
-                    {t === 'all' ? 'All' : 'Today'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-              {loading ? (
-                <div style={{ padding: '16px 18px', color: T.text3, fontSize: 12 }}>Loading…</div>
-              ) : filteredActivity.length === 0 ? (
-                <div style={{ padding: '16px 18px', color: T.text3, fontSize: 12 }}>No activity{actTab === 'today' ? ' yet today' : ''}.</div>
-              ) : filteredActivity.map((a, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 18px', borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: T.card2, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: T.text2, flexShrink: 0 }}>
-                    {a.user_name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: T.text }}>
-                      <span style={{ fontWeight: 700 }}>{a.user_name}</span>{' '}
-                      <span style={{ color: T.text3 }}>{ACTION_LABELS[a.action] ?? a.action}</span>
-                    </div>
-                    {a.details && <div style={{ fontSize: 10, color: T.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.details}</div>}
-                  </div>
-                  <div style={{ fontSize: 10, color: T.text3, flexShrink: 0 }}>{fmtRelative(a.created_at)}</div>
+          {loading ? (
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <Skeleton width="30%" height={10} />
+                  <Skeleton width="75%" height={14} />
+                  <Skeleton width="55%" height={10} />
                 </div>
               ))}
             </div>
+          ) : hkAttention.length === 0 ? (
+            <div style={{ padding: '48px 22px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.5 }}>◈</div>
+              <div style={{ color: T.green, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>You're all caught up</div>
+              <div style={{ color: T.text3, fontSize: 12 }}>No matters currently require your attention.</div>
+            </div>
+          ) : (
+            hkAttention.slice(0, 5).map(task => <AttentionItem key={task.id} task={task} />)
+          )}
+        </div>
+
+        {/* ── YOUR WEEK ───────────────────────────────────────────────────── */}
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ padding: isMobile ? '16px 14px' : '18px 22px',
+            borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: T.text,
+              letterSpacing: '0.06em', textTransform: 'uppercase' }}>Your Week</div>
+            <div style={{ fontSize: 10, color: T.text3, marginTop: 3 }}>
+              Organisational summary — last 7 days
+            </div>
+          </div>
+
+          {/* Four metrics */}
+          <div style={{ display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+            borderBottom: `1px solid ${T.border}` }}>
+            {[
+              { label: 'COMPLETED',        value: data?.resolvedThisWeek  ?? 0, color: T.green },
+              { label: 'ESCALATED TO YOU', value: data?.escalatedThisWeek ?? 0, color: T.amber },
+              { label: 'STILL PENDING',    value: data?.pendingCount       ?? 0, color: T.text2 },
+              { label: 'LONG-RUNNING',     value: data?.longRunningCount   ?? 0, color: (data?.longRunningCount ?? 0) > 2 ? T.red : T.text3 },
+            ].map((m, i) => (
+              <div key={m.label} style={{ padding: isMobile ? '18px 14px' : '22px 22px',
+                borderRight: (!isMobile && i < 3) ? `1px solid ${T.border}` : 'none',
+                borderBottom: (isMobile && i < 2) ? `1px solid ${T.border}` : 'none' }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: T.text3,
+                  letterSpacing: '0.1em', marginBottom: 10 }}>{m.label}</div>
+                <div style={{ fontSize: isMobile ? 32 : 40, fontWeight: 900, color: m.color, lineHeight: 1 }}>
+                  {loading ? '…' : m.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* AI review */}
+          <div style={{ padding: isMobile ? '18px 14px' : '22px 22px' }}>
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Skeleton width="85%" height={13} />
+                <Skeleton width="65%" height={13} />
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 9, fontWeight: 800, color: T.text3,
+                  letterSpacing: '0.1em', marginBottom: 8 }}>AI WEEKLY REVIEW</div>
+                <p style={{ margin: '0 0 16px', fontSize: 13, color: T.text2, lineHeight: 1.6 }}>
+                  {weekReview.summary}
+                </p>
+                <div style={{ background: `${T.greenDim}10`, border: `1px solid ${T.greenDim}28`,
+                  borderRadius: 8, padding: '12px 16px', marginBottom: 18 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: T.green,
+                    letterSpacing: '0.1em', marginBottom: 6 }}>AI RECOMMENDATION</div>
+                  <p style={{ margin: 0, fontSize: 12, color: T.text2, lineHeight: 1.55 }}>
+                    {weekReview.recommendation}
+                  </p>
+                </div>
+                <a href="/centre"
+                  style={{ fontSize: 12, color: T.green, fontWeight: 700, textDecoration: 'none',
+                    background: `${T.greenDim}14`, border: `1px solid ${T.greenDim}33`,
+                    borderRadius: 7, padding: '8px 16px', display: 'inline-block' }}>
+                  Read Full Review →
+                </a>
+              </>
+            )}
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* ── TEAM PULSE + RECENT ACTIVITY ────────────────────────────────── */}
+        <div style={{ display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+          gap: 16, marginBottom: 20 }}>
 
-          {/* AI Insights Panel */}
-          <div style={{ ...card, background: '#08110c', border: `1px solid ${T.border}` }}>
-            <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.1em' }}>AI INSIGHTS</div>
-              <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Computed from live data</div>
+          {/* Team Pulse */}
+          <div style={card}>
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: T.text,
+                  textTransform: 'uppercase', letterSpacing: '0.06em' }}>Team Pulse</div>
+                <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Operational health overview</div>
+              </div>
+              <a href="/intelligence"
+                style={{ fontSize: 10, color: T.text3, textDecoration: 'none', fontWeight: 600,
+                  background: T.card2, border: `1px solid ${T.border}`, borderRadius: 5, padding: '3px 10px' }}>
+                View Team →
+              </a>
             </div>
-            <div>
-              {[
-                {
-                  label: 'Most Overloaded',
-                  value: loading ? '…' : (mostLoaded?.responsible.split(' ')[0] ?? '—'),
-                  detail: mostLoaded ? `${mostLoaded.open} open tasks` : 'no data',
-                  color: overloadedPpl > 0 ? T.red : T.green,
-                  flag: overloadedPpl > 0,
-                },
-                {
-                  label: 'HK Comment Queue',
-                  value: loading ? '…' : String(data?.needsHkComment ?? 0),
-                  detail: 'tasks blocked on your direction',
-                  color: (data?.needsHkComment ?? 0) > 15 ? T.red : (data?.needsHkComment ?? 0) > 5 ? T.amber : T.green,
-                  flag: (data?.needsHkComment ?? 0) > 15,
-                },
-                {
-                  label: 'Oldest Pending',
-                  value: loading ? '…' : `${data?.oldestDays ?? 0}d`,
-                  detail: 'without resolution',
-                  color: (data?.oldestDays ?? 0) > 14 ? T.red : (data?.oldestDays ?? 0) > 7 ? T.amber : T.green,
-                  flag: (data?.oldestDays ?? 0) > 14,
-                },
-                {
-                  label: 'Avg Approval Delay',
-                  value: loading ? '…' : `${data?.avgWaitDays ?? 0}d`,
-                  detail: 'from creation to sign-off',
-                  color: (data?.avgWaitDays ?? 0) > 5 ? T.red : (data?.avgWaitDays ?? 0) > 2 ? T.amber : T.green,
-                  flag: (data?.avgWaitDays ?? 0) > 5,
-                },
-                {
-                  label: 'Total Backlog',
-                  value: loading ? '…' : String(data?.totalOpen ?? 0),
-                  detail: 'open tasks across all teams',
-                  color: (data?.totalOpen ?? 0) > 200 ? T.amber : T.text2,
-                  flag: false,
-                },
-                {
-                  label: 'Resolved Today',
-                  value: loading ? '…' : String(data?.resolvedToday ?? 0),
-                  detail: 'tasks completed',
-                  color: (data?.resolvedToday ?? 0) > 5 ? T.green : T.text3,
-                  flag: false,
-                },
-              ].map(s => (
-                <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: `1px solid ${T.border}` }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: T.text2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {s.flag && <span style={{ width: 4, height: 4, borderRadius: '50%', background: s.color, display: 'inline-block', boxShadow: `0 0 4px ${s.color}` }} />}
-                      {s.label}
+            <div style={{ padding: '8px 0' }}>
+              {loading ? (
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[1, 2, 3].map(i => <Skeleton key={i} width="70%" height={11} />)}
+                </div>
+              ) : health.map(h => (
+                <div key={h.name}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 20px', borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: h.color,
+                      boxShadow: `0 0 6px ${h.color}66`, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{h.name}</div>
+                      <div style={{ fontSize: 9, color: T.text3, marginTop: 1 }}>{h.detail}</div>
                     </div>
-                    <div style={{ fontSize: 9, color: T.text3, marginTop: 1 }}>{s.detail}</div>
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: s.color }}>{s.value}</div>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: h.color,
+                    background: `${h.color}15`, border: `1px solid ${h.color}30`,
+                    borderRadius: 5, padding: '3px 9px' }}>{h.label}</span>
                 </div>
               ))}
-              <div style={{ padding: '14px 16px' }}>
-                <a href="/centre" style={{ display: 'block', background: T.greenDim, color: 'white', borderRadius: 8, padding: '10px', textAlign: 'center', textDecoration: 'none', fontSize: 12, fontWeight: 800, letterSpacing: '0.02em' }}>
-                  Open Pabari Intelligence →
-                </a>
-              </div>
+              {data && (
+                <div style={{ padding: '12px 20px', display: 'flex', gap: 20 }}>
+                  <div style={{ fontSize: 10, color: T.text3 }}>
+                    Completed this week: <span style={{ color: T.green, fontWeight: 700 }}>{data.resolvedThisWeek}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: T.text3 }}>
+                    At risk: <span style={{ color: data.longRunningCount > 0 ? T.red : T.text2, fontWeight: 700 }}>{data.longRunningCount}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Email Intelligence */}
-          {mailStats && (
-            <div style={{ ...card, border: `1px solid #1a2a3a` }}>
-              <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#080f14' }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em' }}>EMAIL INTELLIGENCE</div>
-                  <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Today's inbox signal</div>
-                </div>
-                <a href="/centre?tab=mail" style={{ fontSize: 10, color: '#60a5fa', textDecoration: 'none', fontWeight: 700, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 6, padding: '4px 10px' }}>
-                  Open →
-                </a>
-              </div>
+          {/* Recent Activity */}
+          <div style={card}>
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-                  {[
-                    { v: mailStats.today.total,           l: 'Received',       c: T.text2 },
-                    { v: mailStats.today.unread,          l: 'Unread',         c: mailStats.today.unread > 10 ? T.amber : T.text2 },
-                    { v: mailStats.today.critical,        l: 'Critical',       c: mailStats.today.critical > 0 ? T.red : T.green },
-                    { v: mailStats.today.requires_action, l: 'Action Required',c: mailStats.today.requires_action > 0 ? T.amber : T.green },
-                  ].map((s, i) => (
-                    <div key={s.l} style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}`, borderRight: i % 2 === 0 ? `1px solid ${T.border}` : 'none' }}>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: s.c, lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 9, color: T.text3, marginTop: 3, fontWeight: 600 }}>{s.l}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: T.text,
+                  textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recent Activity</div>
+                <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Latest organisational updates</div>
+              </div>
+              <a href="/audit"
+                style={{ fontSize: 10, color: T.text3, textDecoration: 'none', fontWeight: 600,
+                  background: T.card2, border: `1px solid ${T.border}`, borderRadius: 5, padding: '3px 10px' }}>
+                View Activity →
+              </a>
+            </div>
+            <div style={{ padding: '6px 0' }}>
+              {loading ? (
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: T.border, flexShrink: 0 }} />
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 2 }}>
+                        <Skeleton width="75%" height={10} />
+                        <Skeleton width="40%" height={9} />
+                      </div>
                     </div>
                   ))}
                 </div>
-                {mailStats.unread_over_24h > 0 && (
-                  <div style={{ padding: '8px 16px', background: 'rgba(245,158,11,0.06)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 9, color: T.amber }}>⚠</span>
-                    <span style={{ fontSize: 11, color: T.amber, fontWeight: 600 }}>{mailStats.unread_over_24h} unread emails older than 24h</span>
+              ) : recentActivity.length === 0 ? (
+                <div style={{ padding: '24px 20px', color: T.text3, fontSize: 12 }}>No recent activity.</div>
+              ) : recentActivity.map((a, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 20px',
+                  borderBottom: i < recentActivity.length - 1 ? `1px solid ${T.border}` : 'none',
+                  alignItems: 'flex-start' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%',
+                    background: T.card2, border: `1px solid ${T.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 8, fontWeight: 800, color: T.text2, flexShrink: 0 }}>
+                    {a.user_name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
                   </div>
-                )}
-                {(mailStats.critical_emails ?? []).length > 0 && (
-                  <div style={{ padding: '10px 16px 6px' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: T.red, letterSpacing: '0.08em', marginBottom: 6 }}>CRITICAL EMAILS</div>
-                    {(mailStats.critical_emails ?? []).slice(0, 2).map((e, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
-                        <div style={{ width: 4, height: 4, borderRadius: '50%', background: T.red, flexShrink: 0, marginTop: 4, boxShadow: `0 0 4px ${T.red}88` }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, color: T.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
-                          <div style={{ fontSize: 9, color: T.text3 }}>{e.from_name} · {fmtRelative(e.received_at)}</div>
-                        </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: T.text, lineHeight: 1.4 }}>
+                      <span style={{ fontWeight: 700 }}>{a.user_name}</span>{' '}
+                      <span style={{ color: T.text3 }}>{ACTION_LABELS[a.action] ?? a.action}</span>
+                    </div>
+                    {a.details && (
+                      <div style={{ fontSize: 10, color: T.text3, marginTop: 1,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {a.details}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-                {(mailStats.categories ?? []).length > 0 && (
-                  <div style={{ padding: '8px 16px 12px', borderTop: `1px solid ${T.border}` }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: T.text3, letterSpacing: '0.08em', marginBottom: 6 }}>7-DAY CATEGORIES</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {(mailStats.categories ?? []).slice(0, 5).map(c => (
-                        <span key={c.category} style={{ fontSize: 9, background: T.card2, border: `1px solid ${T.border}`, borderRadius: 4, padding: '2px 6px', color: T.text2, fontWeight: 600 }}>
-                          {c.category} <span style={{ color: T.text3 }}>{c.count}</span>
-                        </span>
-                      ))}
-                    </div>
+                  <div style={{ fontSize: 10, color: T.text3, flexShrink: 0, marginTop: 1 }}>
+                    {fmtRelative(a.created_at)}
                   </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Business Health — by domain */}
-          <div style={card}>
-            <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Company Health</div>
-              <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Group-wide · AI-assessed</div>
-            </div>
-            <div>
-              {loading ? (
-                <div style={{ padding: '16px', color: T.text3, fontSize: 12 }}>Loading…</div>
-              ) : health.map(h => (
-                <div key={h.name} style={{ padding: '11px 16px', borderBottom: `1px solid ${T.border}`, background: h.bg }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: h.color, boxShadow: `0 0 5px ${h.color}88` }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{h.name}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 10, color: h.color, fontWeight: 800, background: `${h.color}18`, border: `1px solid ${h.color}33`, borderRadius: 4, padding: '2px 8px' }}>{h.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 900, color: h.color, minWidth: 36, textAlign: 'right' }}>{h.score}%</span>
-                    </div>
-                  </div>
-                  <div style={{ background: T.border, borderRadius: 2, height: 3, overflow: 'hidden', marginBottom: 4 }}>
-                    <div style={{ height: '100%', background: h.color, width: `${h.score}%`, borderRadius: 2, transition: 'width 0.8s ease', boxShadow: `0 0 6px ${h.color}66` }} />
-                  </div>
-                  <div style={{ fontSize: 9, color: T.text3 }}>{h.detail}</div>
                 </div>
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Business Health — by company */}
-          {(data?.byCompany ?? []).length > 0 && (
-            <div style={card}>
-              <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: T.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Company Health</div>
-                <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>Tasks on track per company</div>
-              </div>
-              <div>
-                {(data?.byCompany ?? []).map(c => {
-                  const total = parseInt(c.total, 10)
-                  const actReq = parseInt(c.action_req, 10)
-                  const score = total === 0 ? 100 : Math.round(((total - actReq) / total) * 100)
-                  const col = score >= 85 ? T.green : score >= 65 ? T.amber : T.red
-                  return (
-                    <div key={c.company} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderBottom: `1px solid ${T.border}` }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: col, flexShrink: 0, boxShadow: `0 0 4px ${col}66` }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company}</div>
-                        <div style={{ fontSize: 9, color: T.text3, marginTop: 1 }}>{total} tasks · {actReq} pending</div>
-                      </div>
-                      <span style={{ fontSize: 14, fontWeight: 900, color: col }}>{score}%</span>
+        {/* ── ASK PABARI INTELLIGENCE ─────────────────────────────────────── */}
+        <div style={card}>
+          <div style={{ padding: isMobile ? '16px 14px' : '18px 22px',
+            borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: T.green,
+              letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Ask Pabari Intelligence
+            </div>
+            <div style={{ fontSize: 10, color: T.text3, marginTop: 3 }}>
+              Ask anything about your organisation — powered by live data
+            </div>
+          </div>
+
+          {/* Chat history */}
+          {chatHistory.length > 0 && (
+            <div style={{ padding: isMobile ? '12px 14px' : '14px 22px',
+              borderBottom: `1px solid ${T.border}`,
+              display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 340, overflowY: 'auto' }}>
+              {chatHistory.map((h, i) => (
+                <div key={i}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                    <div style={{ background: `${T.greenDim}20`, border: `1px solid ${T.greenDim}30`,
+                      borderRadius: '10px 10px 3px 10px', padding: '8px 12px',
+                      fontSize: 12, color: T.text, maxWidth: '80%', lineHeight: 1.4 }}>
+                      {h.q}
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%',
+                      background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, color: T.green, flexShrink: 0, marginTop: 2 }}>⚡</div>
+                    <div style={{ background: T.card2, border: `1px solid ${T.border2}`,
+                      borderRadius: '3px 10px 10px 10px', padding: '8px 12px',
+                      fontSize: 12, color: T.text2, maxWidth: '85%', lineHeight: 1.55, flex: 1 }}>
+                      {h.a}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%',
+                    background: `${T.greenDim}22`, border: `1px solid ${T.greenDim}44`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, color: T.green, flexShrink: 0, marginTop: 2 }}>⚡</div>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '12px' }}>
+                    {[0, 1, 2].map(j => (
+                      <div key={j} style={{ width: 6, height: 6, borderRadius: '50%',
+                        background: T.green, opacity: 0.6,
+                        animation: `ep-pulse 1s ease-in-out ${j * 0.2}s infinite` }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
           )}
+
+          {/* Suggested questions */}
+          {chatHistory.length === 0 && (
+            <div style={{ padding: isMobile ? '14px 14px 0' : '16px 22px 0',
+              display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {SUGGESTED_QUESTIONS.map(q => (
+                <button key={q} onClick={() => askAI(q)}
+                  style={{ fontSize: 11, color: T.text2, background: T.card2,
+                    border: `1px solid ${T.border2}`, borderRadius: 20,
+                    padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit',
+                    transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = `${T.greenDim}18`; e.currentTarget.style.borderColor = `${T.greenDim}44`; e.currentTarget.style.color = T.green }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.card2; e.currentTarget.style.borderColor = T.border2; e.currentTarget.style.color = T.text2 }}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <div style={{ padding: isMobile ? '14px 14px' : '16px 22px',
+            display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAI(chatInput) } }}
+              placeholder="Ask anything about your organisation…"
+              style={{ flex: 1, background: T.card2, border: `1px solid ${T.border2}`,
+                borderRadius: 8, padding: '10px 14px', fontSize: 13, color: T.text,
+                outline: 'none', fontFamily: 'inherit' }}
+              onFocus={e => (e.currentTarget.style.borderColor = `${T.greenDim}55`)}
+              onBlur={e => (e.currentTarget.style.borderColor = T.border2)}
+            />
+            <button
+              onClick={() => askAI(chatInput)}
+              disabled={chatLoading || !chatInput.trim()}
+              style={{ background: chatLoading || !chatInput.trim() ? T.card2 : T.greenDim,
+                border: `1px solid ${chatLoading || !chatInput.trim() ? T.border : T.green}`,
+                borderRadius: 8, padding: '10px 18px', fontSize: 12, fontWeight: 700,
+                color: chatLoading || !chatInput.trim() ? T.text3 : 'white',
+                cursor: chatLoading || !chatInput.trim() ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit', transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+              {chatLoading ? '…' : 'Ask →'}
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   )
