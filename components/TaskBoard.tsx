@@ -2226,15 +2226,30 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                             style={{fontSize:10,border:'1px solid #d1d5db',borderRadius:4,padding:'3px 6px',width:'100%',minWidth:120}}
                           />
                           <div style={{display:'flex',gap:3}}>
-                            <button onClick={async()=>{
-                              const comment = hkInboxDrafts[task.id]?.trim() || ''
-                              if (comment) await saveHKComment(task.id, comment)
-                              await resolveHKEscalation(task)
-                            }}
-                              style={{flex:1,background:'#6d28d9',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}
-                              title="Mark HK review done (does not close the task)">
-                              ✓ Done
-                            </button>
+                            {/* Awaiting HK approval → Approve resolves the task */}
+                            {task.status === 'awaiting-hk-approval' ? (
+                              <button onClick={async()=>{
+                                const comment = hkInboxDrafts[task.id]?.trim() || ''
+                                if (comment) await saveHKComment(task.id, comment)
+                                await approveTask(task)
+                              }}
+                                style={{flex:1,background:'#15803d',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}
+                                title="Approve — marks task as resolved">
+                                ✓ Approve
+                              </button>
+                            ) : (
+                              /* Escalation-type task → Done clears escalation + sends back to team */
+                              <button onClick={async()=>{
+                                const comment = hkInboxDrafts[task.id]?.trim() || ''
+                                if (comment) await saveHKComment(task.id, comment)
+                                await resolveHKEscalation(task)
+                                await changeStatus(task, 'action-required')
+                              }}
+                                style={{flex:1,background:'#6d28d9',color:'white',border:'none',borderRadius:4,padding:'4px 6px',fontSize:10,fontWeight:700,cursor:'pointer'}}
+                                title="Done — clears escalation and returns task to team">
+                                ✓ Done
+                              </button>
+                            )}
                             <button onClick={async()=>{
                               const comment = hkInboxDrafts[task.id]?.trim() || ''
                               if (comment) await saveHKComment(task.id, comment)
