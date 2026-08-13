@@ -228,7 +228,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [swkEditId,     setSwkEditId]     = useState<string|null>(null)
   const [swkDraft,      setSwkDraft]      = useState('')
   const [activeMainTab, setActiveMainTab] = useState<'active'|'pending-review'|'resolved'|'archived'|'needs-hk-comment'|'needs-hk-approval'|'expired'>('active')
-  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|'hk-escalated'|'hk-action'|'hk-all'|'hk-pending'|'hk-stale'|'hk-completed'|''>('')
+  const _isHKInit = currentUser.name.toLowerCase().split(' ')[0] === 'harshil'
+  const [directorFilter, setDirectorFilter] = useState<'pending-review'|'needs-comment'|'action-required'|'finance'|'awaiting-hk-approval'|'needs-paul-review'|'hk-escalated'|'hk-action'|'hk-all'|'hk-pending'|'hk-stale'|'hk-completed'|''>(_isHKInit ? 'hk-escalated' : '')
   const [hkInboxDrafts, setHkInboxDrafts] = useState<Record<string, string>>({}) // taskId → quick comment draft
   // ── Escalation modal ────────────────────────────────────────────────────────
   const [showEscalateModal,  setShowEscalateModal]  = useState(false)
