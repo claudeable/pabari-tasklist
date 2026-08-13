@@ -26,6 +26,9 @@ export default async function TasksPage() {
   const hasTasksAccess = currentUser.role === 'admin' || portals.length === 0 || portals.includes('tasks')
   if (!hasTasksAccess) redirect('/')
 
+  // Feature preview: new dashboard shown to Pedro first before full rollout
+  if (currentUser.email === 'hpedro@usm.co.ke') redirect('/tasks/dashboard')
+
   const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([
     getTasks(),
     getPublicUsers(),
