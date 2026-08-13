@@ -70,7 +70,6 @@ function attentionScore(task: Task, today: string): number {
   if (task.due_date === today)           score += 800
   if (task.status === 'action-required') score += 700
   if (task.priority === 'high')          score += 300
-  if (task.priority === 'critical')      score += 400
   return score
 }
 
