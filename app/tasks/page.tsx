@@ -17,7 +17,10 @@ export default async function TasksPage({
   const session     = cookieStore.get('pabari-session')
   const tokenUser   = session?.value ? await verifyToken(session.value) : null
 
-  if (!tokenUser) redirect('/login')
+  if (!tokenUser) {
+    const returnPath = searchParams?.id ? `/tasks?id=${searchParams.id}` : '/tasks'
+    redirect(`/login?redirect=${encodeURIComponent(returnPath)}`)
+  }
 
   // Always hydrate companies/reports_to from DB so stale JWTs pick up changes
   const dbUser = await getUserByEmail(tokenUser.email)

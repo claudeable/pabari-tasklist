@@ -137,20 +137,31 @@ export async function PATCH(
   const taskUrl = `https://pabari-workspace.up.railway.app/tasks?id=${task.id}`
   const viewBtn = `<a href="${taskUrl}" style="display:inline-block;background:#1a3a2a;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;margin-top:8px">View Task →</a>`
 
-  // Email HK when task is escalated to awaiting-hk-approval
+  // Email + push HK when task is escalated to awaiting-hk-approval
   if (body.status === 'awaiting-hk-approval' && prev?.status !== 'awaiting-hk-approval') {
-    getUserByName('Harshil').then(hk => {
-      if (hk?.email) {
+    getUserByName('Harshil').then(async hk => {
+      if (!hk) return
+      const snippet = task.particulars.length > 70 ? task.particulars.slice(0, 70) + '…' : task.particulars
+      if (hk.email) {
         sendEmail({
           to: hk.email,
           subject: `Action Required: Task needs your approval — ${task.particulars.slice(0, 60)}`,
           body: `Hi Harshil,\n\nA task has been escalated and is awaiting your approval.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\nResponsible: ${task.responsible}\n\n${viewBtn}`,
         }).catch(() => {})
       }
+      const subs = await getSubscriptionsForUser(String(hk.id)).catch(() => [])
+      if (subs.length) {
+        sendPush(subs, {
+          title: 'Task awaiting your approval',
+          body:  `[${task.company}] ${snippet}`,
+          tag:   `hk-approval-${task.id}`,
+          url:   `/tasks?id=${task.id}`,
+        }).catch(() => {})
+      }
     }).catch(() => {})
   }
 
-  // Email HK when a new structured escalation is created
+  // Email + push HK when a new structured escalation is created
   const escalationType = body.hk_escalation_type as string | undefined
   if (escalationType && escalationType !== 'none' && prev?.hk_escalation_type === 'none') {
     const TYPE_LABELS: Record<string, string> = {
@@ -162,12 +173,23 @@ export async function PATCH(
     const typeLabel = TYPE_LABELS[escalationType] ?? escalationType
     const by = changedBy
     const note = (body.hk_escalation_note as string)?.trim()
-    getUserByName('Harshil').then(hk => {
-      if (hk?.email) {
+    getUserByName('Harshil').then(async hk => {
+      if (!hk) return
+      const snippet = task.particulars.length > 70 ? task.particulars.slice(0, 70) + '…' : task.particulars
+      if (hk.email) {
         sendEmail({
           to: hk.email,
           subject: `${typeLabel}: Task escalated to you — ${task.particulars.slice(0, 60)}`,
           body: `Hi Harshil,\n\n${by} has escalated a task to you.\n\n<strong>Reason:</strong> ${typeLabel}${note ? `\n<strong>Note:</strong> ${note}` : ''}\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nResponsible: ${task.responsible}\n\n${viewBtn}`,
+        }).catch(() => {})
+      }
+      const subs = await getSubscriptionsForUser(String(hk.id)).catch(() => [])
+      if (subs.length) {
+        sendPush(subs, {
+          title: `${typeLabel} — escalated to you`,
+          body:  `[${task.company}] ${snippet}${note ? ` — ${note}` : ''}`,
+          tag:   `hk-escalation-${task.id}`,
+          url:   `/tasks?id=${task.id}`,
         }).catch(() => {})
       }
     }).catch(() => {})
