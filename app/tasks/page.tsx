@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: { id?: string }
+  searchParams: { id?: string; view?: string }
 }) {
   const cookieStore = cookies()
   const session     = cookieStore.get('pabari-session')
@@ -35,9 +35,9 @@ export default async function TasksPage({
 
   // Redirect Pedro to his personal dashboard unless opening a specific task
   if (currentUser.email === 'hpedro@usm.co.ke' && !searchParams?.id) redirect('/tasks/dashboard')
-  // Redirect Harshil to the Executive Intelligence dashboard
+  // Redirect Harshil to the Executive Intelligence dashboard unless opening a specific task or the full board
   const isHK = currentUser.name.toLowerCase().startsWith('harshil')
-  if (isHK && !searchParams?.id) redirect('/intelligence')
+  if (isHK && !searchParams?.id && searchParams?.view !== 'tasks') redirect('/intelligence')
 
   const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([
     getTasks(),

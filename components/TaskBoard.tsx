@@ -401,6 +401,9 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
 
   // ── Visible tasks (role + company access) ────────────────────────
   const _visibleTasks = useMemo(() => {
+    // Yalelet has org-wide read-only visibility (no delete/approve — those are blocked at perms level)
+    if (currentUser.email === 'yaynalem@usm.co.ke') return tasks
+
     // Staff see tasks assigned to them.
     // Finance-whitelisted staff also see all Finance category tasks across all companies.
     if (effectiveRole === 'staff') {

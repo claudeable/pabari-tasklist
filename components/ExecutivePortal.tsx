@@ -294,7 +294,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
           </div>
         </div>
         {/* Action button */}
-        <a href={`/tasks/board?id=${task.id}`}
+        <a href={`/tasks?id=${task.id}`}
           style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
             color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`,
             borderRadius: 8, padding: '7px 16px', textDecoration: 'none', display: 'block',
@@ -330,8 +330,8 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
 
         {/* Desktop nav */}
         {!isMobile && (isHK
-          ? [['Tasks', '/tasks/board'], ['Connect', '/connect'], ['Centre', '/centre']]
-          : [['Tasks', '/tasks/board'], ['Connect', '/connect'], ['Documents', '/documents'], ['Finance', '/finance'], ['Projects', '/projects'], ['Centre', '/centre']]
+          ? [['Tasks', '/tasks?view=tasks'], ['Connect', '/connect'], ['Centre', '/centre']]
+          : [['Tasks', '/tasks?view=tasks'], ['Connect', '/connect'], ['Documents', '/documents'], ['Finance', '/finance'], ['Projects', '/projects'], ['Centre', '/centre']]
         ).map(([l, h]) => (
           <a key={l} href={h} style={{ color: T.text3, fontSize: 12, textDecoration: 'none',
             fontWeight: 600, letterSpacing: '0.04em' }}
@@ -363,7 +363,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   background: '#0e1a12', border: `1px solid ${T.border}`,
                   borderRadius: 10, minWidth: 160, overflow: 'hidden',
                   boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
-                  {[['Tasks', '/tasks/board'], ['Connect', '/connect'], ['Centre', '/centre']].map(([l, h]) => (
+                  {[['Tasks', '/tasks?view=tasks'], ['Connect', '/connect'], ['Centre', '/centre']].map(([l, h]) => (
                     <a key={l} href={h} onClick={() => setNavOpen(false)}
                       style={{ display: 'block', padding: '11px 16px', fontSize: 13,
                         fontWeight: 600, color: T.text2, textDecoration: 'none',
@@ -552,21 +552,21 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
               value: loading ? '…' : needsDecision,
               sub: 'Items requiring a decision or approval',
               color: needsDecision > 0 ? T.red : T.green,
-              href: '/tasks/board',
+              href: '/tasks?view=tasks',
             },
             {
               label: 'AWAITING YOUR INPUT',
               value: loading ? '…' : awaitingInput,
               sub: 'Items where your comment or direction is needed',
               color: awaitingInput > 0 ? T.amber : T.green,
-              href: '/tasks/board',
+              href: '/tasks?view=tasks',
             },
             {
               label: 'FOR AWARENESS',
               value: loading ? '…' : forAwareness,
               sub: 'Important developments for your awareness',
               color: forAwareness > 0 ? T.blue : T.text2,
-              href: '/tasks/board',
+              href: '/tasks?view=tasks',
             },
           ].map(m => (
             <a key={m.label} href={m.href} style={{ textDecoration: 'none' }}>
@@ -598,7 +598,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                   : `${Math.min(hkAttention.length, 5)} of ${hkAttention.length} escalated item${hkAttention.length !== 1 ? 's' : ''}`}
               </div>
             </div>
-            <a href="/tasks/board"
+            <a href="/tasks?view=tasks"
               style={{ fontSize: 11, color: T.green, fontWeight: 700, textDecoration: 'none',
                 background: `${T.greenDim}18`, border: `1px solid ${T.greenDim}33`,
                 borderRadius: 6, padding: '5px 12px', whiteSpace: 'nowrap' }}>
