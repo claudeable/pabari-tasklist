@@ -97,176 +97,108 @@ function isExecutive(user: { role: string; name: string }) {
   return user.role === 'admin' || EXEC_NAMES.includes(first)
 }
 
-// ── Context for Harshil (HK) — operational, approval-focused ─────────────
+// ── Context for Harshil (HK) — escalation-first, tasks only ─────────────
 async function buildHKContext(userName: string, userId: string) {
   const now = today()
   const lines: string[] = [
     `## Executive Profile`,
     `Name: ${userName}`,
-    `Role: Group Director / HK (Harshil Kumar)`,
+    `Role: Group Director (HK)`,
     `Today: ${now} | ${getGreeting()}`,
-    `Active modules: Tasks, Forms (PCR + Leave), Delivery Notes`,
+    `IMPORTANT: Harshil only acts on tasks explicitly escalated to him. He does NOT manage every org task.`,
+    `The org has hundreds of tasks — Paul and the team handle the majority. Only escalated items require Harshil's input.`,
     '',
   ]
 
-  // Task counts
+  // Tasks explicitly escalated to HK
   try {
-    const counts = await query<{ status: string; count: string }>(
-      `SELECT status, COUNT(*)::text AS count FROM tasks
-       WHERE status NOT IN ('resolved','expired')
-       GROUP BY status ORDER BY count::int DESC`
+    const escalated = await query<{ particulars: string; company: string; responsible: string; hk_escalation_type: string; hk_escalation_note: string; hk_escalation_by: string; priority: string; days_waiting: string }>(
+      `SELECT particulars, company, responsible,
+              hk_escalation_type, hk_escalation_note, hk_escalation_by, priority,
+              GREATEST(0, EXTRACT(DAY FROM NOW() - updated_at))::int::text AS days_waiting
+       FROM tasks
+       WHERE hk_escalation_type IS NOT NULL AND hk_escalation_type != 'none'
+         AND status NOT IN ('resolved','expired','archived')
+       ORDER BY CASE hk_escalation_type WHEN 'decision' THEN 0 WHEN 'action' THEN 1 WHEN 'guidance' THEN 2 ELSE 3 END,
+                CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END
+       LIMIT 20`
     )
-    const total = counts.reduce((s, r) => s + parseInt(r.count, 10), 0)
-    lines.push(`## Task Overview (${total} total open)`)
-    counts.forEach(r => lines.push(`- ${r.status}: ${r.count}`))
+    const typeLabel: Record<string, string> = {
+      decision: 'DECISION REQUIRED', action: 'EXECUTIVE ESCALATION',
+      guidance: 'MANAGEMENT GUIDANCE', info: 'FOR AWARENESS',
+    }
+    if (escalated.length > 0) {
+      lines.push(`## Escalated to You (${escalated.length} items requiring your input):`)
+      escalated.forEach(t => {
+        const lbl  = typeLabel[t.hk_escalation_type] ?? t.hk_escalation_type.toUpperCase()
+        const note = t.hk_escalation_note ? ` | note: ${t.hk_escalation_note}` : ''
+        const by   = t.hk_escalation_by   ? ` | escalated by: ${t.hk_escalation_by}` : ''
+        lines.push(`- [${lbl}] [${t.company}] ${t.particulars.slice(0, 90)} | owner: ${t.responsible} | ${t.priority} | ${t.days_waiting}d waiting${note}${by}`)
+      })
+    } else {
+      lines.push(`## Escalated to You: No items currently escalated to you.`)
+    }
     lines.push('')
   } catch { /**/ }
 
-  // HK comment queue
+  // Legacy awaiting-hk-approval (without new escalation type)
   try {
-    const needComment = await query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM tasks
-       WHERE status NOT IN ('resolved','expired')
-         AND (hk_comment IS NULL OR TRIM(hk_comment) = '')`
-    )
-    const cnt = parseInt(needComment[0]?.count ?? '0', 10)
-    if (cnt > 0) {
-      lines.push(`## Your HK Comment Queue: ${cnt} tasks awaiting your direction`)
-      const sample = await query<{ particulars: string; company: string; responsible: string; status: string; priority: string }>(
-        `SELECT particulars, company, responsible, status, priority FROM tasks
-         WHERE status NOT IN ('resolved','expired')
-           AND (hk_comment IS NULL OR TRIM(hk_comment) = '')
-         ORDER BY CASE status WHEN 'action-required' THEN 0 WHEN 'in-review' THEN 1 ELSE 2 END,
-                  CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
-         LIMIT 15`
-      )
-      sample.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | owner: ${t.responsible} | ${t.status} | ${t.priority}`))
-      lines.push('')
-    }
-  } catch { /**/ }
-
-  // Action-required
-  try {
-    const actionTasks = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string }>(
-      `SELECT particulars, company, responsible, COALESCE(due_date::text,'') AS due_date, priority
-       FROM tasks WHERE status = 'action-required'
-       ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, due_date ASC NULLS LAST
-       LIMIT 20`
-    )
-    if (actionTasks.length > 0) {
-      lines.push(`## Action Required (${actionTasks.length}) — need immediate decision:`)
-      actionTasks.forEach(t => {
-        const due = t.due_date ? ` | due: ${t.due_date}` : ''
-        lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | ${t.priority}${due}`)
-      })
-      lines.push('')
-    }
-  } catch { /**/ }
-
-  // Awaiting HK approval
-  try {
-    const approvals = await query<{ particulars: string; company: string; responsible: string }>(
-      `SELECT particulars, company, responsible FROM tasks WHERE status = 'awaiting-hk-approval' LIMIT 15`
+    const approvals = await query<{ particulars: string; company: string; responsible: string; days_waiting: string }>(
+      `SELECT particulars, company, responsible,
+              GREATEST(0, EXTRACT(DAY FROM NOW() - updated_at))::int::text AS days_waiting
+       FROM tasks
+       WHERE status = 'awaiting-hk-approval'
+         AND (hk_escalation_type IS NULL OR hk_escalation_type = 'none')
+         AND status NOT IN ('resolved','expired','archived')
+       LIMIT 10`
     )
     if (approvals.length > 0) {
       lines.push(`## Awaiting Your Approval (${approvals.length}):`)
-      approvals.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible}`))
+      approvals.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | owner: ${t.responsible} | ${t.days_waiting}d waiting`))
       lines.push('')
     }
   } catch { /**/ }
 
-  // Overdue
+  // Leave requests
   try {
-    const overdue = await query<{ particulars: string; company: string; responsible: string; due_date: string; priority: string }>(
-      `SELECT particulars, company, responsible, due_date::text, priority
-       FROM tasks WHERE status NOT IN ('resolved','expired') AND due_date IS NOT NULL AND due_date < $1::date
-       ORDER BY due_date ASC LIMIT 10`, [now]
-    )
-    if (overdue.length > 0) {
-      lines.push(`## Overdue Tasks (${overdue.length} past due date):`)
-      overdue.forEach(t => lines.push(`- [${t.company}] ${t.particulars.slice(0, 90)} | ${t.responsible} | due: ${t.due_date} | ${t.priority}`))
-      lines.push('')
-    }
-  } catch { /**/ }
-
-  // Petty cash
-  try {
-    const pcrs = await query<{ req_no: string; employee_name: string; company: string; total_amount: string; status: string }>(
-      `SELECT req_no, employee_name, company, total_amount::text, status
-       FROM petty_cash_requests WHERE status NOT IN ('received','rejected')
-       ORDER BY total_amount::numeric DESC LIMIT 20`
-    )
-    if (pcrs.length > 0) {
-      lines.push(`## Petty Cash Requests (${pcrs.length} active):`)
-      pcrs.forEach(r => {
-        const amt = Number(r.total_amount)
-        const flag = amt >= 500000 ? ' *** HIGH VALUE ***' : amt >= 100000 ? ' [HIGH VALUE]' : ''
-        lines.push(`- ${r.req_no} | ${r.employee_name} | KES ${amt.toLocaleString()} [${r.company}] | ${r.status}${flag}`)
-      })
-    } else {
-      lines.push(`## Petty Cash: No active requests.`)
-    }
-    lines.push('')
-  } catch { /**/ }
-
-  // Leave
-  try {
-    const leaves = await query<{ employee_name: string; leave_type: string; date_from: string; date_to: string; days_requested: number; status: string; company: string }>(
-      `SELECT employee_name, leave_type, date_from::text, date_to::text, days_requested, status, company
+    const leaves = await query<{ employee_name: string; leave_type: string; date_from: string; date_to: string; days_requested: number; company: string }>(
+      `SELECT employee_name, leave_type, date_from::text, date_to::text, days_requested, company
        FROM leave_requests WHERE status NOT IN ('approved','rejected')
-       ORDER BY created_at DESC LIMIT 15`
+       ORDER BY created_at DESC LIMIT 10`
     )
     if (leaves.length > 0) {
       lines.push(`## Leave Requests (${leaves.length} pending):`)
-      leaves.forEach(l => lines.push(`- ${l.employee_name} | ${l.leave_type} | ${l.date_from} → ${l.date_to} (${l.days_requested}d) | ${l.company} | ${l.status}`))
+      leaves.forEach(l => lines.push(`- ${l.employee_name} | ${l.leave_type} | ${l.date_from} → ${l.date_to} (${l.days_requested}d) | ${l.company}`))
     } else {
       lines.push(`## Leave: No pending requests.`)
     }
     lines.push('')
   } catch { /**/ }
 
+  // Weekly completions and org health — awareness only
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const [resolved, pending, longRunning] = await Promise.all([
+      query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM tasks WHERE status='resolved' AND LEFT(updated_at::text,10) >= $1`, [weekAgo]
+      ),
+      query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired','archived')`
+      ),
+      query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired','archived') AND created_at < NOW() - INTERVAL '30 days'`
+      ),
+    ])
+    lines.push(`## Organisational Overview (for awareness):`)
+    lines.push(`- Completed this week: ${resolved[0]?.count ?? 0}`)
+    lines.push(`- Total active tasks (managed by Paul + team): ${pending[0]?.count ?? 0}`)
+    lines.push(`- Long-running tasks (30+ days open): ${longRunning[0]?.count ?? 0}`)
+    lines.push('')
+  } catch { /**/ }
+
   // Email intelligence
   const emailCtx = await buildEmailContext(userId)
   if (emailCtx) lines.push(emailCtx)
-
-  // Delivery notes
-  try {
-    const dn = await query<{ total: string; active: string; cancelled: string; this_week: string }>(
-      `SELECT COUNT(*)::text AS total,
-              COUNT(CASE WHEN status='active' THEN 1 END)::text AS active,
-              COUNT(CASE WHEN status='cancelled' THEN 1 END)::text AS cancelled,
-              COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END)::text AS this_week
-       FROM delivery_notes`
-    )
-    lines.push(`## Delivery Notes: ${dn[0]?.active ?? 0} active | ${dn[0]?.cancelled ?? 0} cancelled | ${dn[0]?.this_week ?? 0} this week`)
-    lines.push('')
-  } catch { /**/ }
-
-  // Weekly team performance
-  try {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const resolved = await query<{ responsible: string; resolved_count: string }>(
-      `SELECT responsible, COUNT(*)::text AS resolved_count FROM tasks
-       WHERE status='resolved' AND updated_at >= $1::date AND responsible IS NOT NULL AND responsible != ''
-       GROUP BY responsible ORDER BY resolved_count::int DESC LIMIT 15`, [weekAgo]
-    )
-    const openPerPerson = await query<{ responsible: string; open: string; action_req: string }>(
-      `SELECT responsible, COUNT(*)::text AS open,
-              COUNT(CASE WHEN status='action-required' THEN 1 END)::text AS action_req
-       FROM tasks WHERE status NOT IN ('resolved','expired') AND responsible IS NOT NULL AND responsible != ''
-       GROUP BY responsible ORDER BY open::int DESC LIMIT 20`
-    )
-    lines.push(`## Weekly Team Performance`)
-    if (resolved.length > 0) resolved.forEach(r => lines.push(`- ${r.responsible}: ${r.resolved_count} resolved this week`))
-    else lines.push(`- No tasks resolved this week`)
-    lines.push('')
-    lines.push(`Open tasks per person:`)
-    openPerPerson.forEach(r => {
-      const ar = parseInt(r.action_req, 10)
-      lines.push(`- ${r.responsible}: ${r.open} open${ar > 0 ? ` | ${ar} action-required` : ''}`)
-    })
-    lines.push('')
-  } catch { /**/ }
 
   return lines.join('\n')
 }
@@ -471,26 +403,34 @@ export async function POST(req: NextRequest) {
   const systemPrompt = isHK
     ? `You are the Pabari Executive AI — private decision intelligence for ${user.name}, Group Director (HK) at Pabari Group.
 
-ACTIVE MODULES: Tasks, Forms (Petty Cash + Leave), Delivery Notes.
+CRITICAL CONTEXT — HOW HK WORKS:
+- Harshil does NOT manage every task in the organisation. Paul and the team handle the majority.
+- Harshil only acts on tasks that have been EXPLICITLY ESCALATED to him (hk_escalation_type set).
+- The org has hundreds of active tasks — that is normal and expected. Do not present the full org count as Harshil's personal queue.
+- Never say "you have 200+ tasks needing your attention" — that is wrong. He has only the escalated items.
+
+ACTIVE MODULES: Tasks, Leave.
 NOT YET LIVE: Finance, Projects, Documents — say so if asked.
+NOTE: Petty cash has moved to the Finance portal. Do not reference petty cash requests.
 
 LIVE DATA (${today()}):
 ${context}
 
 ## Your Priority Order:
-1. HK Comment queue — your comment unblocks team progress
-2. Action Required tasks — need your immediate decision
-3. Tasks awaiting your approval
-4. High-value PCR (≥ KES 100K)
-5. Leave requests pending
+1. Decision-type escalations — need Harshil's direct decision
+2. Action-type escalations — executive sign-off required
+3. Guidance-type escalations — team needs direction
+4. Awaiting-HK-approval tasks
+5. Leave requests pending approval
+6. Info-type escalations — for awareness only
 
 ## Response rules:
-- Lead with the numbers (how many, who, what company)
+- Lead with the escalated items count (the real queue)
 - Name specific tasks, people, companies from the data
-- Flag high-priority and high-value items
-- Give clear recommendations on what to address first
+- DO NOT present the total org task count as Harshil's responsibility
+- Give clear, actionable recommendations on what to address first
 - Be direct. No filler. Use the actual data.
-- Briefing structure: HK Comment Queue → Action Required → Approvals → PCR → Leave → Delivery Notes
+- Briefing structure: Escalated items (by type) → Approvals → Leave → Org health overview
 
 Today is ${today()}, good ${getGreeting()}, ${firstName}.`
 
