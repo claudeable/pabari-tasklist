@@ -88,7 +88,7 @@ function generateBriefing(data: ExecData): string {
 }
 
 function generateWeeklyReview(data: ExecData): { summary: string; recommendation: string } {
-  const { resolvedThisWeek: r, escalatedThisWeek: e, pendingCount: p, longRunningCount: l } = data
+  const { resolvedThisWeek: r, escalatedThisWeek: e, longRunningCount: l } = data
   const summary =
     `${r} task${r !== 1 ? 's' : ''} were completed across the organisation this week` +
     (e > 0 ? `, and ${e} matter${e !== 1 ? 's' : ''} were escalated to you` : '') + '. ' +
@@ -634,7 +634,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
             <div style={{ fontSize: 12, fontWeight: 800, color: T.text,
               letterSpacing: '0.06em', textTransform: 'uppercase' }}>Your Week</div>
             <div style={{ fontSize: 10, color: T.text3, marginTop: 3 }}>
-              Organisational summary — last 7 days
+              Org-wide summary — last 7 days · ORG ACTIVE is total tasks across all companies, not your personal queue
             </div>
           </div>
 
@@ -645,7 +645,7 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
             {[
               { label: 'COMPLETED',        value: data?.resolvedThisWeek  ?? 0, color: T.green },
               { label: 'ESCALATED TO YOU', value: data?.escalatedThisWeek ?? 0, color: T.amber },
-              { label: 'STILL PENDING',    value: data?.pendingCount       ?? 0, color: T.text2 },
+              { label: 'ORG ACTIVE',       value: data?.pendingCount       ?? 0, color: T.text2 },
               { label: 'LONG-RUNNING',     value: data?.longRunningCount   ?? 0, color: (data?.longRunningCount ?? 0) > 2 ? T.red : T.text3 },
             ].map((m, i) => (
               <div key={m.label} style={{ padding: isMobile ? '18px 14px' : '22px 22px',
