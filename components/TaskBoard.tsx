@@ -1883,7 +1883,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 <option key={k} value={k}>{v}</option>
               ))}
             </select>
-            {effectiveRole !== 'staff' && (
+            {(effectiveRole !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke') && (
               <select value={filterPerson} onChange={e=>setFilterPerson(e.target.value)}
                 style={{border:'1px solid #d1d5db',borderRadius:4,padding:'5px 8px',fontSize:12,color:'#374151'}}>
                 <option value="">All People</option>
