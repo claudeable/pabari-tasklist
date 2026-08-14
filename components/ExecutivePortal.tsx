@@ -527,6 +527,13 @@ export default function ExecutivePortal({ currentUser }: { currentUser: SessionU
                 boxShadow: `0 0 20px ${T.green}25`, letterSpacing: '0.01em' }}>
               View My Briefing →
             </a>
+            <a href="/tasks?view=tasks"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: 'transparent', color: T.text2, padding: '11px 22px',
+                borderRadius: 10, textDecoration: 'none', fontWeight: 600,
+                fontSize: 13, border: `1px solid ${T.border}` }}>
+              Open Task Board
+            </a>
             {!loading && totalItems > 0 && (
               <span style={{ fontSize: 12, color: T.text3,
                 background: `${T.border}88`, border: `1px solid ${T.border}`,
