@@ -2597,6 +2597,32 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   : <span className={STATUS_PILL[activeTask.status]}>{STATUS_LABELS[activeTask.status]}</span>
                 }
               </div>
+              {/* Submit for Review — staff only, on their own tasks */}
+              {effectiveRole === 'staff' &&
+               nameMatch(effectiveResponsible(activeTask), effectiveName) &&
+               !['in-review','resolved','expired','archived'].includes(activeTask.status) && (
+                <button onClick={async () => {
+                  await fetch(`/api/tasks/${activeTask.id}`, {
+                    method: 'PATCH', headers: {'Content-Type':'application/json'}, credentials: 'include',
+                    body: JSON.stringify({ status: 'in-review' }),
+                  })
+                  setTasks(prev => prev.map(t => t.id === activeTask.id ? {...t, status: 'in-review'} : t))
+                  setActiveTask(p => p ? {...p, status: 'in-review'} : p)
+                }}
+                  style={{width:'100%',marginBottom:8,background:'#1a3a2a',color:'white',border:'none',
+                    borderRadius:5,padding:'9px',fontSize:12,fontWeight:700,cursor:'pointer',letterSpacing:'0.01em'}}>
+                  ✓ Submit for Review
+                </button>
+              )}
+              {/* Already submitted — staff sees confirmation */}
+              {effectiveRole === 'staff' &&
+               nameMatch(effectiveResponsible(activeTask), effectiveName) &&
+               activeTask.status === 'in-review' && (
+                <div style={{marginBottom:8,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,
+                  padding:'8px 11px',fontSize:11,color:'#1d4ed8',fontWeight:600}}>
+                  ✓ Submitted for review — waiting on Paul
+                </div>
+              )}
 
               {/* Archive button — Harshil, Paul, Benson only */}
               {canArchive && activeTask.status !== 'archived' && (
