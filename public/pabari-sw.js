@@ -1,5 +1,5 @@
-// Pabari Workspace — Service Worker v2
-const CACHE_NAME = 'pabari-v2'
+// Pabari Workspace — Service Worker v3
+const CACHE_NAME = 'pabari-v3'
 
 // ─── IndexedDB helpers ──────────────────────────────────────────────────────
 
@@ -64,10 +64,10 @@ async function dbGetAllKeys(storeName) {
 // ─── Install ─────────────────────────────────────────────────────────────────
 
 self.addEventListener('install', event => {
+  // Do NOT pre-cache HTML pages — they may redirect (e.g. /tasks/hub → /login
+  // when unauthenticated). Safari rejects redirect responses from a SW.
+  // Pages are cached lazily on first successful visit in the fetch handler.
   self.skipWaiting()
-  // No pre-caching of HTML pages — they may redirect (login) and Safari
-  // cannot handle redirect responses served by a service worker.
-  // Static Next.js assets are cached on first fetch below.
 })
 
 // ─── Activate ────────────────────────────────────────────────────────────────
@@ -89,12 +89,6 @@ self.addEventListener('fetch', event => {
   // Only intercept same-origin requests
   if (url.origin !== self.location.origin) return
 
-  // NEVER intercept navigate requests — Safari errors when a SW returns
-  // a redirect response for navigation (e.g. /tasks → /login).
-  // The browser handles page navigation natively; offline task data
-  // is served from IndexedDB via the /api/tasks intercept below.
-  if (request.mode === 'navigate') return
-
   // GET /api/tasks — network first, fall back to IndexedDB cache
   if (url.pathname === '/api/tasks' && request.method === 'GET') {
     event.respondWith(networkFirstTasks(request))
@@ -110,6 +104,44 @@ self.addEventListener('fetch', event => {
   // POST /api/tasks — queue offline creates
   if (url.pathname === '/api/tasks' && request.method === 'POST') {
     event.respondWith(queueMutation(request))
+    return
+  }
+
+  // Navigation requests — network first, cache successful pages for offline.
+  // Key: only cache resp.ok responses (status 200). Never cache redirects.
+  // This fixes Safari "Response served by service worker has redirections".
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).then(resp => {
+        // Cache only genuine 200 responses (not redirects, not errors)
+        if (resp.status === 200) {
+          caches.open(CACHE_NAME).then(c => c.put(request, resp.clone()))
+        }
+        return resp
+      }).catch(async () => {
+        // Offline — serve the cached version of this exact URL
+        const cached = await caches.match(request)
+        if (cached) return cached
+        // Fall back to any cached page the user has visited
+        const fallback = await caches.match('/tasks') ||
+                         await caches.match('/tasks/hub')
+        if (fallback) return fallback
+        // Nothing cached — return a simple offline message
+        return new Response(
+          `<!doctype html><html><head><meta name="viewport" content="width=device-width">
+          <title>Pabari — Offline</title>
+          <style>body{font-family:system-ui,sans-serif;background:#1a3a2a;color:white;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          min-height:100vh;margin:0;text-align:center;padding:20px}
+          h1{font-size:28px;margin-bottom:12px}p{color:rgba(255,255,255,0.7);font-size:15px;line-height:1.6}
+          small{margin-top:24px;color:rgba(255,255,255,0.4);font-size:12px}</style></head>
+          <body><h1>✈ You're offline</h1>
+          <p>Open the app while connected first — then task data<br>will be available offline.</p>
+          <small>Pabari Workspace</small></body></html>`,
+          { headers: { 'Content-Type': 'text/html' } }
+        )
+      })
+    )
     return
   }
 
