@@ -243,7 +243,8 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const [pwSuccess,      setPwSuccess]      = useState(false)
   const [pwSaving,       setPwSaving]       = useState(false)
   const [isMobile,       setIsMobile]       = useState(false)
-  const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [showMobileMenu,    setShowMobileMenu]    = useState(false)
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [teamMembers,    setTeamMembers]    = useState<string[]>(initialTeamMembers)
   const [showTeamAdd,    setShowTeamAdd]    = useState(false)
   const [teamAddName,    setTeamAddName]    = useState('')
@@ -1028,6 +1029,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
           <div style={{width:28,height:28,borderRadius:'50%',background:avatarColor(currentUser.name),color:'white',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {avatarInitials(currentUser.name)}
           </div>
+          <button onClick={()=>setShowMobileSidebar(v=>!v)}
+            style={{background: showMobileSidebar ? 'rgba(255,255,255,0.15)' : 'none',border:'1px solid rgba(255,255,255,0.3)',color:'white',borderRadius:4,padding:'4px 9px',fontSize:12,fontWeight:600,cursor:'pointer',lineHeight:1}}>
+            ⊞ Filters
+          </button>
           <button onClick={()=>setShowMobileMenu(true)}
             style={{background:'none',border:'1px solid rgba(255,255,255,0.3)',color:'white',borderRadius:4,padding:'4px 9px',fontSize:17,cursor:'pointer',lineHeight:1}}>
             ☰
@@ -1563,8 +1568,34 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
       {/* BODY */}
       {activeMainTab === 'active' && <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* SIDEBAR — hidden on mobile */}
-        <div style={{width:192,background:'white',borderRight:'1px solid #e5e7eb',overflowY:'auto',flexShrink:0,paddingTop:8,display:isMobile?'none':'block'}}>
+        {/* Mobile sidebar backdrop */}
+        {isMobile && showMobileSidebar && (
+          <div onClick={()=>setShowMobileSidebar(false)}
+            style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:499}} />
+        )}
+
+        {/* SIDEBAR — drawer on mobile, fixed panel on desktop */}
+        <div
+          onClick={()=>{ if(isMobile) setShowMobileSidebar(false) }}
+          style={isMobile ? {
+            position:'fixed', left:0, top:0, bottom:0, width:260, background:'white',
+            overflowY:'auto', zIndex:500, display: showMobileSidebar ? 'block' : 'none',
+            boxShadow:'6px 0 28px rgba(0,0,0,0.2)',
+          } : {
+            width:192, background:'white', borderRight:'1px solid #e5e7eb',
+            overflowY:'auto', flexShrink:0, paddingTop:8, display:'block',
+          }}>
+
+          {/* Mobile sidebar header */}
+          {isMobile && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'14px 16px',background:'#1a3a2a',color:'white',marginBottom:4}}
+              onClick={e=>e.stopPropagation()}>
+              <div style={{fontWeight:700,fontSize:14}}>Filters & Views</div>
+              <button onClick={()=>setShowMobileSidebar(false)}
+                style={{background:'none',border:'none',color:'white',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
+            </div>
+          )}
 
           {/* ── HARSHIL SIDEBAR ─────────────────────────────────────── */}
           {isHK ? (<>
