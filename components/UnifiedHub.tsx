@@ -16,7 +16,7 @@ import { SessionUser } from '@/types'
 import InactivityGuard from './InactivityGuard'
 import NotificationBell from './NotificationBell'
 
-interface Props { currentUser: SessionUser }
+interface Props { currentUser: SessionUser; mustChangePassword?: boolean }
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -29,7 +29,7 @@ function fmtDate() {
   return new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
 }
 
-export default function UnifiedHub({ currentUser }: Props) {
+export default function UnifiedHub({ currentUser, mustChangePassword = false }: Props) {
   const [isMobile,    setIsMobile]    = useState(false)
   const [openTasks,   setOpenTasks]   = useState<number | null>(null)
   const [ssoLoading,  setSsoLoading]  = useState<string | null>(null)
@@ -173,6 +173,21 @@ export default function UnifiedHub({ currentUser }: Props) {
           <button onClick={logout} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.35)', fontSize:11, cursor:'pointer', marginLeft:4, padding:0 }}>Sign out</button>
         </div>
       </nav>
+
+      {/* PASSWORD CHANGE BANNER */}
+      {mustChangePassword && !showPwModal && (
+        <div style={{background:'#7c2d12',color:'white',padding:'10px 20px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',flexShrink:0}}>
+          <span style={{fontSize:16}}>🔐</span>
+          <span style={{flex:1,fontSize:13,fontWeight:500}}>
+            You're using a default password. Please set your own private password to keep your account secure.
+          </span>
+          <button
+            onClick={()=>{ setShowPwModal(true); setPwCurrent(''); setPwNew(''); setPwConfirm(''); setPwError(''); setPwSuccess(false) }}
+            style={{background:'white',color:'#7c2d12',border:'none',borderRadius:6,padding:'6px 16px',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+            Change Password →
+          </button>
+        </div>
+      )}
 
       {/* HERO */}
       <div style={{ background:'linear-gradient(135deg, #0f1a12 0%, #1a2d1f 100%)', padding: isMobile ? '28px 16px 32px' : '40px 32px 44px', borderBottom:'1px solid #1e2e1a' }}>

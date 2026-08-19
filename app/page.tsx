@@ -25,5 +25,5 @@ export default async function Home() {
     ? { ...tokenUser, portals: dbUser.portals, companies: dbUser.companies }
     : tokenUser
 
-  return <UnifiedHub currentUser={currentUser} />
+  return <UnifiedHub currentUser={currentUser} mustChangePassword={dbUser?.must_change_password ?? false} />
 }
