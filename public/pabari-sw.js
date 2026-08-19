@@ -1,11 +1,5 @@
-// Pabari Workspace — Service Worker v1
-const CACHE_NAME = 'pabari-v1'
-const APP_SHELL = [
-  '/tasks/hub',
-  '/tasks',
-  '/login',
-  '/_next/static/css/',
-]
+// Pabari Workspace — Service Worker v2
+const CACHE_NAME = 'pabari-v2'
 
 // ─── IndexedDB helpers ──────────────────────────────────────────────────────
 
@@ -71,12 +65,9 @@ async function dbGetAllKeys(storeName) {
 
 self.addEventListener('install', event => {
   self.skipWaiting()
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      // Pre-cache the login and hub pages only (tasks API is dynamic)
-      cache.addAll(['/login', '/tasks/hub']).catch(() => {})
-    )
-  )
+  // No pre-caching of HTML pages — they may redirect (login) and Safari
+  // cannot handle redirect responses served by a service worker.
+  // Static Next.js assets are cached on first fetch below.
 })
 
 // ─── Activate ────────────────────────────────────────────────────────────────
@@ -98,6 +89,12 @@ self.addEventListener('fetch', event => {
   // Only intercept same-origin requests
   if (url.origin !== self.location.origin) return
 
+  // NEVER intercept navigate requests — Safari errors when a SW returns
+  // a redirect response for navigation (e.g. /tasks → /login).
+  // The browser handles page navigation natively; offline task data
+  // is served from IndexedDB via the /api/tasks intercept below.
+  if (request.mode === 'navigate') return
+
   // GET /api/tasks — network first, fall back to IndexedDB cache
   if (url.pathname === '/api/tasks' && request.method === 'GET') {
     event.respondWith(networkFirstTasks(request))
@@ -116,17 +113,7 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // Navigation requests — serve cached page shell if offline
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() =>
-        caches.match('/tasks/hub').then(r => r || caches.match('/login'))
-      )
-    )
-    return
-  }
-
-  // Static assets — cache first
+  // Static Next.js assets — cache first
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then(cached => {
@@ -149,7 +136,6 @@ async function networkFirstTasks(request) {
     const resp = await fetch(request)
     if (resp.ok) {
       const data = await resp.clone().json()
-      // Store each task in IndexedDB for offline access
       if (Array.isArray(data)) {
         for (const task of data) {
           await dbPut('tasks-cache', task)
@@ -174,7 +160,6 @@ async function queueMutation(request) {
   try {
     const resp = await fetch(request)
     if (resp.ok && body) {
-      // If it was a PATCH, update the local IndexedDB cache optimistically
       const segments = url.pathname.split('/')
       const taskId = segments[segments.length - 1]
       if (taskId && request.method === 'PATCH') {
@@ -198,14 +183,13 @@ async function queueMutation(request) {
     }
     await dbPut('pending-ops', op)
 
-    // Optimistic local update
+    // Optimistic local update in IndexedDB
     if (body && request.method === 'PATCH' && taskId) {
       const tasks = await dbGetAll('tasks-cache')
       const task  = tasks.find(t => String(t.id) === taskId)
       if (task) await dbPut('tasks-cache', { ...task, ...body })
     }
 
-    // Register background sync if supported
     try {
       await self.registration.sync.register('pabari-sync')
     } catch {}
@@ -261,14 +245,13 @@ async function replayPendingOps() {
     }
   } catch {}
 
-  // Notify open clients
   const clients = await self.clients.matchAll({ type: 'window' })
   for (const client of clients) {
     client.postMessage({ type: 'SYNC_DONE', ...results })
   }
 }
 
-// ─── Message from client (manual sync trigger) ───────────────────────────────
+// ─── Message from client ──────────────────────────────────────────────────────
 
 self.addEventListener('message', event => {
   if (event.data?.type === 'SYNC_NOW') {
