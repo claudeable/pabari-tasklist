@@ -6,10 +6,10 @@ const getSecret = () => {
   return s
 }
 
-async function verifyHS256(token: string): Promise<boolean> {
+async function verifyHS256(token: string): Promise<{ valid: boolean; mustChangePassword: boolean }> {
   try {
     const parts = token.split('.')
-    if (parts.length !== 3) return false
+    if (parts.length !== 3) return { valid: false, mustChangePassword: false }
     const [h, p, s] = parts
 
     const key = await crypto.subtle.importKey(
@@ -29,14 +29,14 @@ async function verifyHS256(token: string): Promise<boolean> {
       'HMAC', key, sig,
       new TextEncoder().encode(`${h}.${p}`)
     )
-    if (!valid) return false
+    if (!valid) return { valid: false, mustChangePassword: false }
 
     const payload = JSON.parse(atob(p.replace(/-/g, '+').replace(/_/g, '/')))
-    if (payload.exp && payload.exp * 1000 < Date.now()) return false
+    if (payload.exp && payload.exp * 1000 < Date.now()) return { valid: false, mustChangePassword: false }
 
-    return true
+    return { valid: true, mustChangePassword: !!payload.must_change_password }
   } catch {
-    return false
+    return { valid: false, mustChangePassword: false }
   }
 }
 
@@ -84,11 +84,16 @@ export async function middleware(req: NextRequest) {
 
   if (!token) return NextResponse.redirect(loginUrl)
 
-  const ok = await verifyHS256(token)
-  if (!ok) {
+  const { valid, mustChangePassword } = await verifyHS256(token)
+  if (!valid) {
     const res = NextResponse.redirect(loginUrl)
     res.cookies.set('pabari-session', '', { maxAge: 0, path: '/' })
     return res
+  }
+
+  // Force password change — redirect everything except the change-password page itself
+  if (mustChangePassword && pathname !== '/change-password') {
+    return NextResponse.redirect(new URL('/change-password', req.url))
   }
 
   return NextResponse.next()
@@ -118,5 +123,6 @@ export const config = {
     '/connect', '/connect/:path*',
     '/api/connect/:path*',
     '/api/mail', '/api/mail/:path*',
+    '/api/auth/change-password',
   ],
 }

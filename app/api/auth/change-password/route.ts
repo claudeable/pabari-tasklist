@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { verifyToken } from '@/lib/auth'
-import { getUserByEmail, updateUserPassword } from '@/lib/users'
+import { verifyToken, signToken } from '@/lib/auth'
+import { getUserByEmail, updateUserPassword, clearMustChangePassword } from '@/lib/users'
 
 function validatePassword(password: string): string | null {
-  if (password.length < 8)       return 'Password must be at least 8 characters.'
-  if (!/[A-Z]/.test(password))   return 'Password must contain at least one uppercase letter.'
-  if (!/[0-9]/.test(password))   return 'Password must contain at least one number.'
-  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least one special character.'
+  if (password.length < 8)                  return 'Password must be at least 8 characters.'
+  if (!/[A-Z]/.test(password))              return 'Password must contain at least one uppercase letter.'
+  if (!/[0-9]/.test(password))              return 'Password must contain at least one number.'
+  if (!/[^A-Za-z0-9]/.test(password))      return 'Password must contain at least one special character.'
   return null
 }
 
@@ -41,5 +41,30 @@ export async function POST(req: NextRequest) {
   const ok = await updateUserPassword(user.id, newHash)
   if (!ok) return NextResponse.json({ error: 'Failed to save new password.' }, { status: 500 })
 
-  return NextResponse.json({ ok: true })
+  // Clear the forced-change flag
+  await clearMustChangePassword(user.id)
+
+  // Re-issue the session cookie without must_change_password
+  const newToken = await signToken({
+    id:                  session.id,
+    name:                session.name,
+    email:               session.email,
+    role:                session.role,
+    department:          session.department,
+    reports_to:          session.reports_to,
+    hod_email:           session.hod_email,
+    companies:           session.companies,
+    portals:             session.portals,
+    must_change_password: false,
+  })
+
+  const res = NextResponse.json({ ok: true })
+  res.cookies.set('pabari-session', newToken, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path:     '/',
+    maxAge:   60 * 60 * 24 * 30,
+  })
+  return res
 }

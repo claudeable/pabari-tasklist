@@ -5,21 +5,23 @@ let userColsReady = false
 async function ensureUserCols() {
   if (userColsReady) return
   await execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS hod_email TEXT NOT NULL DEFAULT ''")
+  await execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT TRUE')
   userColsReady = true
 }
 
 export interface StoredUser {
-  id:            string
-  name:          string
-  email:         string
-  role:          UserRole
-  department:    string
-  reports_to:    string
-  hod_email:     string
-  companies:     string[]
-  portals:       string[]  // sub-portals: 'pil', 'smartops', 'property'
-  password_hash: string
-  created_at:    string
+  id:                  string
+  name:                string
+  email:               string
+  role:                UserRole
+  department:          string
+  reports_to:          string
+  hod_email:           string
+  companies:           string[]
+  portals:             string[]
+  password_hash:       string
+  created_at:          string
+  must_change_password: boolean
 }
 
 function rowToUser(row: Record<string, unknown>): StoredUser {
@@ -40,8 +42,9 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
     hod_email:     String(row.hod_email || ''),
     companies,
     portals,
-    password_hash: String(row.password_hash),
-    created_at:    String(row.created_at),
+    password_hash:        String(row.password_hash),
+    created_at:           String(row.created_at),
+    must_change_password: row.must_change_password === true || row.must_change_password === 'true',
   }
 }
 
@@ -169,6 +172,10 @@ export async function resetUserPassword(id: string, hash: string): Promise<boole
 
 export async function updateUserPassword(userId: string, newHash: string): Promise<boolean> {
   return resetUserPassword(userId, newHash)
+}
+
+export async function clearMustChangePassword(userId: string): Promise<void> {
+  await execute('UPDATE users SET must_change_password = FALSE WHERE id = $1', [userId])
 }
 
 export async function deleteUser(id: string): Promise<boolean> {

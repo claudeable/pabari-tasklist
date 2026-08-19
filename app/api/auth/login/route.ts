@@ -135,15 +135,16 @@ export async function POST(req: NextRequest) {
   await logSecurityEvent('login_success', ip, email, 'Successful login', 0)
 
   const token = await signToken({
-    id:         user.id,
-    name:       user.name,
-    email:      user.email,
-    role:       user.role,
-    department: user.department,
-    reports_to: user.reports_to,
-    hod_email:  user.hod_email || '',
-    companies:  user.companies,
-    portals:    user.portals ?? [],
+    id:                  user.id,
+    name:                user.name,
+    email:               user.email,
+    role:                user.role,
+    department:          user.department,
+    reports_to:          user.reports_to,
+    hod_email:           user.hod_email || '',
+    companies:           user.companies,
+    portals:             user.portals ?? [],
+    must_change_password: user.must_change_password,
   })
 
   postSystemMessage(`🟢 ${user.name} logged in`).catch(() => {})

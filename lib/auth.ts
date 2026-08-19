@@ -3,15 +3,16 @@ import { SignJWT, jwtVerify } from 'jose'
 export type UserRole = 'admin' | 'director' | 'ceo' | 'manager' | 'staff'
 
 export interface SessionUser {
-  id:         string
-  name:       string
-  email:      string
-  role:       UserRole
-  department: string
-  reports_to: string
-  hod_email:  string
-  companies:  string[]
-  portals:    string[]  // sub-portals this user can access: 'pil', 'smartops', 'property'
+  id:                  string
+  name:                string
+  email:               string
+  role:                UserRole
+  department:          string
+  reports_to:          string
+  hod_email:           string
+  companies:           string[]
+  portals:             string[]
+  must_change_password?: boolean
 }
 
 const secret = () => {
@@ -27,6 +28,7 @@ export async function signToken(user: SessionUser): Promise<string> {
     hod_email: user.hod_email,
     companies: user.companies,
     portals:   user.portals,
+    must_change_password: user.must_change_password ?? false,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
