@@ -88,6 +88,19 @@ export async function PATCH(
     }
   }
 
+  // Email Paul when a task is submitted for review (status → in-review)
+  if (body.status === 'in-review' && prev?.status !== 'in-review') {
+    getUserByEmail('pmureithi@usm.co.ke').then(paul => {
+      if (paul?.email) {
+        sendEmail({
+          to: paul.email,
+          subject: `Review Requested: ${task.particulars.slice(0, 60)}`,
+          body: `Hi Paul,\n\n${task.responsible} has submitted a task for your review.\n\n<strong>${task.particulars}</strong>\nCompany: ${task.company}\nSection: ${task.section}\n\n${viewBtn}`,
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }
+
   // When HK saves a comment on an active task — DM + push + email the responsible person
   if (user && body.hk_comment?.trim() && task.status !== 'resolved' && task.status !== 'expired') {
     const isHKCommenter = user.name.toLowerCase().startsWith('harshil')
