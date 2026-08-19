@@ -168,14 +168,15 @@ const ROLE_BADGE: Record<string, {bg:string;color:string;label:string}> = {
 
 // ── Component ──────────────────────────────────────────────────────
 interface Props {
-  initialTasks:  Task[]
-  currentUser:   SessionUser
-  allUsers:      PublicUser[]
-  subordinates?: string[]
-  teamMembers?:  string[]
+  initialTasks:        Task[]
+  currentUser:         SessionUser
+  allUsers:            PublicUser[]
+  subordinates?:       string[]
+  teamMembers?:        string[]
+  mustChangePassword?: boolean
 }
 
-export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers, subordinates = [], teamMembers: initialTeamMembers = [] }: Props) {
+export default function TaskBoard({ initialTasks, currentUser, allUsers: initialUsers, subordinates = [], teamMembers: initialTeamMembers = [], mustChangePassword = false }: Props) {
   // ── State ────────────────────────────────────────────────────────
   const [tasks,         setTasks]         = useState<Task[]>(initialTasks)
   const [allUsers,      setAllUsers]      = useState<PublicUser[]>(initialUsers)
@@ -1089,6 +1090,21 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* PASSWORD CHANGE BANNER */}
+      {mustChangePassword && !showChangePw && (
+        <div style={{background:'#7c2d12',color:'white',padding:'10px 16px',display:'flex',alignItems:'center',gap:12,flexShrink:0,flexWrap:'wrap'}}>
+          <span style={{fontSize:16}}>🔐</span>
+          <span style={{flex:1,fontSize:13,fontWeight:500}}>
+            You're using a default password. Please set your own private password to keep your account secure.
+          </span>
+          <button
+            onClick={()=>{ setShowChangePw(true); setPwForm({current:'',next:'',confirm:''}); setPwError(''); setPwSuccess(false) }}
+            style={{background:'white',color:'#7c2d12',border:'none',borderRadius:6,padding:'6px 16px',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+            Change Password →
+          </button>
         </div>
       )}
 

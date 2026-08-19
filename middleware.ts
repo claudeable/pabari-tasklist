@@ -91,11 +91,6 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  // Force password change — redirect everything except the change-password page itself
-  if (mustChangePassword && pathname !== '/change-password') {
-    return NextResponse.redirect(new URL('/change-password', req.url))
-  }
-
   return NextResponse.next()
 }
 

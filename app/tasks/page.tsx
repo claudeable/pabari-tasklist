@@ -60,6 +60,7 @@ export default async function TasksPage({
       allUsers={allUsers}
       subordinates={subordinates}
       teamMembers={teamMembers}
+      mustChangePassword={dbUser?.must_change_password ?? false}
     />
   )
 }
