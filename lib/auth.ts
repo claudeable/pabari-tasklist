@@ -30,7 +30,7 @@ export async function signToken(user: SessionUser): Promise<string> {
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('24h')
+    .setExpirationTime('30d')
     .sign(secret())
 }
 
