@@ -389,7 +389,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
   const effectiveName = viewAs || currentUser.name
 
   const perms = useMemo(() => ({
-    canAddTask:      effectiveRole !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke' || currentUser.email === 'skumar@usm.co.ke',
+    canAddTask:      effectiveRole !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke' || currentUser.email === 'skumar@usm.co.ke' || currentUser.email === 'yyigezu@usm.co.ke',
     canDelete:       currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director'),
     canChangeStatus: effectiveRole !== 'staff',
     canHKComment:    ['admin','director'].includes(currentUser.role),
@@ -1982,7 +1982,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   {label:'Section',    key:'section',    opts:[...SECTIONS]},
                   {label:'Date',       key:'date',       opts:null},
                   {label:'Category',   key:'category',   opts:[...CATEGORIES].filter(c => c !== 'Finance' || canSeeFinance)},
-                  {label:'Responsible',key:'responsible',opts:[...PEOPLE]},
+                  {label:'Responsible',key:'responsible',opts: currentUser.email === 'yyigezu@usm.co.ke' ? [currentUser.name.split(' ')[0]] : [...PEOPLE]},
                   {label:'Payment',    key:'payment',    opts:['Non-Payment','Payment']},
                   {label:'Status',     key:'status',     opts:Object.keys(STATUS_LABELS)},
                   {label:'Priority',   key:'priority',   opts:Object.keys(PRIORITY_LABELS)},
