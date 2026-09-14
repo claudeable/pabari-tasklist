@@ -429,7 +429,6 @@ export interface ProjectUpdate {
   body: string;
   source: string;
   status: string;
-  progress_percent?: number;
   email_from?: string;
   email_subject?: string;
   current_capacity?: string;

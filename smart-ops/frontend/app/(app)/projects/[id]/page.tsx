@@ -1774,7 +1774,6 @@ function UpdateTableRow({
   const [editProjectRequirement, setEditProjectRequirement] = useState(update.project_requirement ?? "");
   const [editInternalNotes, setEditInternalNotes] = useState(update.internal_notes ?? "");
   const [editActionItems, setEditActionItems] = useState(update.action_items ?? "");
-  const [editProgress, setEditProgress] = useState(update.progress_percent ?? 0);
   const [commentBody, setCommentBody] = useState("");
 
   const STATUS_CLASS: Record<string, string> = {
@@ -1793,7 +1792,6 @@ function UpdateTableRow({
     setEditProjectRequirement(update.project_requirement ?? "");
     setEditInternalNotes(update.internal_notes ?? "");
     setEditActionItems(update.action_items ?? "");
-    setEditProgress(update.progress_percent ?? 0);
     setEditing(true);
     setExpanded(true);
   }
@@ -1812,7 +1810,6 @@ function UpdateTableRow({
           project_requirement: editProjectRequirement || undefined,
           internal_notes: editInternalNotes || undefined,
           action_items: editActionItems || undefined,
-          progress_percent: editProgress,
         },
       },
       {
@@ -1842,35 +1839,22 @@ function UpdateTableRow({
             <span className="ml-1 text-primary text-[9px] font-medium">↩</span>
           )}
         </td>
-        {/* Status dropdown + progress bar */}
+        {/* Status dropdown */}
         <td className="px-3 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-1.5">
-            <Select
-              value={currentStatus}
-              onValueChange={(val) => setStatus.mutate({ updateId: update.id, status: val })}
-              disabled={setStatus.isPending}
-            >
-              <SelectTrigger className={`h-6 rounded-full border-0 px-2.5 py-0 text-[10px] font-semibold w-auto min-w-[84px] focus:ring-0 ${STATUS_CLASS[currentStatus] ?? STATUS_CLASS.open}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="open" className="text-xs">Open</SelectItem>
-                <SelectItem value="in_progress" className="text-xs">In Progress</SelectItem>
-                <SelectItem value="done" className="text-xs">Done</SelectItem>
-              </SelectContent>
-            </Select>
-            {(update.progress_percent ?? 0) > 0 && (
-              <div className="w-20">
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${update.progress_percent}%` }}
-                  />
-                </div>
-                <p className="text-[9px] text-muted-foreground mt-0.5">{update.progress_percent}%</p>
-              </div>
-            )}
-          </div>
+          <Select
+            value={currentStatus}
+            onValueChange={(val) => setStatus.mutate({ updateId: update.id, status: val })}
+            disabled={setStatus.isPending}
+          >
+            <SelectTrigger className={`h-6 rounded-full border-0 px-2.5 py-0 text-[10px] font-semibold w-auto min-w-[84px] focus:ring-0 ${STATUS_CLASS[currentStatus] ?? STATUS_CLASS.open}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="open" className="text-xs">Open</SelectItem>
+              <SelectItem value="in_progress" className="text-xs">In Progress</SelectItem>
+              <SelectItem value="done" className="text-xs">Done</SelectItem>
+            </SelectContent>
+          </Select>
         </td>
         <td className="px-3 py-2.5 align-top text-xs text-foreground">
           <p className="line-clamp-2 whitespace-pre-wrap">{update.current_capacity || <span className="text-muted-foreground">—</span>}</p>
@@ -1895,7 +1879,7 @@ function UpdateTableRow({
               variant="ghost"
               aria-label="Add remark"
               title={update.comments.length > 0 ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}` : "Add remark"}
-              onClick={() => { setExpanded(true); setShowComments(true); }}
+              onClick={() => setExpanded(true)}
               className="relative"
             >
               <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1988,21 +1972,6 @@ function UpdateTableRow({
                   <div className="space-y-1">
                     <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remarks</Label>
                     <Textarea value={editActionItems} onChange={(e) => setEditActionItems(e.target.value)} className="min-h-[72px]" placeholder="Remarks…" />
-                  </div>
-                </div>
-                <div className="space-y-1 max-w-xs">
-                  <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Progress — {editProgress}%</Label>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={editProgress}
-                    onChange={(e) => setEditProgress(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${editProgress}%` }} />
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end pt-1">
