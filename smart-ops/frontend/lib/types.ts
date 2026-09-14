@@ -423,6 +423,8 @@ export interface ProjectUpdate {
   email_subject?: string;
   posted_at: string;
   created_at: string;
+  parent_update_id?: string;
+  parent_body_snippet?: string;
   attachments: ProjectUpdateAttachment[];
 }
 

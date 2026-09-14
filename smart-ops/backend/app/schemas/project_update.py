@@ -29,6 +29,7 @@ class ProjectUpdateCreate(BaseModel):
     email_from: Optional[str] = None
     email_subject: Optional[str] = None
     posted_at: Optional[datetime] = None
+    parent_update_id: Optional[uuid.UUID] = None
 
 
 class ProjectUpdateRead(BaseModel):
@@ -44,4 +45,6 @@ class ProjectUpdateRead(BaseModel):
     email_subject: Optional[str] = None
     posted_at: datetime
     created_at: datetime
+    parent_update_id: Optional[uuid.UUID] = None
+    parent_body_snippet: Optional[str] = None
     attachments: list[ProjectUpdateAttachmentRead] = []

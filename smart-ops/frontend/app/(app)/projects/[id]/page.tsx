@@ -53,6 +53,7 @@ import { useDeleteProject, useProject, useUpdateProject } from "@/lib/hooks/use-
 import {
   useCreateProjectUpdate,
   useDeleteProjectUpdate,
+  useDeleteProjectUpdateAttachment,
   useEditProjectUpdate,
   useProjectUpdates,
   useUploadProjectUpdateAttachment,
@@ -1441,6 +1442,13 @@ function canDeleteUpdate(user: { email?: string; role?: string | { name?: string
   return (user.role as { name?: string })?.name?.toLowerCase().includes("admin") ?? false;
 }
 
+function formatBytes(bytes?: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   const { data, isLoading, isError, refetch } = useProjectUpdates(projectId);
   const { data: currentUser } = useCurrentUser();
@@ -1455,6 +1463,8 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   const [postedAt, setPostedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
+  const [parentUpdateId, setParentUpdateId] = useState<string>("");
+  const [showLinkPanel, setShowLinkPanel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updates = data ?? [];
@@ -1472,6 +1482,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
         email_from: emailFrom.trim() || undefined,
         email_subject: emailSubject.trim() || undefined,
         posted_at: postedAt ? new Date(postedAt).toISOString() : undefined,
+        parent_update_id: parentUpdateId || undefined,
       });
       for (const file of pendingFiles) {
         await uploadAttachment.mutateAsync({ updateId: created.id, file });
@@ -1482,6 +1493,8 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       setEmailSubject("");
       setPostedAt(new Date().toISOString().slice(0, 10));
       setPendingFiles([]);
+      setParentUpdateId("");
+      setShowLinkPanel(false);
       toast.success("Update posted");
     } catch {
       toast.error("Failed to post update");
@@ -1500,12 +1513,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function formatBytes(bytes?: number) {
-    if (!bytes) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
+  const selectedParent = updates.find((u) => u.id === parentUpdateId);
 
   return (
     <div className="space-y-6">
@@ -1564,6 +1572,40 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
           />
         </div>
 
+        {/* Follow-up link */}
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => { setShowLinkPanel((v) => !v); if (showLinkPanel) setParentUpdateId(""); }}
+            className={`text-xs font-medium transition-colors ${showLinkPanel ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {showLinkPanel ? "↩ Linked as follow-up" : "+ Mark as follow-up to an existing update"}
+          </button>
+          {showLinkPanel && (
+            <div className="space-y-1.5">
+              <Select value={parentUpdateId} onValueChange={setParentUpdateId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose update to link to…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {updates.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      <span className="text-xs text-muted-foreground mr-1">{u.posted_at.slice(0, 10)}</span>
+                      {u.body.slice(0, 60)}{u.body.length > 60 ? "…" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedParent && (
+                <div className="rounded-md border-l-2 border-primary bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Following up on: </span>
+                  {selectedParent.body.slice(0, 100)}{selectedParent.body.length > 100 ? "…" : ""}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <Textarea
           placeholder={source === "email" ? "Paste or summarise the email content…" : "What's the update?"}
           value={body}
@@ -1607,7 +1649,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       ) : (
         <div className="space-y-4">
           {updates.map((update) => (
-            <UpdateCard key={update.id} update={update} projectId={projectId} canDelete={canDelete} formatBytes={formatBytes} />
+            <UpdateCard key={update.id} update={update} projectId={projectId} canDelete={canDelete} allUpdates={updates} />
           ))}
         </div>
       )}
@@ -1619,17 +1661,19 @@ function UpdateCard({
   update,
   projectId,
   canDelete,
-  formatBytes,
+  allUpdates,
 }: {
   update: ProjectUpdate;
   projectId: string;
   canDelete: boolean;
-  formatBytes: (n?: number) => string;
+  allUpdates: ProjectUpdate[];
 }) {
   const editUpdate = useEditProjectUpdate(projectId);
   const deleteUpdate = useDeleteProjectUpdate(projectId);
+  const deleteAttachment = useDeleteProjectUpdateAttachment(projectId);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteAttId, setConfirmDeleteAttId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState(update.body);
   const [editDate, setEditDate] = useState(update.posted_at.slice(0, 10));
   const [editEmailFrom, setEditEmailFrom] = useState(update.email_from ?? "");
@@ -1662,8 +1706,21 @@ function UpdateCard({
     );
   }
 
+  const parentUpdate = update.parent_update_id
+    ? allUpdates.find((u) => u.id === update.parent_update_id)
+    : null;
+  const parentSnippet = parentUpdate?.body ?? update.parent_body_snippet;
+
   return (
-    <div className="rounded-xl border border-border p-4 space-y-2">
+    <div className={`rounded-xl border p-4 space-y-2 ${update.parent_update_id ? "border-primary/30 bg-primary/5 ml-4" : "border-border"}`}>
+      {/* Follow-up indicator */}
+      {update.parent_update_id && parentSnippet && (
+        <div className="flex items-start gap-1.5 rounded-md bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground border-l-2 border-primary">
+          <span className="shrink-0 font-medium text-primary">↩ Follow-up to:</span>
+          <span className="truncate">{parentSnippet.slice(0, 80)}{(parentSnippet.length > 80 ? "…" : "")}</span>
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <Avatar className="h-7 w-7">
@@ -1760,17 +1817,47 @@ function UpdateCard({
           {update.attachments.length > 0 && (
             <div className="space-y-1 pt-1">
               {update.attachments.map((att) => (
-                <a
-                  key={att.id}
-                  href={api.projectUpdateAttachmentUrl(att.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
-                >
-                  <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{att.filename}</span>
-                  {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
-                </a>
+                <div key={att.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs">
+                  <a
+                    href={api.projectUpdateAttachmentUrl(att.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 min-w-0 items-center gap-2 text-foreground hover:underline"
+                  >
+                    <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{att.filename}</span>
+                    {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
+                  </a>
+                  {canDelete && (
+                    confirmDeleteAttId === att.id ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-muted-foreground">Remove?</span>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={deleteAttachment.isPending}
+                          onClick={() => deleteAttachment.mutate(att.id, {
+                            onSuccess: () => setConfirmDeleteAttId(null),
+                            onError: () => toast.error("Failed to delete attachment"),
+                          })}
+                        >
+                          {deleteAttachment.isPending ? "…" : "Yes"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setConfirmDeleteAttId(null)}>No</Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => setConfirmDeleteAttId(att.id)}
+                        aria-label="Delete attachment"
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    )
+                  )}
+                </div>
               ))}
             </div>
           )}

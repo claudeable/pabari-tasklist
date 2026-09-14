@@ -391,6 +391,8 @@ export const api = {
   },
   projectUpdateAttachmentUrl: (attachmentId: string) =>
     `${API_BASE_URL}/project-update-attachments/${attachmentId}/file`,
+  deleteProjectUpdateAttachment: (attachmentId: string) =>
+    request<void>(`/project-update-attachments/${attachmentId}`, { method: "DELETE" }),
 
   // Reports
   projectProgressReport: () => request<ProjectProgressReport>("/reports/project-progress"),

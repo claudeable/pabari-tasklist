@@ -57,3 +57,13 @@ export function useUploadProjectUpdateAttachment(projectId?: string) {
     },
   });
 }
+
+export function useDeleteProjectUpdateAttachment(projectId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (attachmentId: string) => api.deleteProjectUpdateAttachment(attachmentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
+    },
+  });
+}

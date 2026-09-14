@@ -36,6 +36,8 @@ def list_project_updates(
     for u in updates:
         r = ProjectUpdateRead.model_validate(u)
         r.user_name = u.user.full_name if u.user else None
+        if u.parent:
+            r.parent_body_snippet = u.parent.body[:80]
         result.append(r)
     return result
 
@@ -64,6 +66,7 @@ def create_project_update(
         email_from=payload.email_from or None,
         email_subject=payload.email_subject or None,
         posted_at=posted_at,
+        parent_update_id=payload.parent_update_id or None,
     )
     db.add(update)
     db.commit()
@@ -71,6 +74,8 @@ def create_project_update(
 
     result = ProjectUpdateRead.model_validate(update)
     result.user_name = current_user.full_name
+    if update.parent:
+        result.parent_body_snippet = update.parent.body[:80]
     return result
 
 
@@ -167,6 +172,27 @@ def delete_project_update(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
 
     db.delete(update)
+    db.commit()
+
+
+@router.delete(
+    "/project-update-attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_project_update_attachment(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    role = current_user.role
+    is_admin = role and any(p.code == "admin" for p in role.permissions)
+    if current_user.email not in ALLOWED_DELETE_EMAILS and not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete attachments")
+
+    attachment = db.get(ProjectUpdateAttachment, attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    db.delete(attachment)
     db.commit()
 
 

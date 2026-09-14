@@ -24,11 +24,17 @@ class ProjectUpdate(UUIDMixin, Base):
     email_subject: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    parent_update_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("project_updates.id", ondelete="SET NULL"), nullable=True
+    )
 
     project: Mapped["Project"] = relationship()
     user: Mapped[Optional["User"]] = relationship()
     attachments: Mapped[list["ProjectUpdateAttachment"]] = relationship(
         back_populates="update", cascade="all, delete-orphan"
+    )
+    parent: Mapped[Optional["ProjectUpdate"]] = relationship(
+        "ProjectUpdate", remote_side="ProjectUpdate.id", foreign_keys=[parent_update_id]
     )
 
 
