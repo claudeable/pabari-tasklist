@@ -358,7 +358,7 @@ export const api = {
     request<ProjectUpdate[]>(`/projects/${projectId}/updates`),
   createProjectUpdate: (
     projectId: string,
-    payload: { body: string; source: string; email_from?: string; email_subject?: string; posted_at?: string; parent_update_id?: string },
+    payload: { body: string; source: string; email_from?: string; email_subject?: string; posted_at?: string; parent_update_id?: string; current_capacity?: string; project_requirement?: string; internal_notes?: string; action_items?: string },
   ) =>
     request<ProjectUpdate>(`/projects/${projectId}/updates`, {
       method: "POST",
@@ -369,7 +369,7 @@ export const api = {
   updateProjectUpdate: (
     projectId: string,
     updateId: string,
-    payload: { body?: string; posted_at?: string; email_from?: string; email_subject?: string },
+    payload: { body?: string; posted_at?: string; email_from?: string; email_subject?: string; current_capacity?: string; project_requirement?: string; internal_notes?: string; action_items?: string },
   ) =>
     request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}`, {
       method: "PUT",

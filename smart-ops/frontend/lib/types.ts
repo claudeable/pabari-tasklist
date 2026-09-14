@@ -431,6 +431,10 @@ export interface ProjectUpdate {
   status: string;
   email_from?: string;
   email_subject?: string;
+  current_capacity?: string;
+  project_requirement?: string;
+  internal_notes?: string;
+  action_items?: string;
   posted_at: string;
   created_at: string;
   parent_update_id?: string;

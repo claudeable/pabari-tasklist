@@ -85,6 +85,10 @@ def create_project_update(
         email_subject=payload.email_subject or None,
         posted_at=posted_at,
         parent_update_id=payload.parent_update_id or None,
+        current_capacity=payload.current_capacity or None,
+        project_requirement=payload.project_requirement or None,
+        internal_notes=payload.internal_notes or None,
+        action_items=payload.action_items or None,
     )
     db.add(update)
     db.commit()
@@ -118,6 +122,14 @@ def edit_project_update(
         update.email_subject = payload.email_subject or None
     if payload.status is not None:
         update.status = payload.status
+    if payload.current_capacity is not None:
+        update.current_capacity = payload.current_capacity or None
+    if payload.project_requirement is not None:
+        update.project_requirement = payload.project_requirement or None
+    if payload.internal_notes is not None:
+        update.internal_notes = payload.internal_notes or None
+    if payload.action_items is not None:
+        update.action_items = payload.action_items or None
 
     db.commit()
     db.refresh(update)

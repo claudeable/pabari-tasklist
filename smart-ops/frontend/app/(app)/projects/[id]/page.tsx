@@ -1467,6 +1467,10 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   const [emailFrom, setEmailFrom] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [postedAt, setPostedAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [currentCapacity, setCurrentCapacity] = useState("");
+  const [projectRequirement, setProjectRequirement] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
+  const [actionItems, setActionItems] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
   const [parentUpdateId, setParentUpdateId] = useState<string>("");
@@ -1477,7 +1481,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
 
   async function handlePost() {
     if (!body.trim()) {
-      toast.error("Update body is required");
+      toast.error("Update field is required");
       return;
     }
     setPosting(true);
@@ -1489,6 +1493,10 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
         email_subject: emailSubject.trim() || undefined,
         posted_at: postedAt ? new Date(postedAt).toISOString() : undefined,
         parent_update_id: parentUpdateId || undefined,
+        current_capacity: currentCapacity.trim() || undefined,
+        project_requirement: projectRequirement.trim() || undefined,
+        internal_notes: internalNotes.trim() || undefined,
+        action_items: actionItems.trim() || undefined,
       });
       for (const file of pendingFiles) {
         await uploadAttachment.mutateAsync({ updateId: created.id, file });
@@ -1498,6 +1506,10 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       setEmailFrom("");
       setEmailSubject("");
       setPostedAt(new Date().toISOString().slice(0, 10));
+      setCurrentCapacity("");
+      setProjectRequirement("");
+      setInternalNotes("");
+      setActionItems("");
       setPendingFiles([]);
       setParentUpdateId("");
       setShowLinkPanel(false);
@@ -1524,29 +1536,43 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-6">
       {/* Post form */}
-      <div className="rounded-xl border border-border p-4 space-y-3">
-        <p className="text-sm font-medium text-foreground">Post an update</p>
+      <div className="rounded-xl border border-border p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-foreground">Post an update</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSource("internal")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "internal" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+            >
+              Internal
+            </button>
+            <button
+              onClick={() => setSource("email")}
+              className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+            >
+              <Mail className="h-3 w-3" />
+              Email
+            </button>
+          </div>
+        </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => setSource("internal")}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "internal" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-          >
-            Internal
-          </button>
-          <button
-            onClick={() => setSource("email")}
-            className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-          >
-            <Mail className="h-3 w-3" />
-            Email
-          </button>
+        {/* Row 1: Date */}
+        <div className="space-y-1">
+          <Label htmlFor="posted-at" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</Label>
+          <Input
+            id="posted-at"
+            type="date"
+            value={postedAt}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setPostedAt(e.target.value)}
+            className="w-44"
+          />
         </div>
 
         {source === "email" && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="email-from">From</Label>
+              <Label htmlFor="email-from" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">From</Label>
               <Input
                 id="email-from"
                 placeholder="sender@example.com"
@@ -1555,7 +1581,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="email-subject">Subject</Label>
+              <Label htmlFor="email-subject" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subject</Label>
               <Input
                 id="email-subject"
                 placeholder="Re: Project update…"
@@ -1566,15 +1592,63 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
           </div>
         )}
 
+        {/* Row 2: Current Capacities */}
         <div className="space-y-1">
-          <Label htmlFor="posted-at">Date</Label>
-          <Input
-            id="posted-at"
-            type="date"
-            value={postedAt}
-            max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => setPostedAt(e.target.value)}
-            className="w-40"
+          <Label htmlFor="current-capacity" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Capacities</Label>
+          <Textarea
+            id="current-capacity"
+            placeholder="Current team / resource capacities…"
+            value={currentCapacity}
+            onChange={(e) => setCurrentCapacity(e.target.value)}
+            className="min-h-[72px]"
+          />
+        </div>
+
+        {/* Row 3: Project Requirement */}
+        <div className="space-y-1">
+          <Label htmlFor="project-requirement" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project Requirement</Label>
+          <Textarea
+            id="project-requirement"
+            placeholder="What is required for this project…"
+            value={projectRequirement}
+            onChange={(e) => setProjectRequirement(e.target.value)}
+            className="min-h-[72px]"
+          />
+        </div>
+
+        {/* Row 4: Update (main body) */}
+        <div className="space-y-1">
+          <Label htmlFor="update-body" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Update <span className="text-destructive">*</span></Label>
+          <Textarea
+            id="update-body"
+            placeholder={source === "email" ? "Paste or summarise the email content…" : "What is the update?"}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className="min-h-[100px]"
+          />
+        </div>
+
+        {/* Row 5: Comments */}
+        <div className="space-y-1">
+          <Label htmlFor="internal-notes" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comments</Label>
+          <Textarea
+            id="internal-notes"
+            placeholder="Additional comments…"
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            className="min-h-[72px]"
+          />
+        </div>
+
+        {/* Row 6: Remarks */}
+        <div className="space-y-1">
+          <Label htmlFor="action-items" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Remarks</Label>
+          <Textarea
+            id="action-items"
+            placeholder="Remarks / action items…"
+            value={actionItems}
+            onChange={(e) => setActionItems(e.target.value)}
+            className="min-h-[72px]"
           />
         </div>
 
@@ -1611,13 +1685,6 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
             </div>
           )}
         </div>
-
-        <Textarea
-          placeholder={source === "email" ? "Paste or summarise the email content…" : "What's the update?"}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          className="min-h-[100px]"
-        />
 
         {pendingFiles.length > 0 && (
           <div className="space-y-1">
@@ -1686,6 +1753,10 @@ function UpdateCard({
   const [editDate, setEditDate] = useState(update.posted_at.slice(0, 10));
   const [editEmailFrom, setEditEmailFrom] = useState(update.email_from ?? "");
   const [editEmailSubject, setEditEmailSubject] = useState(update.email_subject ?? "");
+  const [editCurrentCapacity, setEditCurrentCapacity] = useState(update.current_capacity ?? "");
+  const [editProjectRequirement, setEditProjectRequirement] = useState(update.project_requirement ?? "");
+  const [editInternalNotes, setEditInternalNotes] = useState(update.internal_notes ?? "");
+  const [editActionItems, setEditActionItems] = useState(update.action_items ?? "");
   const [showComments, setShowComments] = useState(false);
   const [commentBody, setCommentBody] = useState("");
 
@@ -1694,6 +1765,10 @@ function UpdateCard({
     setEditDate(update.posted_at.slice(0, 10));
     setEditEmailFrom(update.email_from ?? "");
     setEditEmailSubject(update.email_subject ?? "");
+    setEditCurrentCapacity(update.current_capacity ?? "");
+    setEditProjectRequirement(update.project_requirement ?? "");
+    setEditInternalNotes(update.internal_notes ?? "");
+    setEditActionItems(update.action_items ?? "");
     setEditing(true);
   }
 
@@ -1707,6 +1782,10 @@ function UpdateCard({
           posted_at: editDate ? new Date(editDate).toISOString() : undefined,
           email_from: editEmailFrom || undefined,
           email_subject: editEmailSubject || undefined,
+          current_capacity: editCurrentCapacity || undefined,
+          project_requirement: editProjectRequirement || undefined,
+          internal_notes: editInternalNotes || undefined,
+          action_items: editActionItems || undefined,
         },
       },
       {
@@ -1798,34 +1877,49 @@ function UpdateCard({
       </div>
 
       {editing ? (
-        <div className="space-y-2 pt-1">
+        <div className="space-y-3 pt-1">
           <div className="space-y-1">
-            <Label>Date</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</Label>
             <Input
               type="date"
               value={editDate}
               max={new Date().toISOString().slice(0, 10)}
               onChange={(e) => setEditDate(e.target.value)}
-              className="w-40"
+              className="w-44"
             />
           </div>
           {update.source === "email" && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label>From</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">From</Label>
                 <Input value={editEmailFrom} onChange={(e) => setEditEmailFrom(e.target.value)} placeholder="sender@example.com" />
               </div>
               <div className="space-y-1">
-                <Label>Subject</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subject</Label>
                 <Input value={editEmailSubject} onChange={(e) => setEditEmailSubject(e.target.value)} placeholder="Subject…" />
               </div>
             </div>
           )}
-          <Textarea
-            value={editBody}
-            onChange={(e) => setEditBody(e.target.value)}
-            className="min-h-[100px]"
-          />
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Capacities</Label>
+            <Textarea value={editCurrentCapacity} onChange={(e) => setEditCurrentCapacity(e.target.value)} className="min-h-[60px]" placeholder="Current capacities…" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project Requirement</Label>
+            <Textarea value={editProjectRequirement} onChange={(e) => setEditProjectRequirement(e.target.value)} className="min-h-[60px]" placeholder="Project requirement…" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Update <span className="text-destructive">*</span></Label>
+            <Textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} className="min-h-[100px]" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comments</Label>
+            <Textarea value={editInternalNotes} onChange={(e) => setEditInternalNotes(e.target.value)} className="min-h-[60px]" placeholder="Comments…" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Remarks</Label>
+            <Textarea value={editActionItems} onChange={(e) => setEditActionItems(e.target.value)} className="min-h-[60px]" placeholder="Remarks / action items…" />
+          </div>
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
             <Button size="sm" onClick={handleSave} disabled={editUpdate.isPending || !editBody.trim()}>
@@ -1841,7 +1935,37 @@ function UpdateCard({
               {update.email_subject && <p className="text-muted-foreground">Subject: <span className="text-foreground">{update.email_subject}</span></p>}
             </div>
           )}
-          <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
+          {/* Structured fields display */}
+          <div className="space-y-2">
+            {update.current_capacity && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Current Capacities</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground">{update.current_capacity}</p>
+              </div>
+            )}
+            {update.project_requirement && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Project Requirement</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground">{update.project_requirement}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Update</p>
+              <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
+            </div>
+            {update.internal_notes && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Comments</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground">{update.internal_notes}</p>
+              </div>
+            )}
+            {update.action_items && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Remarks</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground">{update.action_items}</p>
+              </div>
+            )}
+          </div>
           {update.attachments.length > 0 && (
             <div className="space-y-1 pt-1">
               {update.attachments.map((att) => (
