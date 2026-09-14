@@ -7,13 +7,38 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
 from app.models.project import Project
-from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment
+from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment, ProjectUpdateComment
 from app.models.user import User
-from app.schemas.project_update import ProjectUpdateCreate, ProjectUpdateEdit, ProjectUpdateRead
+from app.schemas.project_update import (
+    ProjectUpdateCommentCreate,
+    ProjectUpdateCommentRead,
+    ProjectUpdateCreate,
+    ProjectUpdateEdit,
+    ProjectUpdateRead,
+)
 
 router = APIRouter()
 
 MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+def _build_read(u: ProjectUpdate) -> ProjectUpdateRead:
+    r = ProjectUpdateRead.model_validate(u)
+    r.user_name = u.user.full_name if u.user else None
+    if u.parent:
+        r.parent_body_snippet = u.parent.body[:80]
+    r.comments = [
+        ProjectUpdateCommentRead(
+            id=c.id,
+            update_id=c.update_id,
+            user_id=c.user_id,
+            user_name=c.user.full_name if c.user else None,
+            body=c.body,
+            created_at=c.created_at,
+        )
+        for c in u.comments
+    ]
+    return r
 
 
 @router.get("/projects/{project_id}/updates", response_model=list[ProjectUpdateRead])
@@ -32,14 +57,7 @@ def list_project_updates(
         .order_by(ProjectUpdate.posted_at.desc())
         .all()
     )
-    result = []
-    for u in updates:
-        r = ProjectUpdateRead.model_validate(u)
-        r.user_name = u.user.full_name if u.user else None
-        if u.parent:
-            r.parent_body_snippet = u.parent.body[:80]
-        result.append(r)
-    return result
+    return [_build_read(u) for u in updates]
 
 
 @router.post(
@@ -72,11 +90,7 @@ def create_project_update(
     db.commit()
     db.refresh(update)
 
-    result = ProjectUpdateRead.model_validate(update)
-    result.user_name = current_user.full_name
-    if update.parent:
-        result.parent_body_snippet = update.parent.body[:80]
-    return result
+    return _build_read(update)
 
 
 @router.put(
@@ -102,13 +116,12 @@ def edit_project_update(
         update.email_from = payload.email_from or None
     if payload.email_subject is not None:
         update.email_subject = payload.email_subject or None
+    if payload.status is not None:
+        update.status = payload.status
 
     db.commit()
     db.refresh(update)
-
-    result = ProjectUpdateRead.model_validate(update)
-    result.user_name = update.user.full_name if update.user else None
-    return result
+    return _build_read(update)
 
 
 @router.post(
@@ -143,10 +156,7 @@ def upload_project_update_attachment(
     db.add(attachment)
     db.commit()
     db.refresh(update)
-
-    result = ProjectUpdateRead.model_validate(update)
-    result.user_name = update.user.full_name if update.user else None
-    return result
+    return _build_read(update)
 
 
 ALLOWED_DELETE_EMAILS = {"pmureithi@usm.co.ke", "hkotecha@kwale-group.com"}
@@ -200,6 +210,56 @@ def delete_project_update_attachment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
     db.delete(attachment)
     db.commit()
+
+
+@router.patch(
+    "/projects/{project_id}/updates/{update_id}/status",
+    response_model=ProjectUpdateRead,
+)
+def set_project_update_status(
+    project_id: uuid.UUID,
+    update_id: uuid.UUID,
+    payload: ProjectUpdateEdit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectUpdateRead:
+    update = db.get(ProjectUpdate, update_id)
+    if not update or update.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
+    if payload.status is not None:
+        update.status = payload.status
+    db.commit()
+    db.refresh(update)
+    return _build_read(update)
+
+
+@router.post(
+    "/projects/{project_id}/updates/{update_id}/comments",
+    response_model=ProjectUpdateRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_project_update_comment(
+    project_id: uuid.UUID,
+    update_id: uuid.UUID,
+    payload: ProjectUpdateCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectUpdateRead:
+    update = db.get(ProjectUpdate, update_id)
+    if not update or update.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
+    if not payload.body.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comment body required")
+
+    comment = ProjectUpdateComment(
+        update_id=update_id,
+        user_id=current_user.id,
+        body=payload.body.strip(),
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(update)
+    return _build_read(update)
 
 
 @router.get("/project-update-attachments/{attachment_id}/file")

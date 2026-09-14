@@ -412,6 +412,15 @@ export interface ProjectUpdateAttachment {
   created_at: string;
 }
 
+export interface ProjectUpdateComment {
+  id: string;
+  update_id: string;
+  user_id?: string;
+  user_name?: string;
+  body: string;
+  created_at: string;
+}
+
 export interface ProjectUpdate {
   id: string;
   project_id: string;
@@ -419,6 +428,7 @@ export interface ProjectUpdate {
   user_name?: string;
   body: string;
   source: string;
+  status: string;
   email_from?: string;
   email_subject?: string;
   posted_at: string;
@@ -426,6 +436,7 @@ export interface ProjectUpdate {
   parent_update_id?: string;
   parent_body_snippet?: string;
   attachments: ProjectUpdateAttachment[];
+  comments: ProjectUpdateComment[];
 }
 
 export interface UpdateMePayload {

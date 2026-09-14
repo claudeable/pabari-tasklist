@@ -18,6 +18,10 @@ import {
   Paperclip,
   Download,
   MessageSquarePlus,
+  CheckCircle2,
+  Circle,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-custom/page-header";
@@ -51,10 +55,12 @@ import {
 } from "@/components/ui/dialog";
 import { useDeleteProject, useProject, useUpdateProject } from "@/lib/hooks/use-projects";
 import {
+  useAddProjectUpdateComment,
   useCreateProjectUpdate,
   useDeleteProjectUpdate,
   useDeleteProjectUpdateAttachment,
   useEditProjectUpdate,
+  useMarkProjectUpdateDone,
   useProjectUpdates,
   useUploadProjectUpdateAttachment,
 } from "@/lib/hooks/use-project-updates";
@@ -1671,6 +1677,8 @@ function UpdateCard({
   const editUpdate = useEditProjectUpdate(projectId);
   const deleteUpdate = useDeleteProjectUpdate(projectId);
   const deleteAttachment = useDeleteProjectUpdateAttachment(projectId);
+  const markDone = useMarkProjectUpdateDone(projectId);
+  const addComment = useAddProjectUpdateComment(projectId);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteAttId, setConfirmDeleteAttId] = useState<string | null>(null);
@@ -1678,6 +1686,8 @@ function UpdateCard({
   const [editDate, setEditDate] = useState(update.posted_at.slice(0, 10));
   const [editEmailFrom, setEditEmailFrom] = useState(update.email_from ?? "");
   const [editEmailSubject, setEditEmailSubject] = useState(update.email_subject ?? "");
+  const [showComments, setShowComments] = useState(false);
+  const [commentBody, setCommentBody] = useState("");
 
   function startEdit() {
     setEditBody(update.body);
@@ -1712,7 +1722,7 @@ function UpdateCard({
   const parentSnippet = parentUpdate?.body ?? update.parent_body_snippet;
 
   return (
-    <div className={`rounded-xl border p-4 space-y-2 ${update.parent_update_id ? "border-primary/30 bg-primary/5 ml-4" : "border-border"}`}>
+    <div className={`rounded-xl border p-4 space-y-2 ${update.status === "done" ? "opacity-70" : ""} ${update.parent_update_id ? "border-primary/30 bg-primary/5 ml-4" : "border-border"}`}>
       {/* Follow-up indicator */}
       {update.parent_update_id && parentSnippet && (
         <div className="flex items-start gap-1.5 rounded-md bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground border-l-2 border-primary">
@@ -1735,7 +1745,25 @@ function UpdateCard({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Done toggle */}
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => markDone.mutate({ updateId: update.id, done: update.status !== "done" })}
+              disabled={markDone.isPending}
+              className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                update.status === "done"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                  : "bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700"
+              }`}
+              aria-label={update.status === "done" ? "Reopen" : "Mark as done"}
+            >
+              {update.status === "done"
+                ? <><CheckCircle2 className="h-3 w-3" /> Done</>
+                : <><Circle className="h-3 w-3" /> Mark done</>}
+            </button>
+          )}
           {update.source === "email" && !editing && (
             <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
               <Mail className="h-3 w-3" />
@@ -1861,6 +1889,80 @@ function UpdateCard({
               ))}
             </div>
           )}
+
+          {/* Comments section */}
+          <div className="pt-1 border-t border-border/50">
+            <button
+              type="button"
+              onClick={() => setShowComments((v) => !v)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {update.comments.length > 0
+                ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}`
+                : "Add remark"}
+              {!showComments && update.comments.length > 0 && " · click to view"}
+            </button>
+
+            {showComments && (
+              <div className="mt-2 space-y-2">
+                {update.comments.map((c) => (
+                  <div key={c.id} className="flex gap-2">
+                    <Avatar className="h-5 w-5 shrink-0 mt-0.5">
+                      <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">
+                        {(c.user_name || "?").slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-1.5">
+                      <p className="text-[10px] font-medium text-foreground">{c.user_name || "Unknown"}</p>
+                      <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{formatTimestamp(c.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add remark input */}
+                <div className="flex gap-2 items-start">
+                  <Textarea
+                    placeholder="Add a remark…"
+                    value={commentBody}
+                    onChange={(e) => setCommentBody(e.target.value)}
+                    className="min-h-[60px] text-sm flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && commentBody.trim()) {
+                        e.preventDefault();
+                        addComment.mutate(
+                          { updateId: update.id, body: commentBody.trim() },
+                          {
+                            onSuccess: () => setCommentBody(""),
+                            onError: () => toast.error("Failed to add remark"),
+                          },
+                        );
+                      }
+                    }}
+                  />
+                  <Button
+                    size="icon-sm"
+                    disabled={addComment.isPending || !commentBody.trim()}
+                    onClick={() =>
+                      addComment.mutate(
+                        { updateId: update.id, body: commentBody.trim() },
+                        {
+                          onSuccess: () => setCommentBody(""),
+                          onError: () => toast.error("Failed to add remark"),
+                        },
+                      )
+                    }
+                    className="mt-1 shrink-0"
+                    aria-label="Post remark"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Ctrl+Enter to submit</p>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

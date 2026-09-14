@@ -23,4 +23,4 @@ from app.models.drawing import Drawing, DrawingComment  # noqa: F401
 from app.models.site_report import SiteReport  # noqa: F401
 from app.models.kb_article import KBArticle  # noqa: F401
 from app.models.login_attempt import LoginAttempt  # noqa: F401
-from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment  # noqa: F401
+from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment, ProjectUpdateComment  # noqa: F401

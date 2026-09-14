@@ -393,6 +393,16 @@ export const api = {
     `${API_BASE_URL}/project-update-attachments/${attachmentId}/file`,
   deleteProjectUpdateAttachment: (attachmentId: string) =>
     request<void>(`/project-update-attachments/${attachmentId}`, { method: "DELETE" }),
+  markProjectUpdateDone: (projectId: string, updateId: string, done: boolean) =>
+    request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}/status`, {
+      method: "PATCH",
+      body: { status: done ? "done" : "open" },
+    }),
+  addProjectUpdateComment: (projectId: string, updateId: string, body: string) =>
+    request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}/comments`, {
+      method: "POST",
+      body: { body },
+    }),
 
   // Reports
   projectProgressReport: () => request<ProjectProgressReport>("/reports/project-progress"),

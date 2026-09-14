@@ -67,3 +67,25 @@ export function useDeleteProjectUpdateAttachment(projectId?: string) {
     },
   });
 }
+
+export function useMarkProjectUpdateDone(projectId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ updateId, done }: { updateId: string; done: boolean }) =>
+      api.markProjectUpdateDone(projectId!, updateId, done),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
+    },
+  });
+}
+
+export function useAddProjectUpdateComment(projectId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ updateId, body }: { updateId: string; body: string }) =>
+      api.addProjectUpdateComment(projectId!, updateId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
+    },
+  });
+}
