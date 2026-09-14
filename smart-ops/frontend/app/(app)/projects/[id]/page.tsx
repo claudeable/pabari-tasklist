@@ -127,6 +127,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const router = useRouter();
   const { data: project, isLoading, isError, refetch } = useProject(id);
+  const { data: currentUserForActivity } = useCurrentUser();
+  const showActivity = canDeleteUpdate(currentUserForActivity);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteProject = useDeleteProject();
@@ -199,7 +201,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <TabsTrigger value="deliverables">Deliverables</TabsTrigger>
           <TabsTrigger value="budget">Budget</TabsTrigger>
           <TabsTrigger value="participants">Participants</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+          {showActivity && <TabsTrigger value="activity">Activity</TabsTrigger>}
           <TabsTrigger value="risks">Risks</TabsTrigger>
           <TabsTrigger value="decisions">Decisions</TabsTrigger>
         </TabsList>
@@ -284,17 +286,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <ParticipantsTab projectId={id} />
         </TabsContent>
 
-        <TabsContent value="activity">
-          {project.activity && project.activity.length > 0 ? (
-            <div className="divide-y divide-border rounded-xl border border-border px-3">
-              {project.activity.map((a) => (
-                <ActivityRow key={a.id} item={a} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon={Activity} title="No activity recorded yet" />
-          )}
-        </TabsContent>
+        {showActivity && (
+          <TabsContent value="activity">
+            {project.activity && project.activity.length > 0 ? (
+              <div className="divide-y divide-border rounded-xl border border-border px-3">
+                {project.activity.map((a) => (
+                  <ActivityRow key={a.id} item={a} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState icon={Activity} title="No activity recorded yet" />
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="risks">
           <RisksTab projectId={id} />
