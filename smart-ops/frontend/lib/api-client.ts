@@ -92,6 +92,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     ...(headers as Record<string, string>),
   };
 
+  // Mobile Safari ITP blocks cross-origin httpOnly cookies. Use a stored
+  // Bearer token as a fallback — the backend accepts either transport.
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("jcp_token");
+    if (stored) finalHeaders["Authorization"] = `Bearer ${stored}`;
+  }
+
   if (body !== undefined) {
     finalHeaders["Content-Type"] = "application/json";
   }

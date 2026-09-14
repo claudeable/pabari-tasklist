@@ -30,4 +30,5 @@ export function isSignedIn(): boolean {
 
 export function clearSignedIn() {
   Cookies.remove(SESSION_FLAG_COOKIE);
+  try { if (typeof window !== "undefined") localStorage.removeItem("jcp_token"); } catch { /* ignore */ }
 }

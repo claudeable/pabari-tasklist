@@ -33,9 +33,14 @@ function SsoContent() {
           const data = await r.json().catch(() => ({}));
           throw new Error(data?.detail ?? `SSO failed (${r.status})`);
         }
-        return r.json();
+        return r.json() as Promise<{ access_token?: string }>;
       })
-      .then(() => {
+      .then((data) => {
+        // Store JWT in localStorage as Bearer-token fallback for mobile Safari,
+        // where Safari ITP blocks cross-origin httpOnly cookies from fetch responses.
+        if (data?.access_token) {
+          try { localStorage.setItem("jcp_token", data.access_token); } catch { /* ignore */ }
+        }
         markSignedIn();
         router.push("/dashboard");
       })
