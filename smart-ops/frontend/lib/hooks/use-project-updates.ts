@@ -13,7 +13,7 @@ export function useProjectUpdates(projectId?: string) {
 export function useCreateProjectUpdate(projectId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { body: string; source: string; email_from?: string; email_subject?: string; posted_at?: string; parent_update_id?: string; current_capacity?: string; project_requirement?: string; internal_notes?: string; action_items?: string }) =>
+    mutationFn: (payload: { body: string; source: string; email_from?: string; email_subject?: string; posted_at?: string; parent_update_id?: string; progress_percent?: number; current_capacity?: string; project_requirement?: string; internal_notes?: string; action_items?: string }) =>
       api.createProjectUpdate(projectId!, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
@@ -39,7 +39,7 @@ export function useEditProjectUpdate(projectId?: string) {
       payload,
     }: {
       updateId: string;
-      payload: { body?: string; posted_at?: string; email_from?: string; email_subject?: string; current_capacity?: string; project_requirement?: string; internal_notes?: string; action_items?: string };
+      payload: { body?: string; posted_at?: string; email_from?: string; email_subject?: string; progress_percent?: number; current_capacity?: string; project_requirement?: string; internal_notes?: string; action_items?: string };
     }) => api.updateProjectUpdate(projectId!, updateId, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["project-updates", projectId] });

@@ -1774,22 +1774,15 @@ function UpdateTableRow({
   const [editProjectRequirement, setEditProjectRequirement] = useState(update.project_requirement ?? "");
   const [editInternalNotes, setEditInternalNotes] = useState(update.internal_notes ?? "");
   const [editActionItems, setEditActionItems] = useState(update.action_items ?? "");
-  const [showComments, setShowComments] = useState(false);
+  const [editProgress, setEditProgress] = useState(update.progress_percent ?? 0);
   const [commentBody, setCommentBody] = useState("");
 
-  const STATUS_CYCLE: Record<string, string> = { open: "in_progress", in_progress: "done", done: "open" };
-  const STATUS_LABEL: Record<string, string> = { open: "Open", in_progress: "In Progress", done: "Done" };
   const STATUS_CLASS: Record<string, string> = {
     open: "bg-muted text-muted-foreground",
     in_progress: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
     done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   };
   const currentStatus = update.status || "open";
-
-  function cycleStatus(e: React.MouseEvent) {
-    e.stopPropagation();
-    setStatus.mutate({ updateId: update.id, status: STATUS_CYCLE[currentStatus] ?? "open" });
-  }
 
   function startEdit() {
     setEditBody(update.body);
@@ -1800,6 +1793,7 @@ function UpdateTableRow({
     setEditProjectRequirement(update.project_requirement ?? "");
     setEditInternalNotes(update.internal_notes ?? "");
     setEditActionItems(update.action_items ?? "");
+    setEditProgress(update.progress_percent ?? 0);
     setEditing(true);
     setExpanded(true);
   }
@@ -1818,6 +1812,7 @@ function UpdateTableRow({
           project_requirement: editProjectRequirement || undefined,
           internal_notes: editInternalNotes || undefined,
           action_items: editActionItems || undefined,
+          progress_percent: editProgress,
         },
       },
       {
@@ -1847,17 +1842,35 @@ function UpdateTableRow({
             <span className="ml-1 text-primary text-[9px] font-medium">↩</span>
           )}
         </td>
-        {/* Status badge — click cycles through Open → In Progress → Done */}
+        {/* Status dropdown + progress bar */}
         <td className="px-3 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={cycleStatus}
-            disabled={setStatus.isPending}
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors whitespace-nowrap ${STATUS_CLASS[currentStatus] ?? STATUS_CLASS.open}`}
-            title="Click to advance status"
-          >
-            {STATUS_LABEL[currentStatus] ?? "Open"}
-          </button>
+          <div className="space-y-1.5">
+            <Select
+              value={currentStatus}
+              onValueChange={(val) => setStatus.mutate({ updateId: update.id, status: val })}
+              disabled={setStatus.isPending}
+            >
+              <SelectTrigger className={`h-6 rounded-full border-0 px-2.5 py-0 text-[10px] font-semibold w-auto min-w-[84px] focus:ring-0 ${STATUS_CLASS[currentStatus] ?? STATUS_CLASS.open}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open" className="text-xs">Open</SelectItem>
+                <SelectItem value="in_progress" className="text-xs">In Progress</SelectItem>
+                <SelectItem value="done" className="text-xs">Done</SelectItem>
+              </SelectContent>
+            </Select>
+            {(update.progress_percent ?? 0) > 0 && (
+              <div className="w-20">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${update.progress_percent}%` }}
+                  />
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-0.5">{update.progress_percent}%</p>
+              </div>
+            )}
+          </div>
         </td>
         <td className="px-3 py-2.5 align-top text-xs text-foreground">
           <p className="line-clamp-2 whitespace-pre-wrap">{update.current_capacity || <span className="text-muted-foreground">—</span>}</p>
@@ -1977,6 +1990,21 @@ function UpdateTableRow({
                     <Textarea value={editActionItems} onChange={(e) => setEditActionItems(e.target.value)} className="min-h-[72px]" placeholder="Remarks…" />
                   </div>
                 </div>
+                <div className="space-y-1 max-w-xs">
+                  <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Progress — {editProgress}%</Label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={editProgress}
+                    onChange={(e) => setEditProgress(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${editProgress}%` }} />
+                  </div>
+                </div>
                 <div className="flex gap-2 justify-end pt-1">
                   <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
                   <Button size="sm" onClick={handleSave} disabled={editUpdate.isPending || !editBody.trim()}>
@@ -2077,52 +2105,52 @@ function UpdateTableRow({
                   </div>
                 )}
 
-                {/* Remarks / comments thread */}
-                <div className="pt-1 border-t border-border/50">
-                  <button type="button" onClick={() => setShowComments((v) => !v)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                {/* Remarks / comments — always visible */}
+                <div className="pt-2 border-t border-border/50 space-y-2">
+                  <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     <MessageCircle className="h-3.5 w-3.5" />
-                    {update.comments.length > 0
-                      ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}`
-                      : "Add remark"}
-                    {!showComments && update.comments.length > 0 && " · click to view"}
-                  </button>
-                  {showComments && (
-                    <div className="mt-2 space-y-2">
-                      {update.comments.map((c) => (
-                        <div key={c.id} className="flex gap-2">
-                          <Avatar className="h-5 w-5 shrink-0 mt-0.5">
-                            <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">
-                              {(c.user_name || "?").slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-1.5">
-                            <p className="text-[10px] font-medium text-foreground">{c.user_name || "Unknown"}</p>
-                            <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{formatTimestamp(c.created_at)}</p>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex gap-2 items-start">
-                        <Textarea placeholder="Add a remark…" value={commentBody} onChange={(e) => setCommentBody(e.target.value)}
-                          className="min-h-[60px] text-sm flex-1"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && commentBody.trim()) {
-                              e.preventDefault();
-                              addComment.mutate({ updateId: update.id, body: commentBody.trim() },
-                                { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") });
-                            }
-                          }} />
-                        <Button size="icon-sm" disabled={addComment.isPending || !commentBody.trim()}
-                          onClick={() => addComment.mutate({ updateId: update.id, body: commentBody.trim() },
-                            { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") })}
-                          className="mt-1 shrink-0" aria-label="Post remark">
-                          <Send className="h-3.5 w-3.5" />
-                        </Button>
+                    Remarks {update.comments.length > 0 && `(${update.comments.length})`}
+                  </p>
+                  {update.comments.map((c) => (
+                    <div key={c.id} className="flex gap-2">
+                      <Avatar className="h-5 w-5 shrink-0 mt-0.5">
+                        <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">
+                          {(c.user_name || "?").slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-1.5">
+                        <p className="text-[10px] font-medium text-foreground">{c.user_name || "Unknown"}</p>
+                        <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{formatTimestamp(c.created_at)}</p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Ctrl+Enter to submit</p>
                     </div>
-                  )}
+                  ))}
+                  <div className="flex gap-2 items-start">
+                    <Textarea
+                      placeholder="Add a remark…"
+                      value={commentBody}
+                      onChange={(e) => setCommentBody(e.target.value)}
+                      className="min-h-[60px] text-sm flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && commentBody.trim()) {
+                          e.preventDefault();
+                          addComment.mutate({ updateId: update.id, body: commentBody.trim() },
+                            { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") });
+                        }
+                      }}
+                    />
+                    <Button
+                      size="icon-sm"
+                      disabled={addComment.isPending || !commentBody.trim()}
+                      onClick={() => addComment.mutate({ updateId: update.id, body: commentBody.trim() },
+                        { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") })}
+                      className="mt-1 shrink-0"
+                      aria-label="Post remark"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Ctrl+Enter to submit</p>
                 </div>
               </div>
             )}

@@ -85,6 +85,7 @@ def create_project_update(
         email_subject=payload.email_subject or None,
         posted_at=posted_at,
         parent_update_id=payload.parent_update_id or None,
+        progress_percent=payload.progress_percent if payload.progress_percent is not None else 0,
         current_capacity=payload.current_capacity or None,
         project_requirement=payload.project_requirement or None,
         internal_notes=payload.internal_notes or None,
@@ -122,6 +123,8 @@ def edit_project_update(
         update.email_subject = payload.email_subject or None
     if payload.status is not None:
         update.status = payload.status
+    if payload.progress_percent is not None:
+        update.progress_percent = max(0, min(100, payload.progress_percent))
     if payload.current_capacity is not None:
         update.current_capacity = payload.current_capacity or None
     if payload.project_requirement is not None:

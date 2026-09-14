@@ -25,6 +25,7 @@ class ProjectUpdate(UUIDMixin, Base):
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    progress_percent: Mapped[Optional[int]] = mapped_column(nullable=True, default=0)
     current_capacity: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     project_requirement: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     internal_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

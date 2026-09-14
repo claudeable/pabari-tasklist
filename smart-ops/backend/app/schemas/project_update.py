@@ -37,6 +37,7 @@ class ProjectUpdateEdit(BaseModel):
     email_from: Optional[str] = None
     email_subject: Optional[str] = None
     status: Optional[str] = None
+    progress_percent: Optional[int] = None
     current_capacity: Optional[str] = None
     project_requirement: Optional[str] = None
     internal_notes: Optional[str] = None
@@ -50,6 +51,7 @@ class ProjectUpdateCreate(BaseModel):
     email_subject: Optional[str] = None
     posted_at: Optional[datetime] = None
     parent_update_id: Optional[uuid.UUID] = None
+    progress_percent: Optional[int] = None
     current_capacity: Optional[str] = None
     project_requirement: Optional[str] = None
     internal_notes: Optional[str] = None
@@ -66,6 +68,7 @@ class ProjectUpdateRead(BaseModel):
     body: str
     source: str
     status: str = "open"
+    progress_percent: Optional[int] = 0
     email_from: Optional[str] = None
     email_subject: Optional[str] = None
     current_capacity: Optional[str] = None
