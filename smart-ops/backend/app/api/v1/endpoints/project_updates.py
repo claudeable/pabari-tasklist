@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
@@ -28,7 +29,7 @@ def list_project_updates(
     updates = (
         db.query(ProjectUpdate)
         .filter(ProjectUpdate.project_id == project_id)
-        .order_by(ProjectUpdate.created_at.desc())
+        .order_by(ProjectUpdate.posted_at.desc())
         .all()
     )
     result = []
@@ -54,6 +55,7 @@ def create_project_update(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    posted_at = payload.posted_at or datetime.now(timezone.utc)
     update = ProjectUpdate(
         project_id=project_id,
         user_id=current_user.id,
@@ -61,6 +63,7 @@ def create_project_update(
         source=payload.source,
         email_from=payload.email_from or None,
         email_subject=payload.email_subject or None,
+        posted_at=posted_at,
     )
     db.add(update)
     db.commit()

@@ -1452,6 +1452,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   const [source, setSource] = useState("internal");
   const [emailFrom, setEmailFrom] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
+  const [postedAt, setPostedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1470,6 +1471,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
         source,
         email_from: emailFrom.trim() || undefined,
         email_subject: emailSubject.trim() || undefined,
+        posted_at: postedAt ? new Date(postedAt).toISOString() : undefined,
       });
       for (const file of pendingFiles) {
         await uploadAttachment.mutateAsync({ updateId: created.id, file });
@@ -1478,6 +1480,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       setSource("internal");
       setEmailFrom("");
       setEmailSubject("");
+      setPostedAt(new Date().toISOString().slice(0, 10));
       setPendingFiles([]);
       toast.success("Update posted");
     } catch {
@@ -1549,6 +1552,18 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
           </div>
         )}
 
+        <div className="space-y-1">
+          <Label htmlFor="posted-at">Date</Label>
+          <Input
+            id="posted-at"
+            type="date"
+            value={postedAt}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setPostedAt(e.target.value)}
+            className="w-40"
+          />
+        </div>
+
         <Textarea
           placeholder={source === "email" ? "Paste or summarise the email content…" : "What's the update?"}
           value={body}
@@ -1612,7 +1627,7 @@ function UpdateCard({ update, formatBytes }: { update: ProjectUpdate; formatByte
           </Avatar>
           <div>
             <p className="text-sm font-medium text-foreground">{update.user_name || "Unknown"}</p>
-            <p className="text-[10px] text-muted-foreground">{formatTimestamp(update.created_at)}</p>
+            <p className="text-[10px] text-muted-foreground">{formatTimestamp(update.posted_at)}</p>
           </div>
         </div>
         {update.source === "email" && (

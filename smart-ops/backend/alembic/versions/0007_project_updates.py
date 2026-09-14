@@ -27,6 +27,7 @@ def upgrade() -> None:
         sa.Column("source", sa.String(50), nullable=False, server_default="internal"),
         sa.Column("email_from", sa.String(512), nullable=True),
         sa.Column("email_subject", sa.String(512), nullable=True),
+        sa.Column("posted_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_project_updates_project_id", "project_updates", ["project_id"])

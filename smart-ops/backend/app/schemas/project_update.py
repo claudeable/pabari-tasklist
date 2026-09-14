@@ -21,6 +21,7 @@ class ProjectUpdateCreate(BaseModel):
     source: str = "internal"
     email_from: Optional[str] = None
     email_subject: Optional[str] = None
+    posted_at: Optional[datetime] = None
 
 
 class ProjectUpdateRead(BaseModel):
@@ -34,5 +35,6 @@ class ProjectUpdateRead(BaseModel):
     source: str
     email_from: Optional[str] = None
     email_subject: Optional[str] = None
+    posted_at: datetime
     created_at: datetime
     attachments: list[ProjectUpdateAttachmentRead] = []

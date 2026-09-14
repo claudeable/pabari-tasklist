@@ -22,6 +22,7 @@ class ProjectUpdate(UUIDMixin, Base):
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="internal")
     email_from: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     email_subject: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     project: Mapped["Project"] = relationship()

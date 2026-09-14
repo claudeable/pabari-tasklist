@@ -421,6 +421,7 @@ export interface ProjectUpdate {
   source: string;
   email_from?: string;
   email_subject?: string;
+  posted_at: string;
   created_at: string;
   attachments: ProjectUpdateAttachment[];
 }

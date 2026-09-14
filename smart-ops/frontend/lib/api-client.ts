@@ -358,7 +358,7 @@ export const api = {
     request<ProjectUpdate[]>(`/projects/${projectId}/updates`),
   createProjectUpdate: (
     projectId: string,
-    payload: { body: string; source: string; email_from?: string; email_subject?: string },
+    payload: { body: string; source: string; email_from?: string; email_subject?: string; posted_at?: string },
   ) =>
     request<ProjectUpdate>(`/projects/${projectId}/updates`, {
       method: "POST",

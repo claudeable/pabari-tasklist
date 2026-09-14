@@ -13,7 +13,7 @@ export function useProjectUpdates(projectId?: string) {
 export function useCreateProjectUpdate(projectId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { body: string; source: string; email_from?: string; email_subject?: string }) =>
+    mutationFn: (payload: { body: string; source: string; email_from?: string; email_subject?: string; posted_at?: string }) =>
       api.createProjectUpdate(projectId!, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
