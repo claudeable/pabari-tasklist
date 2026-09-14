@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FolderKanban,
@@ -15,6 +15,10 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Mail,
+  Paperclip,
+  Download,
+  MessageSquarePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-custom/page-header";
@@ -47,6 +51,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useDeleteProject, useProject, useUpdateProject } from "@/lib/hooks/use-projects";
+import {
+  useCreateProjectUpdate,
+  useProjectUpdates,
+  useUploadProjectUpdateAttachment,
+} from "@/lib/hooks/use-project-updates";
+import { api } from "@/lib/api-client";
+import type { ProjectUpdate } from "@/lib/types";
 import { ApiError } from "@/lib/api-client";
 import {
   useCreateMilestone,
@@ -179,6 +190,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <Tabs defaultValue="overview">
         <TabsList className="mb-4 flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="updates">Updates</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="milestones">Milestones</TabsTrigger>
           <TabsTrigger value="deliverables">Deliverables</TabsTrigger>
@@ -188,6 +200,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <TabsTrigger value="risks">Risks</TabsTrigger>
           <TabsTrigger value="decisions">Decisions</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="updates">
+          <ProjectUpdatesTab projectId={id} />
+        </TabsContent>
 
         <TabsContent value="overview">
           <Card className="glass-panel">
@@ -1421,6 +1437,218 @@ function ParticipantsTab({ projectId }: { projectId: string }) {
         isPending={deleteParticipant.isPending}
         onConfirm={handleDelete}
       />
+    </div>
+  );
+}
+
+// --- Project Updates ---
+
+function ProjectUpdatesTab({ projectId }: { projectId: string }) {
+  const { data, isLoading, isError, refetch } = useProjectUpdates(projectId);
+  const createUpdate = useCreateProjectUpdate(projectId);
+  const uploadAttachment = useUploadProjectUpdateAttachment(projectId);
+
+  const [body, setBody] = useState("");
+  const [source, setSource] = useState("internal");
+  const [emailFrom, setEmailFrom] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [posting, setPosting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const updates = data ?? [];
+
+  async function handlePost() {
+    if (!body.trim()) {
+      toast.error("Update body is required");
+      return;
+    }
+    setPosting(true);
+    try {
+      const created = await createUpdate.mutateAsync({
+        body: body.trim(),
+        source,
+        email_from: emailFrom.trim() || undefined,
+        email_subject: emailSubject.trim() || undefined,
+      });
+      for (const file of pendingFiles) {
+        await uploadAttachment.mutateAsync({ updateId: created.id, file });
+      }
+      setBody("");
+      setSource("internal");
+      setEmailFrom("");
+      setEmailSubject("");
+      setPendingFiles([]);
+      toast.success("Update posted");
+    } catch {
+      toast.error("Failed to post update");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setPendingFiles((prev) => [...prev, ...files]);
+    e.target.value = "";
+  }
+
+  function removeFile(index: number) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function formatBytes(bytes?: number) {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Post form */}
+      <div className="rounded-xl border border-border p-4 space-y-3">
+        <p className="text-sm font-medium text-foreground">Post an update</p>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSource("internal")}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "internal" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+          >
+            Internal
+          </button>
+          <button
+            onClick={() => setSource("email")}
+            className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+          >
+            <Mail className="h-3 w-3" />
+            Email
+          </button>
+        </div>
+
+        {source === "email" && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="email-from">From</Label>
+              <Input
+                id="email-from"
+                placeholder="sender@example.com"
+                value={emailFrom}
+                onChange={(e) => setEmailFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                placeholder="Re: Project update…"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        <Textarea
+          placeholder={source === "email" ? "Paste or summarise the email content…" : "What's the update?"}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          className="min-h-[100px]"
+        />
+
+        {pendingFiles.length > 0 && (
+          <div className="space-y-1">
+            {pendingFiles.map((f, i) => (
+              <div key={i} className="flex items-center justify-between rounded-md bg-muted px-3 py-1.5 text-xs">
+                <span className="truncate text-foreground">{f.name}</span>
+                <button onClick={() => removeFile(i)} className="ml-2 shrink-0 text-muted-foreground hover:text-destructive">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()}>
+            <Paperclip className="h-3.5 w-3.5" />
+            Attach files
+          </Button>
+          <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileChange} />
+          <Button size="sm" onClick={handlePost} disabled={posting || !body.trim()} className="ml-auto gap-1.5">
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            {posting ? "Posting…" : "Post update"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Feed */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+        </div>
+      ) : isError ? (
+        <ErrorState onRetry={() => refetch()} />
+      ) : updates.length === 0 ? (
+        <EmptyState icon={MessageSquarePlus} title="No updates yet" description="Post the first update or log an email thread above." />
+      ) : (
+        <div className="space-y-4">
+          {updates.map((update) => (
+            <UpdateCard key={update.id} update={update} formatBytes={formatBytes} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UpdateCard({ update, formatBytes }: { update: ProjectUpdate; formatBytes: (n?: number) => string }) {
+  return (
+    <div className="rounded-xl border border-border p-4 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-7 w-7">
+            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+              {(update.user_name || "?").slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="text-sm font-medium text-foreground">{update.user_name || "Unknown"}</p>
+            <p className="text-[10px] text-muted-foreground">{formatTimestamp(update.created_at)}</p>
+          </div>
+        </div>
+        {update.source === "email" && (
+          <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+            <Mail className="h-3 w-3" />
+            Email
+          </span>
+        )}
+      </div>
+
+      {update.source === "email" && (update.email_from || update.email_subject) && (
+        <div className="rounded-md bg-muted px-3 py-2 text-xs space-y-0.5">
+          {update.email_from && <p className="text-muted-foreground">From: <span className="text-foreground">{update.email_from}</span></p>}
+          {update.email_subject && <p className="text-muted-foreground">Subject: <span className="text-foreground">{update.email_subject}</span></p>}
+        </div>
+      )}
+
+      <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
+
+      {update.attachments.length > 0 && (
+        <div className="space-y-1 pt-1">
+          {update.attachments.map((att) => (
+            <a
+              key={att.id}
+              href={api.projectUpdateAttachmentUrl(att.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
+            >
+              <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="truncate">{att.filename}</span>
+              {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

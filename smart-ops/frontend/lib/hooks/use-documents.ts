@@ -49,3 +49,13 @@ export function useDeleteDocument() {
     },
   });
 }
+
+export function useUploadDocumentFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => api.uploadDocumentFile(id, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+}

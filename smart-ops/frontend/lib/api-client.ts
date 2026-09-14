@@ -21,6 +21,7 @@ import type {
   Project,
   ProjectParticipant,
   ProjectProgressReport,
+  ProjectUpdate,
   Risk,
   RisksSummaryReport,
   Role,
@@ -229,6 +230,17 @@ export const api = {
   updateDocument: (id: string, payload: Partial<DocumentRecord>) =>
     request<DocumentRecord>(`/documents/${id}`, { method: "PUT", body: payload }),
   deleteDocument: (id: string) => request<void>(`/documents/${id}`, { method: "DELETE" }),
+  uploadDocumentFile: async (id: string, file: File): Promise<DocumentRecord> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API_BASE_URL}/documents/${id}/file`, {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    });
+    if (!res.ok) throw new ApiError("File upload failed", res.status);
+    return res.json();
+  },
 
   // Tasks
   tasks: (projectId?: string) =>
@@ -340,6 +352,34 @@ export const api = {
     request<AppNotification>(`/notifications/${id}/read`, { method: "PUT" }),
   markAllNotificationsRead: () =>
     request<void>("/notifications/read-all", { method: "PUT" }),
+
+  // Project Updates
+  projectUpdates: (projectId: string) =>
+    request<ProjectUpdate[]>(`/projects/${projectId}/updates`),
+  createProjectUpdate: (
+    projectId: string,
+    payload: { body: string; source: string; email_from?: string; email_subject?: string },
+  ) =>
+    request<ProjectUpdate>(`/projects/${projectId}/updates`, {
+      method: "POST",
+      body: payload,
+    }),
+  uploadProjectUpdateAttachment: async (
+    projectId: string,
+    updateId: string,
+    file: File,
+  ): Promise<ProjectUpdate> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(
+      `${API_BASE_URL}/projects/${projectId}/updates/${updateId}/attachments`,
+      { method: "POST", credentials: "include", body: fd },
+    );
+    if (!res.ok) throw new ApiError("File upload failed", res.status);
+    return res.json();
+  },
+  projectUpdateAttachmentUrl: (attachmentId: string) =>
+    `${API_BASE_URL}/project-update-attachments/${attachmentId}/file`,
 
   // Reports
   projectProgressReport: () => request<ProjectProgressReport>("/reports/project-progress"),

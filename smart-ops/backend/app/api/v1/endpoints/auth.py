@@ -160,7 +160,11 @@ async def sso_login(body: SsoRequest, response: Response, db: Session = Depends(
         # Auto-provision: create a Smart Ops account on first SSO login
         pabari_name: str = data.get("name", pabari_email.split("@")[0])
         org = db.query(Organization).first()
-        role = db.query(Role).filter(Role.name == "member").first() or db.query(Role).first()
+        role = (
+            db.query(Role).filter(Role.name == "Viewer").first()
+            or db.query(Role).filter(Role.name == "Guest").first()
+            or db.query(Role).first()
+        )
         if not org or not role:
             raise HTTPException(status_code=500, detail="Smart Ops not initialised — no organisation or role found")
         user = User(

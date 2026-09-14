@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,8 +10,6 @@ from app.db.base_class import Base, UUIDMixin
 
 
 class Document(UUIDMixin, Base):
-    """Placeholder model only — no endpoints implemented yet."""
-
     __tablename__ = "documents"
 
     project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
@@ -23,6 +21,8 @@ class Document(UUIDMixin, Base):
     folder: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    file_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    file_mime_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
     uploaded_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(

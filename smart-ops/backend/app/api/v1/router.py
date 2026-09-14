@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     organizations,
     presence,
     project_participants,
+    project_updates,
     projects,
     reports,
     risks,
@@ -49,3 +50,4 @@ api_router.include_router(knowledge_base.router, prefix="/kb-articles", tags=["k
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(presence.router, prefix="", tags=["presence"])
+api_router.include_router(project_updates.router, prefix="", tags=["project-updates"])

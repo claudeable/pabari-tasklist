@@ -1,7 +1,8 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_activity, notify_user
@@ -136,3 +137,52 @@ def delete_document(
     )
     db.delete(document)
     db.commit()
+
+
+@router.post("/{document_id}/file", response_model=DocumentRead)
+def upload_document_file(
+    document_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("documents.edit")),
+) -> Document:
+    document = db.get(Document, document_id)
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    data = file.file.read()
+    if len(data) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Max file size is 50 MB")
+    document.file_data = data
+    document.file_mime_type = file.content_type or "application/octet-stream"
+    document.file_url = f"/api/v1/documents/{document_id}/file"
+    if document.version > 1 or document.file_data:
+        document.version += 1
+    log_activity(
+        db,
+        user_id=current_user.id,
+        action="update",
+        entity_type="document",
+        entity_id=str(document.id),
+        project_id=document.project_id,
+        organization_id=document.organization_id,
+        description=f"Uploaded file for document '{document.name}'",
+    )
+    db.commit()
+    db.refresh(document)
+    return document
+
+
+@router.get("/{document_id}/file")
+def serve_document_file(
+    document_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    document = db.get(Document, document_id)
+    if not document or not document.file_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    return Response(
+        content=document.file_data,
+        media_type=document.file_mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{document.name}"'},
+    )

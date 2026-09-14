@@ -403,6 +403,28 @@ export interface ActivityReport {
   [key: string]: unknown;
 }
 
+export interface ProjectUpdateAttachment {
+  id: string;
+  update_id: string;
+  filename: string;
+  file_mime_type: string;
+  file_size?: number;
+  created_at: string;
+}
+
+export interface ProjectUpdate {
+  id: string;
+  project_id: string;
+  user_id?: string;
+  user_name?: string;
+  body: string;
+  source: string;
+  email_from?: string;
+  email_subject?: string;
+  created_at: string;
+  attachments: ProjectUpdateAttachment[];
+}
+
 export interface UpdateMePayload {
   full_name?: string;
   phone?: string;
