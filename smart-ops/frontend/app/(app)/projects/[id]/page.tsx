@@ -1710,27 +1710,42 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* Feed */}
+      {/* Feed — table view */}
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
         </div>
       ) : isError ? (
         <ErrorState onRetry={() => refetch()} />
       ) : updates.length === 0 ? (
-        <EmptyState icon={MessageSquarePlus} title="No updates yet" description="Post the first update or log an email thread above." />
+        <EmptyState icon={MessageSquarePlus} title="No updates yet" description="Post the first update above." />
       ) : (
-        <div className="space-y-4">
-          {updates.map((update) => (
-            <UpdateCard key={update.id} update={update} projectId={projectId} canDelete={canDelete} allUpdates={updates} />
-          ))}
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm min-w-[960px] border-collapse">
+            <thead>
+              <tr className="border-b border-border bg-muted/60">
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap w-24">Date</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-36">Current Capacities</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project Requirement</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Update</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-40">Comments</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-40">Remarks</th>
+                <th className="px-3 py-2.5 w-32"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {updates.map((update) => (
+                <UpdateTableRow key={update.id} update={update} projectId={projectId} canDelete={canDelete} allUpdates={updates} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
 
-function UpdateCard({
+function UpdateTableRow({
   update,
   projectId,
   canDelete,
@@ -1746,6 +1761,8 @@ function UpdateCard({
   const deleteAttachment = useDeleteProjectUpdateAttachment(projectId);
   const markDone = useMarkProjectUpdateDone(projectId);
   const addComment = useAddProjectUpdateComment(projectId);
+
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteAttId, setConfirmDeleteAttId] = useState<string | null>(null);
@@ -1760,6 +1777,8 @@ function UpdateCard({
   const [showComments, setShowComments] = useState(false);
   const [commentBody, setCommentBody] = useState("");
 
+  const isDone = update.status === "done";
+
   function startEdit() {
     setEditBody(update.body);
     setEditDate(update.posted_at.slice(0, 10));
@@ -1770,6 +1789,7 @@ function UpdateCard({
     setEditInternalNotes(update.internal_notes ?? "");
     setEditActionItems(update.action_items ?? "");
     setEditing(true);
+    setExpanded(true);
   }
 
   function handleSave() {
@@ -1800,296 +1820,291 @@ function UpdateCard({
     : null;
   const parentSnippet = parentUpdate?.body ?? update.parent_body_snippet;
 
-  return (
-    <div className={`rounded-xl border p-4 space-y-2 ${update.status === "done" ? "opacity-70" : ""} ${update.parent_update_id ? "border-primary/30 bg-primary/5 ml-4" : "border-border"}`}>
-      {/* Follow-up indicator */}
-      {update.parent_update_id && parentSnippet && (
-        <div className="flex items-start gap-1.5 rounded-md bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground border-l-2 border-primary">
-          <span className="shrink-0 font-medium text-primary">↩ Follow-up to:</span>
-          <span className="truncate">{parentSnippet.slice(0, 80)}{(parentSnippet.length > 80 ? "…" : "")}</span>
-        </div>
-      )}
+  const rowBase = `border-b border-border transition-colors ${isDone ? "opacity-60" : ""} ${update.parent_update_id ? "bg-primary/5" : ""}`;
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Avatar className="h-7 w-7">
-            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-              {(update.user_name || "?").slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="text-sm font-medium text-foreground">{update.user_name || "Unknown"}</p>
-            {!editing && (
-              <p className="text-[10px] text-muted-foreground">{formatTimestamp(update.posted_at)}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Done toggle */}
-          {!editing && (
+  return (
+    <>
+      {/* Summary row */}
+      <tr
+        className={`${rowBase} cursor-pointer hover:bg-muted/40`}
+        onClick={() => { if (!editing) setExpanded((v) => !v); }}
+      >
+        <td className="px-3 py-2.5 align-top whitespace-nowrap text-xs text-muted-foreground">
+          {update.posted_at.slice(0, 10)}
+          {update.parent_update_id && (
+            <span className="ml-1 text-primary text-[9px] font-medium">↩</span>
+          )}
+        </td>
+        <td className="px-3 py-2.5 align-top text-xs text-foreground">
+          <p className="line-clamp-2 whitespace-pre-wrap">{update.current_capacity || <span className="text-muted-foreground">—</span>}</p>
+        </td>
+        <td className="px-3 py-2.5 align-top text-xs text-foreground">
+          <p className="line-clamp-2 whitespace-pre-wrap">{update.project_requirement || <span className="text-muted-foreground">—</span>}</p>
+        </td>
+        <td className="px-3 py-2.5 align-top text-xs text-foreground">
+          <p className="line-clamp-2 whitespace-pre-wrap">{update.body}</p>
+        </td>
+        <td className="px-3 py-2.5 align-top text-xs text-foreground">
+          <p className="line-clamp-2 whitespace-pre-wrap">{update.internal_notes || <span className="text-muted-foreground">—</span>}</p>
+        </td>
+        <td className="px-3 py-2.5 align-top text-xs text-foreground">
+          <p className="line-clamp-2 whitespace-pre-wrap">{update.action_items || <span className="text-muted-foreground">—</span>}</p>
+        </td>
+        <td className="px-3 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1 flex-wrap">
+            {/* Done toggle */}
             <button
               type="button"
-              onClick={() => markDone.mutate({ updateId: update.id, done: update.status !== "done" })}
+              onClick={() => markDone.mutate({ updateId: update.id, done: !isDone })}
               disabled={markDone.isPending}
-              className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                update.status === "done"
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                  : "bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700"
-              }`}
-              aria-label={update.status === "done" ? "Reopen" : "Mark as done"}
+              title={isDone ? "Reopen" : "Mark as done"}
+              className={`rounded-md p-1 transition-colors ${isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:text-emerald-600"}`}
             >
-              {update.status === "done"
-                ? <><CheckCircle2 className="h-3 w-3" /> Done</>
-                : <><Circle className="h-3 w-3" /> Mark done</>}
+              {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
             </button>
-          )}
-          {update.source === "email" && !editing && (
-            <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              <Mail className="h-3 w-3" />
-              Email
-            </span>
-          )}
-          {!editing && !confirmDelete && (
-            <Button size="icon-sm" variant="ghost" onClick={startEdit} aria-label="Edit update">
-              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          )}
-          {canDelete && !editing && !confirmDelete && (
-            <Button size="icon-sm" variant="ghost" onClick={() => setConfirmDelete(true)} aria-label="Delete update">
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
-          )}
-          {confirmDelete && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">Delete?</span>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={deleteUpdate.isPending}
-                onClick={() => deleteUpdate.mutate(update.id, { onError: () => toast.error("Failed to delete") })}
-              >
-                {deleteUpdate.isPending ? "…" : "Yes"}
+            {update.attachments.length > 0 && (
+              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <Paperclip className="h-3 w-3" />{update.attachments.length}
+              </span>
+            )}
+            {update.comments.length > 0 && (
+              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <MessageCircle className="h-3 w-3" />{update.comments.length}
+              </span>
+            )}
+            {update.source === "email" && (
+              <Mail className="h-3 w-3 text-blue-500" title="Email source" />
+            )}
+            {!confirmDelete && (
+              <Button size="icon-sm" variant="ghost" onClick={startEdit} aria-label="Edit">
+                <Pencil className="h-3 w-3 text-muted-foreground" />
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>No</Button>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+            {canDelete && !confirmDelete && (
+              <Button size="icon-sm" variant="ghost" onClick={() => setConfirmDelete(true)} aria-label="Delete">
+                <Trash2 className="h-3 w-3 text-destructive" />
+              </Button>
+            )}
+            {confirmDelete && (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground">Delete?</span>
+                <Button size="sm" variant="destructive" disabled={deleteUpdate.isPending}
+                  onClick={() => deleteUpdate.mutate(update.id, { onError: () => toast.error("Failed to delete") })}>
+                  {deleteUpdate.isPending ? "…" : "Yes"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>No</Button>
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
 
-      {editing ? (
-        <div className="space-y-3 pt-1">
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</Label>
-            <Input
-              type="date"
-              value={editDate}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setEditDate(e.target.value)}
-              className="w-44"
-            />
-          </div>
-          {update.source === "email" && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">From</Label>
-                <Input value={editEmailFrom} onChange={(e) => setEditEmailFrom(e.target.value)} placeholder="sender@example.com" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subject</Label>
-                <Input value={editEmailSubject} onChange={(e) => setEditEmailSubject(e.target.value)} placeholder="Subject…" />
-              </div>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Capacities</Label>
-            <Textarea value={editCurrentCapacity} onChange={(e) => setEditCurrentCapacity(e.target.value)} className="min-h-[60px]" placeholder="Current capacities…" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project Requirement</Label>
-            <Textarea value={editProjectRequirement} onChange={(e) => setEditProjectRequirement(e.target.value)} className="min-h-[60px]" placeholder="Project requirement…" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Update <span className="text-destructive">*</span></Label>
-            <Textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} className="min-h-[100px]" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comments</Label>
-            <Textarea value={editInternalNotes} onChange={(e) => setEditInternalNotes(e.target.value)} className="min-h-[60px]" placeholder="Comments…" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Remarks</Label>
-            <Textarea value={editActionItems} onChange={(e) => setEditActionItems(e.target.value)} className="min-h-[60px]" placeholder="Remarks / action items…" />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleSave} disabled={editUpdate.isPending || !editBody.trim()}>
-              {editUpdate.isPending ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {update.source === "email" && (update.email_from || update.email_subject) && (
-            <div className="rounded-md bg-muted px-3 py-2 text-xs space-y-0.5">
-              {update.email_from && <p className="text-muted-foreground">From: <span className="text-foreground">{update.email_from}</span></p>}
-              {update.email_subject && <p className="text-muted-foreground">Subject: <span className="text-foreground">{update.email_subject}</span></p>}
-            </div>
-          )}
-          {/* Structured fields display */}
-          <div className="space-y-2">
-            {update.current_capacity && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Current Capacities</p>
-                <p className="whitespace-pre-wrap text-sm text-foreground">{update.current_capacity}</p>
-              </div>
-            )}
-            {update.project_requirement && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Project Requirement</p>
-                <p className="whitespace-pre-wrap text-sm text-foreground">{update.project_requirement}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Update</p>
-              <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
-            </div>
-            {update.internal_notes && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Comments</p>
-                <p className="whitespace-pre-wrap text-sm text-foreground">{update.internal_notes}</p>
-              </div>
-            )}
-            {update.action_items && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Remarks</p>
-                <p className="whitespace-pre-wrap text-sm text-foreground">{update.action_items}</p>
-              </div>
-            )}
-          </div>
-          {update.attachments.length > 0 && (
-            <div className="space-y-1 pt-1">
-              {update.attachments.map((att) => (
-                <div key={att.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs">
-                  <a
-                    href={api.projectUpdateAttachmentUrl(att.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-1 min-w-0 items-center gap-2 text-foreground hover:underline"
-                  >
-                    <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{att.filename}</span>
-                    {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
-                  </a>
-                  {canDelete && (
-                    confirmDeleteAttId === att.id ? (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-muted-foreground">Remove?</span>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={deleteAttachment.isPending}
-                          onClick={() => deleteAttachment.mutate(att.id, {
-                            onSuccess: () => setConfirmDeleteAttId(null),
-                            onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete attachment"),
-                          })}
-                        >
-                          {deleteAttachment.isPending ? "…" : "Yes"}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setConfirmDeleteAttId(null)}>No</Button>
+      {/* Expanded detail row */}
+      {expanded && (
+        <tr className={`${rowBase} bg-muted/30`}>
+          <td colSpan={7} className="px-4 py-4">
+            {editing ? (
+              <div className="space-y-3 max-w-4xl">
+                {update.parent_update_id && parentSnippet && (
+                  <div className="rounded-md border-l-2 border-primary bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-primary">↩ Follow-up to: </span>{parentSnippet.slice(0, 100)}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Date</Label>
+                    <Input type="date" value={editDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setEditDate(e.target.value)} className="w-40" />
+                  </div>
+                  {update.source === "email" && (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">From</Label>
+                        <Input value={editEmailFrom} onChange={(e) => setEditEmailFrom(e.target.value)} placeholder="sender@example.com" />
                       </div>
-                    ) : (
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        className="shrink-0"
-                        onClick={() => setConfirmDeleteAttId(att.id)}
-                        aria-label="Delete attachment"
-                      >
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
-                    )
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Subject</Label>
+                        <Input value={editEmailSubject} onChange={(e) => setEditEmailSubject(e.target.value)} placeholder="Subject…" />
+                      </div>
+                    </>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Comments section */}
-          <div className="pt-1 border-t border-border/50">
-            <button
-              type="button"
-              onClick={() => setShowComments((v) => !v)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              {update.comments.length > 0
-                ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}`
-                : "Add remark"}
-              {!showComments && update.comments.length > 0 && " · click to view"}
-            </button>
-
-            {showComments && (
-              <div className="mt-2 space-y-2">
-                {update.comments.map((c) => (
-                  <div key={c.id} className="flex gap-2">
-                    <Avatar className="h-5 w-5 shrink-0 mt-0.5">
-                      <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">
-                        {(c.user_name || "?").slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-1.5">
-                      <p className="text-[10px] font-medium text-foreground">{c.user_name || "Unknown"}</p>
-                      <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{formatTimestamp(c.created_at)}</p>
-                    </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Current Capacities</Label>
+                    <Textarea value={editCurrentCapacity} onChange={(e) => setEditCurrentCapacity(e.target.value)} className="min-h-[72px]" placeholder="Current capacities…" />
                   </div>
-                ))}
-
-                {/* Add remark input */}
-                <div className="flex gap-2 items-start">
-                  <Textarea
-                    placeholder="Add a remark…"
-                    value={commentBody}
-                    onChange={(e) => setCommentBody(e.target.value)}
-                    className="min-h-[60px] text-sm flex-1"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && commentBody.trim()) {
-                        e.preventDefault();
-                        addComment.mutate(
-                          { updateId: update.id, body: commentBody.trim() },
-                          {
-                            onSuccess: () => setCommentBody(""),
-                            onError: () => toast.error("Failed to add remark"),
-                          },
-                        );
-                      }
-                    }}
-                  />
-                  <Button
-                    size="icon-sm"
-                    disabled={addComment.isPending || !commentBody.trim()}
-                    onClick={() =>
-                      addComment.mutate(
-                        { updateId: update.id, body: commentBody.trim() },
-                        {
-                          onSuccess: () => setCommentBody(""),
-                          onError: () => toast.error("Failed to add remark"),
-                        },
-                      )
-                    }
-                    className="mt-1 shrink-0"
-                    aria-label="Post remark"
-                  >
-                    <Send className="h-3.5 w-3.5" />
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project Requirement</Label>
+                    <Textarea value={editProjectRequirement} onChange={(e) => setEditProjectRequirement(e.target.value)} className="min-h-[72px]" placeholder="Project requirement…" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Update <span className="text-destructive">*</span></Label>
+                  <Textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} className="min-h-[90px]" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Comments</Label>
+                    <Textarea value={editInternalNotes} onChange={(e) => setEditInternalNotes(e.target.value)} className="min-h-[72px]" placeholder="Comments…" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remarks</Label>
+                    <Textarea value={editActionItems} onChange={(e) => setEditActionItems(e.target.value)} className="min-h-[72px]" placeholder="Remarks…" />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end pt-1">
+                  <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+                  <Button size="sm" onClick={handleSave} disabled={editUpdate.isPending || !editBody.trim()}>
+                    {editUpdate.isPending ? "Saving…" : "Save"}
                   </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Ctrl+Enter to submit</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-w-4xl">
+                {/* Follow-up banner */}
+                {update.parent_update_id && parentSnippet && (
+                  <div className="flex items-start gap-1.5 rounded-md bg-primary/5 px-3 py-1.5 text-xs text-muted-foreground border-l-2 border-primary">
+                    <span className="shrink-0 font-medium text-primary">↩ Follow-up to:</span>
+                    <span>{parentSnippet.slice(0, 120)}{parentSnippet.length > 120 ? "…" : ""}</span>
+                  </div>
+                )}
+
+                {/* Posted by + email meta */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Avatar className="h-5 w-5">
+                    <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+                      {(update.user_name || "?").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{update.user_name || "Unknown"}</span>
+                  <span>·</span>
+                  <span>{formatTimestamp(update.posted_at)}</span>
+                  {update.source === "email" && update.email_from && (
+                    <><span>·</span><span className="text-blue-600">From: {update.email_from}</span></>
+                  )}
+                </div>
+
+                {/* Full text grid */}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {update.current_capacity && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Current Capacities</p>
+                      <p className="whitespace-pre-wrap text-sm text-foreground">{update.current_capacity}</p>
+                    </div>
+                  )}
+                  {update.project_requirement && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Project Requirement</p>
+                      <p className="whitespace-pre-wrap text-sm text-foreground">{update.project_requirement}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Update</p>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
+                  </div>
+                  {update.internal_notes && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Comments</p>
+                      <p className="whitespace-pre-wrap text-sm text-foreground">{update.internal_notes}</p>
+                    </div>
+                  )}
+                  {update.action_items && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Remarks</p>
+                      <p className="whitespace-pre-wrap text-sm text-foreground">{update.action_items}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Attachments */}
+                {update.attachments.length > 0 && (
+                  <div className="space-y-1 pt-1 border-t border-border/50">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Attachments</p>
+                    {update.attachments.map((att) => (
+                      <div key={att.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs bg-background">
+                        <a href={api.projectUpdateAttachmentUrl(att.id)} target="_blank" rel="noopener noreferrer"
+                          className="flex flex-1 min-w-0 items-center gap-2 text-foreground hover:underline">
+                          <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{att.filename}</span>
+                          {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
+                        </a>
+                        {canDelete && (
+                          confirmDeleteAttId === att.id ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-muted-foreground">Remove?</span>
+                              <Button size="sm" variant="destructive" disabled={deleteAttachment.isPending}
+                                onClick={() => deleteAttachment.mutate(att.id, {
+                                  onSuccess: () => setConfirmDeleteAttId(null),
+                                  onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete attachment"),
+                                })}>
+                                {deleteAttachment.isPending ? "…" : "Yes"}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setConfirmDeleteAttId(null)}>No</Button>
+                            </div>
+                          ) : (
+                            <Button size="icon-sm" variant="ghost" className="shrink-0" onClick={() => setConfirmDeleteAttId(att.id)} aria-label="Delete attachment">
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          )
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Remarks / comments thread */}
+                <div className="pt-1 border-t border-border/50">
+                  <button type="button" onClick={() => setShowComments((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    {update.comments.length > 0
+                      ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}`
+                      : "Add remark"}
+                    {!showComments && update.comments.length > 0 && " · click to view"}
+                  </button>
+                  {showComments && (
+                    <div className="mt-2 space-y-2">
+                      {update.comments.map((c) => (
+                        <div key={c.id} className="flex gap-2">
+                          <Avatar className="h-5 w-5 shrink-0 mt-0.5">
+                            <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">
+                              {(c.user_name || "?").slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-1.5">
+                            <p className="text-[10px] font-medium text-foreground">{c.user_name || "Unknown"}</p>
+                            <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{formatTimestamp(c.created_at)}</p>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-2 items-start">
+                        <Textarea placeholder="Add a remark…" value={commentBody} onChange={(e) => setCommentBody(e.target.value)}
+                          className="min-h-[60px] text-sm flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && commentBody.trim()) {
+                              e.preventDefault();
+                              addComment.mutate({ updateId: update.id, body: commentBody.trim() },
+                                { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") });
+                            }
+                          }} />
+                        <Button size="icon-sm" disabled={addComment.isPending || !commentBody.trim()}
+                          onClick={() => addComment.mutate({ updateId: update.id, body: commentBody.trim() },
+                            { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") })}
+                          className="mt-1 shrink-0" aria-label="Post remark">
+                          <Send className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Ctrl+Enter to submit</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-          </div>
-        </>
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
