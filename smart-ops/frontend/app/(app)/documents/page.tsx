@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ArrowLeft, FileText, Folder, FolderPlus, Plus, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, CheckSquare, FileText, Folder, FolderInput, FolderPlus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-custom/page-header";
 import { EmptyState } from "@/components/ui-custom/empty-state";
@@ -38,6 +38,7 @@ import {
   useCreateDocument,
   useDeleteDocument,
   useDocuments,
+  useUpdateDocument,
   useUploadDocumentFile,
 } from "@/lib/hooks/use-documents";
 import { API_BASE_URL } from "@/lib/api-client";
@@ -56,16 +57,49 @@ export default function DocumentsPage() {
   const [projectId, setProjectId] = useState<string>("");
   const { data, isLoading, isError, refetch } = useDocuments(projectId || undefined);
   const deleteDocument = useDeleteDocument();
+  const updateDocument = useUpdateDocument();
 
   // Folder navigation state
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   // Locally created empty folders (disappear on refresh if no docs added)
   const [localFolders, setLocalFolders] = useState<string[]>([]);
 
+  // Selection state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [moveOpen, setMoveOpen] = useState(false);
+
   // Dialog state
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detail, setDetail] = useState<DocumentRecord | null>(null);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
+  async function handleBulkMove(targetFolder: string) {
+    const ids = Array.from(selected);
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await updateDocument.mutateAsync({ id, payload: { folder: targetFolder || undefined } });
+        ok++;
+      } catch { /* continue */ }
+    }
+    toast.success(ok === ids.length ? `Moved ${ok} document${ok !== 1 ? "s" : ""}` : `Moved ${ok} of ${ids.length}`);
+    exitSelectMode();
+    setMoveOpen(false);
+  }
 
   const documents = useMemo(() => data ?? [], [data]);
 
@@ -146,6 +180,23 @@ export default function DocumentsPage() {
               >
                 <FolderPlus className="h-3.5 w-3.5" />
                 New Folder
+              </Button>
+            )}
+
+            {!selectMode ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setSelectMode(true)}
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                Select
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" className="gap-1.5" onClick={exitSelectMode}>
+                <X className="h-3.5 w-3.5" />
+                Cancel
               </Button>
             )}
 
@@ -248,7 +299,13 @@ export default function DocumentsPage() {
               ) : visibleDocs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No unfiled documents.</p>
               ) : (
-                <DocumentGrid docs={visibleDocs} onOpen={setDetail} />
+                <DocumentGrid
+                  docs={visibleDocs}
+                  onOpen={selectMode ? undefined : setDetail}
+                  selectMode={selectMode}
+                  selected={selected}
+                  onToggleSelect={toggleSelect}
+                />
               )}
             </div>
           )}
@@ -269,10 +326,34 @@ export default function DocumentsPage() {
                   }
                 />
               ) : (
-                <DocumentGrid docs={visibleDocs} onOpen={setDetail} />
+                <DocumentGrid
+                  docs={visibleDocs}
+                  onOpen={selectMode ? undefined : setDetail}
+                  selectMode={selectMode}
+                  selected={selected}
+                  onToggleSelect={toggleSelect}
+                />
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Floating bulk action bar */}
+      {selectMode && selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-xl">
+          <span className="text-sm font-medium text-foreground">{selected.size} selected</span>
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setMoveOpen(true)}
+          >
+            <FolderInput className="h-3.5 w-3.5" />
+            Move to folder
+          </Button>
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
         </div>
       )}
 
@@ -339,6 +420,16 @@ export default function DocumentsPage() {
         defaultProjectId={projectId}
         existingFolders={allFolderNames}
       />
+
+      {/* Move to folder dialog */}
+      <MoveToFolderDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        count={selected.size}
+        existingFolders={allFolderNames}
+        isBusy={updateDocument.isPending}
+        onMove={handleBulkMove}
+      />
     </div>
   );
 }
@@ -346,37 +437,52 @@ export default function DocumentsPage() {
 function DocumentGrid({
   docs,
   onOpen,
+  selectMode = false,
+  selected = new Set(),
+  onToggleSelect,
 }: {
   docs: DocumentRecord[];
-  onOpen: (doc: DocumentRecord) => void;
+  onOpen?: (doc: DocumentRecord) => void;
+  selectMode?: boolean;
+  selected?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {docs.map((doc) => (
-        <Card
-          key={doc.id}
-          className="glass-panel cursor-pointer transition-shadow hover:shadow-md"
-          onClick={() => onOpen(doc)}
-        >
-          <CardContent className="space-y-2">
-            <div className="flex items-start gap-2">
-              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-1 text-sm font-semibold text-foreground">{doc.name}</p>
-                {doc.status ? (
-                  <div className="mt-1">
-                    <StatusPill status={doc.status} />
-                  </div>
-                ) : null}
+      {docs.map((doc) => {
+        const isSelected = selected.has(doc.id);
+        return (
+          <Card
+            key={doc.id}
+            className={`glass-panel cursor-pointer transition-shadow hover:shadow-md ${isSelected ? "ring-2 ring-primary" : ""}`}
+            onClick={() => {
+              if (selectMode) onToggleSelect?.(doc.id);
+              else onOpen?.(doc);
+            }}
+          >
+            <CardContent className="space-y-2">
+              <div className="flex items-start gap-2">
+                {selectMode && (
+                  <div className={`mt-0.5 h-4 w-4 shrink-0 rounded border-2 ${isSelected ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+                )}
+                {!selectMode && <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-1 text-sm font-semibold text-foreground">{doc.name}</p>
+                  {doc.status ? (
+                    <div className="mt-1">
+                      <StatusPill status={doc.status} />
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>v{doc.version ?? 1}</span>
-              <span>{formatTimestamp(doc.created_at)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>v{doc.version ?? 1}</span>
+                <span>{formatTimestamp(doc.created_at)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -668,6 +774,103 @@ function UploadDocumentDialog({
               : files.length > 1
               ? `Upload ${files.length} files`
               : "Upload"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MoveToFolderDialog({
+  open,
+  onOpenChange,
+  count,
+  existingFolders,
+  isBusy,
+  onMove,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  count: number;
+  existingFolders: string[];
+  isBusy: boolean;
+  onMove: (folder: string) => Promise<void>;
+}) {
+  const [folder, setFolder] = useState("");
+  const [newFolderName, setNewFolderName] = useState("");
+  const [mode, setMode] = useState<"existing" | "new">(existingFolders.length > 0 ? "existing" : "new");
+
+  const target = mode === "new" ? newFolderName.trim() : folder;
+
+  function reset() {
+    setFolder("");
+    setNewFolderName("");
+    setMode(existingFolders.length > 0 ? "existing" : "new");
+  }
+
+  async function handleMove() {
+    await onMove(target);
+    reset();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move {count} document{count !== 1 ? "s" : ""} to folder</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("existing")}
+              className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${mode === "existing" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary"}`}
+            >
+              Existing folder
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("new")}
+              className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${mode === "new" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary"}`}
+            >
+              New folder
+            </button>
+          </div>
+          {mode === "existing" ? (
+            existingFolders.length > 0 ? (
+              <Select value={folder} onValueChange={setFolder}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose a folder…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {existingFolders.map((f) => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-xs text-muted-foreground">No folders yet — switch to New folder.</p>
+            )
+          ) : (
+            <Input
+              placeholder="New folder name…"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              autoFocus
+            />
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }} disabled={isBusy}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleMove}
+            disabled={isBusy || !target}
+            className="gap-1.5"
+          >
+            <FolderInput className="h-3.5 w-3.5" />
+            {isBusy ? "Moving…" : `Move ${count} document${count !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>
