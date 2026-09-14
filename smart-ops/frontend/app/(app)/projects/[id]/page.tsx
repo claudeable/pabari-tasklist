@@ -1873,7 +1873,7 @@ function UpdateTableRow({
               </span>
             )}
             {update.source === "email" && (
-              <Mail className="h-3 w-3 text-blue-500" title="Email source" />
+              <Mail className="h-3 w-3 text-blue-500" aria-label="Email source" />
             )}
             {!confirmDelete && (
               <Button size="icon-sm" variant="ghost" onClick={startEdit} aria-label="Edit">
