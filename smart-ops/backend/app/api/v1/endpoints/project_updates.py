@@ -144,6 +144,32 @@ def upload_project_update_attachment(
     return result
 
 
+ALLOWED_DELETE_EMAILS = {"pmureithi@usm.co.ke", "hkotecha@kwale-group.com"}
+
+
+@router.delete(
+    "/projects/{project_id}/updates/{update_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_project_update(
+    project_id: uuid.UUID,
+    update_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    role = current_user.role
+    is_admin = role and any(p.code == "admin" for p in role.permissions)
+    if current_user.email not in ALLOWED_DELETE_EMAILS and not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete updates")
+
+    update = db.get(ProjectUpdate, update_id)
+    if not update or update.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
+
+    db.delete(update)
+    db.commit()
+
+
 @router.get("/project-update-attachments/{attachment_id}/file")
 def serve_project_update_attachment(
     attachment_id: uuid.UUID,

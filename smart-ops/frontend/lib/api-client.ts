@@ -364,6 +364,8 @@ export const api = {
       method: "POST",
       body: payload,
     }),
+  deleteProjectUpdate: (projectId: string, updateId: string) =>
+    request<void>(`/projects/${projectId}/updates/${updateId}`, { method: "DELETE" }),
   updateProjectUpdate: (
     projectId: string,
     updateId: string,

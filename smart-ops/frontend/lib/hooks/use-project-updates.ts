@@ -21,6 +21,16 @@ export function useCreateProjectUpdate(projectId?: string) {
   });
 }
 
+export function useDeleteProjectUpdate(projectId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (updateId: string) => api.deleteProjectUpdate(projectId!, updateId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
+    },
+  });
+}
+
 export function useEditProjectUpdate(projectId?: string) {
   const qc = useQueryClient();
   return useMutation({

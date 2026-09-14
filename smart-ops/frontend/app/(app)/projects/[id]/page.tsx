@@ -53,6 +53,7 @@ import {
 import { useDeleteProject, useProject, useUpdateProject } from "@/lib/hooks/use-projects";
 import {
   useCreateProjectUpdate,
+  useDeleteProjectUpdate,
   useEditProjectUpdate,
   useProjectUpdates,
   useUploadProjectUpdateAttachment,
@@ -1444,10 +1445,21 @@ function ParticipantsTab({ projectId }: { projectId: string }) {
 
 // --- Project Updates ---
 
+const CAN_DELETE_EMAILS = new Set(["pmureithi@usm.co.ke", "hkotecha@kwale-group.com"]);
+
+function canDeleteUpdate(user: { email?: string; role?: string | { name?: string } } | undefined): boolean {
+  if (!user) return false;
+  if (user.email && CAN_DELETE_EMAILS.has(user.email)) return true;
+  if (typeof user.role === "string") return user.role.toLowerCase().includes("admin");
+  return (user.role as { name?: string })?.name?.toLowerCase().includes("admin") ?? false;
+}
+
 function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   const { data, isLoading, isError, refetch } = useProjectUpdates(projectId);
+  const { data: currentUser } = useCurrentUser();
   const createUpdate = useCreateProjectUpdate(projectId);
   const uploadAttachment = useUploadProjectUpdateAttachment(projectId);
+  const canDelete = canDeleteUpdate(currentUser);
 
   const [body, setBody] = useState("");
   const [source, setSource] = useState("internal");
@@ -1608,7 +1620,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       ) : (
         <div className="space-y-4">
           {updates.map((update) => (
-            <UpdateCard key={update.id} update={update} projectId={projectId} formatBytes={formatBytes} />
+            <UpdateCard key={update.id} update={update} projectId={projectId} canDelete={canDelete} formatBytes={formatBytes} />
           ))}
         </div>
       )}
@@ -1619,14 +1631,18 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
 function UpdateCard({
   update,
   projectId,
+  canDelete,
   formatBytes,
 }: {
   update: ProjectUpdate;
   projectId: string;
+  canDelete: boolean;
   formatBytes: (n?: number) => string;
 }) {
   const editUpdate = useEditProjectUpdate(projectId);
+  const deleteUpdate = useDeleteProjectUpdate(projectId);
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [editBody, setEditBody] = useState(update.body);
   const [editDate, setEditDate] = useState(update.posted_at.slice(0, 10));
   const [editEmailFrom, setEditEmailFrom] = useState(update.email_from ?? "");
@@ -1682,10 +1698,29 @@ function UpdateCard({
               Email
             </span>
           )}
-          {!editing && (
+          {!editing && !confirmDelete && (
             <Button size="icon-sm" variant="ghost" onClick={startEdit} aria-label="Edit update">
               <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
+          )}
+          {canDelete && !editing && !confirmDelete && (
+            <Button size="icon-sm" variant="ghost" onClick={() => setConfirmDelete(true)} aria-label="Delete update">
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          )}
+          {confirmDelete && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Delete?</span>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={deleteUpdate.isPending}
+                onClick={() => deleteUpdate.mutate(update.id, { onError: () => toast.error("Failed to delete") })}
+              >
+                {deleteUpdate.isPending ? "…" : "Yes"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>No</Button>
+            </div>
           )}
         </div>
       </div>
