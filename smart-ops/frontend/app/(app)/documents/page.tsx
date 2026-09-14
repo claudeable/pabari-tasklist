@@ -457,84 +457,96 @@ function UploadDocumentDialog({
   const createDocument = useCreateDocument();
   const uploadFile = useUploadDocumentFile();
 
-  const [name, setName] = useState("");
   const [folder, setFolder] = useState(defaultFolder);
   const [newFolderName, setNewFolderName] = useState("");
   const [folderMode, setFolderMode] = useState<"existing" | "new">(
     defaultFolder ? "existing" : existingFolders.length > 0 ? "existing" : "new",
   );
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [projectId, setProjectId] = useState(defaultProjectId || "");
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync defaults when dialog opens
-  const effectiveFolder =
-    folderMode === "new" ? newFolderName.trim() : folder;
+  const effectiveFolder = folderMode === "new" ? newFolderName.trim() : folder;
 
   function reset() {
-    setName("");
     setFolder(defaultFolder);
     setNewFolderName("");
     setFolderMode(defaultFolder ? "existing" : existingFolders.length > 0 ? "existing" : "new");
-    setFile(null);
+    setFiles([]);
+    setProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit() {
-    if (!name.trim()) {
-      toast.error("Document name is required");
-      return;
-    }
     if (!projectId) {
       toast.error("Please select a project");
       return;
     }
-    if (!file) {
-      toast.error("Please choose a file to upload");
+    if (files.length === 0) {
+      toast.error("Please choose at least one file");
       return;
     }
 
-    createDocument.mutate(
-      { name: name.trim(), folder: effectiveFolder || undefined, status: "draft", project_id: projectId },
-      {
-        onSuccess: async (doc) => {
-          try {
-            await uploadFile.mutateAsync({ id: doc.id, file });
-            toast.success("Document uploaded");
-          } catch {
-            toast.error("Document created but file upload failed");
-          }
-          reset();
-          onOpenChange(false);
-        },
-        onError: () => toast.error("Failed to create document"),
-      },
-    );
+    let succeeded = 0;
+    let failed = 0;
+    setProgress({ done: 0, total: files.length });
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const docName = f.name.replace(/\.[^.]+$/, "");
+      try {
+        const doc = await createDocument.mutateAsync({
+          name: docName,
+          folder: effectiveFolder || undefined,
+          status: "draft",
+          project_id: projectId,
+        });
+        await uploadFile.mutateAsync({ id: doc.id, file: f });
+        succeeded++;
+      } catch {
+        failed++;
+      }
+      setProgress({ done: i + 1, total: files.length });
+    }
+
+    if (failed === 0) {
+      toast.success(succeeded === 1 ? "Document uploaded" : `${succeeded} documents uploaded`);
+    } else {
+      toast.error(`${succeeded} uploaded, ${failed} failed`);
+    }
+    reset();
+    onOpenChange(false);
   }
 
-  const isBusy = createDocument.isPending || uploadFile.isPending;
+  const isBusy = progress !== null && progress.done < progress.total;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !isBusy) reset(); onOpenChange(v); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Upload Document</DialogTitle>
+          <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          {/* File picker — prominent at top */}
+          {/* File picker */}
           <div className="space-y-1.5">
-            <Label>File</Label>
+            <Label>Files</Label>
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                setFile(f);
-                if (f && !name.trim()) {
-                  // Auto-fill name from filename (strip extension)
-                  setName(f.name.replace(/\.[^.]+$/, ""));
-                }
+                const picked = Array.from(e.target.files ?? []);
+                setFiles((prev) => {
+                  const existing = new Set(prev.map((f) => f.name + f.size));
+                  return [...prev, ...picked.filter((f) => !existing.has(f.name + f.size))];
+                });
+                if (fileInputRef.current) fileInputRef.current.value = "";
               }}
             />
             <button
@@ -543,30 +555,35 @@ function UploadDocumentDialog({
               className="flex w-full items-center gap-2 rounded-md border border-dashed border-input bg-background px-3 py-3 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
             >
               <Upload className="h-4 w-4 shrink-0" />
-              {file ? (
-                <span className="truncate text-foreground font-medium">{file.name}</span>
-              ) : (
-                <span>Choose a file from your computer…</span>
-              )}
+              <span>
+                {files.length === 0
+                  ? "Choose files — you can select multiple at once"
+                  : `Add more files (${files.length} selected)`}
+              </span>
             </button>
-            {file && (
-              <p className="text-xs text-muted-foreground">
-                {(file.size / 1024).toFixed(0)} KB · {file.type || "unknown type"}
-              </p>
+            {files.length > 0 && (
+              <ul className="max-h-36 overflow-y-auto space-y-1 rounded-md border border-border bg-muted/40 p-2">
+                {files.map((f, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate text-foreground">{f.name}</span>
+                    <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+                      <span>{(f.size / 1024).toFixed(0)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(i)}
+                        className="text-destructive hover:text-destructive/80"
+                        aria-label="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="up-name">Document name</Label>
-            <Input
-              id="up-name"
-              placeholder="Name this document…"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-
-          {/* Folder: pick existing or type new */}
+          {/* Folder */}
           <div className="space-y-1.5">
             <Label>Folder</Label>
             <div className="flex gap-2">
@@ -594,14 +611,12 @@ function UploadDocumentDialog({
                   <SelectContent>
                     <SelectItem value="">No folder (unfiled)</SelectItem>
                     {existingFolders.map((f) => (
-                      <SelectItem key={f} value={f}>
-                        {f}
-                      </SelectItem>
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
-                <p className="text-xs text-muted-foreground">No folders yet — create one above.</p>
+                <p className="text-xs text-muted-foreground">No folders yet — create one first.</p>
               )
             ) : (
               <Input
@@ -612,6 +627,7 @@ function UploadDocumentDialog({
             )}
           </div>
 
+          {/* Project */}
           <div className="space-y-1.5">
             <Label htmlFor="up-project">Project</Label>
             <Select value={projectId} onValueChange={setProjectId}>
@@ -620,22 +636,38 @@ function UploadDocumentDialog({
               </SelectTrigger>
               <SelectContent>
                 {(projects ?? []).map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
+          {/* Progress bar */}
+          {progress && (
+            <div className="space-y-1">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-right">
+                {progress.done} / {progress.total}
+              </p>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }} disabled={isBusy}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isBusy} className="gap-1.5">
+          <Button onClick={handleSubmit} disabled={isBusy || files.length === 0} className="gap-1.5">
             <Upload className="h-3.5 w-3.5" />
-            {isBusy ? (uploadFile.isPending ? "Uploading…" : "Creating…") : "Upload"}
+            {isBusy
+              ? `Uploading ${progress!.done + 1} of ${progress!.total}…`
+              : files.length > 1
+              ? `Upload ${files.length} files`
+              : "Upload"}
           </Button>
         </DialogFooter>
       </DialogContent>
