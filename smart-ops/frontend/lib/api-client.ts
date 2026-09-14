@@ -364,6 +364,15 @@ export const api = {
       method: "POST",
       body: payload,
     }),
+  updateProjectUpdate: (
+    projectId: string,
+    updateId: string,
+    payload: { body?: string; posted_at?: string; email_from?: string; email_subject?: string },
+  ) =>
+    request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}`, {
+      method: "PUT",
+      body: payload,
+    }),
   uploadProjectUpdateAttachment: async (
     projectId: string,
     updateId: string,

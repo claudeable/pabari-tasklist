@@ -9,7 +9,7 @@ from app.core.deps import get_current_user, get_db
 from app.models.project import Project
 from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment
 from app.models.user import User
-from app.schemas.project_update import ProjectUpdateCreate, ProjectUpdateRead
+from app.schemas.project_update import ProjectUpdateCreate, ProjectUpdateEdit, ProjectUpdateRead
 
 router = APIRouter()
 
@@ -71,6 +71,38 @@ def create_project_update(
 
     result = ProjectUpdateRead.model_validate(update)
     result.user_name = current_user.full_name
+    return result
+
+
+@router.put(
+    "/projects/{project_id}/updates/{update_id}",
+    response_model=ProjectUpdateRead,
+)
+def edit_project_update(
+    project_id: uuid.UUID,
+    update_id: uuid.UUID,
+    payload: ProjectUpdateEdit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectUpdateRead:
+    update = db.get(ProjectUpdate, update_id)
+    if not update or update.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
+
+    if payload.body is not None:
+        update.body = payload.body
+    if payload.posted_at is not None:
+        update.posted_at = payload.posted_at
+    if payload.email_from is not None:
+        update.email_from = payload.email_from or None
+    if payload.email_subject is not None:
+        update.email_subject = payload.email_subject or None
+
+    db.commit()
+    db.refresh(update)
+
+    result = ProjectUpdateRead.model_validate(update)
+    result.user_name = update.user.full_name if update.user else None
     return result
 
 

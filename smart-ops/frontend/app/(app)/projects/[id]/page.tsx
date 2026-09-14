@@ -53,6 +53,7 @@ import {
 import { useDeleteProject, useProject, useUpdateProject } from "@/lib/hooks/use-projects";
 import {
   useCreateProjectUpdate,
+  useEditProjectUpdate,
   useProjectUpdates,
   useUploadProjectUpdateAttachment,
 } from "@/lib/hooks/use-project-updates";
@@ -1607,7 +1608,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       ) : (
         <div className="space-y-4">
           {updates.map((update) => (
-            <UpdateCard key={update.id} update={update} formatBytes={formatBytes} />
+            <UpdateCard key={update.id} update={update} projectId={projectId} formatBytes={formatBytes} />
           ))}
         </div>
       )}
@@ -1615,7 +1616,49 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   );
 }
 
-function UpdateCard({ update, formatBytes }: { update: ProjectUpdate; formatBytes: (n?: number) => string }) {
+function UpdateCard({
+  update,
+  projectId,
+  formatBytes,
+}: {
+  update: ProjectUpdate;
+  projectId: string;
+  formatBytes: (n?: number) => string;
+}) {
+  const editUpdate = useEditProjectUpdate(projectId);
+  const [editing, setEditing] = useState(false);
+  const [editBody, setEditBody] = useState(update.body);
+  const [editDate, setEditDate] = useState(update.posted_at.slice(0, 10));
+  const [editEmailFrom, setEditEmailFrom] = useState(update.email_from ?? "");
+  const [editEmailSubject, setEditEmailSubject] = useState(update.email_subject ?? "");
+
+  function startEdit() {
+    setEditBody(update.body);
+    setEditDate(update.posted_at.slice(0, 10));
+    setEditEmailFrom(update.email_from ?? "");
+    setEditEmailSubject(update.email_subject ?? "");
+    setEditing(true);
+  }
+
+  function handleSave() {
+    if (!editBody.trim()) return;
+    editUpdate.mutate(
+      {
+        updateId: update.id,
+        payload: {
+          body: editBody.trim(),
+          posted_at: editDate ? new Date(editDate).toISOString() : undefined,
+          email_from: editEmailFrom || undefined,
+          email_subject: editEmailSubject || undefined,
+        },
+      },
+      {
+        onSuccess: () => { setEditing(false); toast.success("Update saved"); },
+        onError: () => toast.error("Failed to save update"),
+      },
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border p-4 space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -1627,42 +1670,89 @@ function UpdateCard({ update, formatBytes }: { update: ProjectUpdate; formatByte
           </Avatar>
           <div>
             <p className="text-sm font-medium text-foreground">{update.user_name || "Unknown"}</p>
-            <p className="text-[10px] text-muted-foreground">{formatTimestamp(update.posted_at)}</p>
+            {!editing && (
+              <p className="text-[10px] text-muted-foreground">{formatTimestamp(update.posted_at)}</p>
+            )}
           </div>
         </div>
-        {update.source === "email" && (
-          <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-            <Mail className="h-3 w-3" />
-            Email
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {update.source === "email" && !editing && (
+            <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Mail className="h-3 w-3" />
+              Email
+            </span>
+          )}
+          {!editing && (
+            <Button size="icon-sm" variant="ghost" onClick={startEdit} aria-label="Edit update">
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
       </div>
 
-      {update.source === "email" && (update.email_from || update.email_subject) && (
-        <div className="rounded-md bg-muted px-3 py-2 text-xs space-y-0.5">
-          {update.email_from && <p className="text-muted-foreground">From: <span className="text-foreground">{update.email_from}</span></p>}
-          {update.email_subject && <p className="text-muted-foreground">Subject: <span className="text-foreground">{update.email_subject}</span></p>}
+      {editing ? (
+        <div className="space-y-2 pt-1">
+          <div className="space-y-1">
+            <Label>Date</Label>
+            <Input
+              type="date"
+              value={editDate}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setEditDate(e.target.value)}
+              className="w-40"
+            />
+          </div>
+          {update.source === "email" && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>From</Label>
+                <Input value={editEmailFrom} onChange={(e) => setEditEmailFrom(e.target.value)} placeholder="sender@example.com" />
+              </div>
+              <div className="space-y-1">
+                <Label>Subject</Label>
+                <Input value={editEmailSubject} onChange={(e) => setEditEmailSubject(e.target.value)} placeholder="Subject…" />
+              </div>
+            </div>
+          )}
+          <Textarea
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
+            className="min-h-[100px]"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleSave} disabled={editUpdate.isPending || !editBody.trim()}>
+              {editUpdate.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
         </div>
-      )}
-
-      <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
-
-      {update.attachments.length > 0 && (
-        <div className="space-y-1 pt-1">
-          {update.attachments.map((att) => (
-            <a
-              key={att.id}
-              href={api.projectUpdateAttachmentUrl(att.id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
-            >
-              <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <span className="truncate">{att.filename}</span>
-              {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
-            </a>
-          ))}
-        </div>
+      ) : (
+        <>
+          {update.source === "email" && (update.email_from || update.email_subject) && (
+            <div className="rounded-md bg-muted px-3 py-2 text-xs space-y-0.5">
+              {update.email_from && <p className="text-muted-foreground">From: <span className="text-foreground">{update.email_from}</span></p>}
+              {update.email_subject && <p className="text-muted-foreground">Subject: <span className="text-foreground">{update.email_subject}</span></p>}
+            </div>
+          )}
+          <p className="whitespace-pre-wrap text-sm text-foreground">{update.body}</p>
+          {update.attachments.length > 0 && (
+            <div className="space-y-1 pt-1">
+              {update.attachments.map((att) => (
+                <a
+                  key={att.id}
+                  href={api.projectUpdateAttachmentUrl(att.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
+                >
+                  <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{att.filename}</span>
+                  {att.file_size && <span className="ml-auto shrink-0 text-muted-foreground">{formatBytes(att.file_size)}</span>}
+                </a>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -21,6 +21,22 @@ export function useCreateProjectUpdate(projectId?: string) {
   });
 }
 
+export function useEditProjectUpdate(projectId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      updateId,
+      payload,
+    }: {
+      updateId: string;
+      payload: { body?: string; posted_at?: string; email_from?: string; email_subject?: string };
+    }) => api.updateProjectUpdate(projectId!, updateId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
+    },
+  });
+}
+
 export function useUploadProjectUpdateAttachment(projectId?: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -16,6 +16,13 @@ class ProjectUpdateAttachmentRead(BaseModel):
     created_at: datetime
 
 
+class ProjectUpdateEdit(BaseModel):
+    body: Optional[str] = None
+    posted_at: Optional[datetime] = None
+    email_from: Optional[str] = None
+    email_subject: Optional[str] = None
+
+
 class ProjectUpdateCreate(BaseModel):
     body: str
     source: str = "internal"
