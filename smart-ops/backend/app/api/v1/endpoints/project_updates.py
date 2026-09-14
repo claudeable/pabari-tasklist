@@ -163,7 +163,10 @@ def delete_project_update(
     current_user: User = Depends(get_current_user),
 ) -> None:
     role = current_user.role
-    is_admin = role and any(p.code == "admin" for p in role.permissions)
+    is_admin = role and (
+        any(p.code == "admin" for p in role.permissions)
+        or "admin" in (role.name or "").lower()
+    )
     if current_user.email not in ALLOWED_DELETE_EMAILS and not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete updates")
 
@@ -185,7 +188,10 @@ def delete_project_update_attachment(
     current_user: User = Depends(get_current_user),
 ) -> None:
     role = current_user.role
-    is_admin = role and any(p.code == "admin" for p in role.permissions)
+    is_admin = role and (
+        any(p.code == "admin" for p in role.permissions)
+        or "admin" in (role.name or "").lower()
+    )
     if current_user.email not in ALLOWED_DELETE_EMAILS and not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete attachments")
 

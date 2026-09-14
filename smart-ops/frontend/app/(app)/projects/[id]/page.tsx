@@ -1838,7 +1838,7 @@ function UpdateCard({
                           disabled={deleteAttachment.isPending}
                           onClick={() => deleteAttachment.mutate(att.id, {
                             onSuccess: () => setConfirmDeleteAttId(null),
-                            onError: () => toast.error("Failed to delete attachment"),
+                            onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete attachment"),
                           })}
                         >
                           {deleteAttachment.isPending ? "…" : "Yes"}
