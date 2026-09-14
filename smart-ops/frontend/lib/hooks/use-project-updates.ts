@@ -79,6 +79,17 @@ export function useMarkProjectUpdateDone(projectId?: string) {
   });
 }
 
+export function useSetProjectUpdateStatus(projectId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ updateId, status }: { updateId: string; status: string }) =>
+      api.setProjectUpdateStatus(projectId!, updateId, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-updates", projectId] });
+    },
+  });
+}
+
 export function useAddProjectUpdateComment(projectId?: string) {
   const qc = useQueryClient();
   return useMutation({

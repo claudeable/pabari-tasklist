@@ -398,6 +398,11 @@ export const api = {
       method: "PATCH",
       body: { status: done ? "done" : "open" },
     }),
+  setProjectUpdateStatus: (projectId: string, updateId: string, status: string) =>
+    request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}/status`, {
+      method: "PATCH",
+      body: { status },
+    }),
   addProjectUpdateComment: (projectId: string, updateId: string, body: string) =>
     request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}/comments`, {
       method: "POST",

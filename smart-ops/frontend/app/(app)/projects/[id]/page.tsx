@@ -18,8 +18,6 @@ import {
   Paperclip,
   Download,
   MessageSquarePlus,
-  CheckCircle2,
-  Circle,
   MessageCircle,
   Send,
 } from "lucide-react";
@@ -62,6 +60,7 @@ import {
   useEditProjectUpdate,
   useMarkProjectUpdateDone,
   useProjectUpdates,
+  useSetProjectUpdateStatus,
   useUploadProjectUpdateAttachment,
 } from "@/lib/hooks/use-project-updates";
 import { useCurrentUser } from "@/lib/hooks/use-auth";
@@ -1725,12 +1724,13 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
             <thead>
               <tr className="border-b border-border bg-muted/60">
                 <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap w-24">Date</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-28">Status</th>
                 <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-36">Current Capacities</th>
                 <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project Requirement</th>
                 <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Update</th>
                 <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-40">Comments</th>
                 <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-40">Remarks</th>
-                <th className="px-3 py-2.5 w-32"></th>
+                <th className="px-3 py-2.5 w-28"></th>
               </tr>
             </thead>
             <tbody>
@@ -1759,7 +1759,7 @@ function UpdateTableRow({
   const editUpdate = useEditProjectUpdate(projectId);
   const deleteUpdate = useDeleteProjectUpdate(projectId);
   const deleteAttachment = useDeleteProjectUpdateAttachment(projectId);
-  const markDone = useMarkProjectUpdateDone(projectId);
+  const setStatus = useSetProjectUpdateStatus(projectId);
   const addComment = useAddProjectUpdateComment(projectId);
 
   const [expanded, setExpanded] = useState(false);
@@ -1777,7 +1777,19 @@ function UpdateTableRow({
   const [showComments, setShowComments] = useState(false);
   const [commentBody, setCommentBody] = useState("");
 
-  const isDone = update.status === "done";
+  const STATUS_CYCLE: Record<string, string> = { open: "in_progress", in_progress: "done", done: "open" };
+  const STATUS_LABEL: Record<string, string> = { open: "Open", in_progress: "In Progress", done: "Done" };
+  const STATUS_CLASS: Record<string, string> = {
+    open: "bg-muted text-muted-foreground",
+    in_progress: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  };
+  const currentStatus = update.status || "open";
+
+  function cycleStatus(e: React.MouseEvent) {
+    e.stopPropagation();
+    setStatus.mutate({ updateId: update.id, status: STATUS_CYCLE[currentStatus] ?? "open" });
+  }
 
   function startEdit() {
     setEditBody(update.body);
@@ -1820,7 +1832,7 @@ function UpdateTableRow({
     : null;
   const parentSnippet = parentUpdate?.body ?? update.parent_body_snippet;
 
-  const rowBase = `border-b border-border transition-colors ${isDone ? "opacity-60" : ""} ${update.parent_update_id ? "bg-primary/5" : ""}`;
+  const rowBase = `border-b border-border transition-colors ${currentStatus === "done" ? "opacity-60" : ""} ${update.parent_update_id ? "bg-primary/5" : ""}`;
 
   return (
     <>
@@ -1834,6 +1846,18 @@ function UpdateTableRow({
           {update.parent_update_id && (
             <span className="ml-1 text-primary text-[9px] font-medium">↩</span>
           )}
+        </td>
+        {/* Status badge — click cycles through Open → In Progress → Done */}
+        <td className="px-3 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={cycleStatus}
+            disabled={setStatus.isPending}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors whitespace-nowrap ${STATUS_CLASS[currentStatus] ?? STATUS_CLASS.open}`}
+            title="Click to advance status"
+          >
+            {STATUS_LABEL[currentStatus] ?? "Open"}
+          </button>
         </td>
         <td className="px-3 py-2.5 align-top text-xs text-foreground">
           <p className="line-clamp-2 whitespace-pre-wrap">{update.current_capacity || <span className="text-muted-foreground">—</span>}</p>
@@ -1851,25 +1875,26 @@ function UpdateTableRow({
           <p className="line-clamp-2 whitespace-pre-wrap">{update.action_items || <span className="text-muted-foreground">—</span>}</p>
         </td>
         <td className="px-3 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-1 flex-wrap">
-            {/* Done toggle */}
-            <button
-              type="button"
-              onClick={() => markDone.mutate({ updateId: update.id, done: !isDone })}
-              disabled={markDone.isPending}
-              title={isDone ? "Reopen" : "Mark as done"}
-              className={`rounded-md p-1 transition-colors ${isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:text-emerald-600"}`}
+          <div className="flex items-center justify-end gap-1">
+            {/* Quick remark button */}
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Add remark"
+              title={update.comments.length > 0 ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}` : "Add remark"}
+              onClick={() => { setExpanded(true); setShowComments(true); }}
+              className="relative"
             >
-              {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
-            </button>
+              <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              {update.comments.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
+                  {update.comments.length}
+                </span>
+              )}
+            </Button>
             {update.attachments.length > 0 && (
               <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                 <Paperclip className="h-3 w-3" />{update.attachments.length}
-              </span>
-            )}
-            {update.comments.length > 0 && (
-              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                <MessageCircle className="h-3 w-3" />{update.comments.length}
               </span>
             )}
             {update.source === "email" && (
@@ -1902,7 +1927,7 @@ function UpdateTableRow({
       {/* Expanded detail row */}
       {expanded && (
         <tr className={`${rowBase} bg-muted/30`}>
-          <td colSpan={7} className="px-4 py-4">
+          <td colSpan={8} className="px-4 py-4">
             {editing ? (
               <div className="space-y-3 max-w-4xl">
                 {update.parent_update_id && parentSnippet && (
