@@ -58,6 +58,7 @@ import {
   useProjectUpdates,
   useUploadProjectUpdateAttachment,
 } from "@/lib/hooks/use-project-updates";
+import { useCurrentUser } from "@/lib/hooks/use-auth";
 import { api } from "@/lib/api-client";
 import type { ProjectUpdate } from "@/lib/types";
 import { ApiError } from "@/lib/api-client";
