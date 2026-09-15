@@ -1,7 +1,7 @@
 // ============================================================
 // PABARI WORKSPACE — Unified Hub
 // 4-card launcher:
-//   1. Task Management       → /tasks  (internal Pabari system)
+//   1. Pabari Core           → /tasks  (internal Pabari system)
 //   2. Smart Ops             → SSO → joint-collaboration-portal.vercel.app
 //   3. PIL Transmission Lines → SSO → pil-frontend-production.up.railway.app
 //   4. Property Mgmt         → SSO → (not yet deployed)
@@ -102,11 +102,11 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false }: 
   // ── Internal cards ─────────────────────────────────────────────────────────
   const internalCard = {
     key:    'tasks',
-    label:  'Task Management',
+    label:  'Pabari Core',
     href:   '/tasks/hub',
     icon:   '📋',
     accent: '#22c55e',
-    desc:   'Tasks · Projects · Finance · Documents · Connect · Centre',
+    desc:   'Tasks · Projects · Connect · Centre',
     stat:   openTasks !== null ? `${openTasks} open tasks` : 'Loading…',
   }
 

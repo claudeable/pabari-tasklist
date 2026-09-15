@@ -66,8 +66,6 @@ const ACTION_FEED: Record<string, string> = {
 
 const systems = [
   { key:'tasks',    icon:'✓',  iconBg:'#dbeafe', iconColor:'#1d4ed8', label:'Task Management',     href:'/tasks',            detail:'Pending · Assignments · Deadlines' },
-  { key:'finance',  icon:'💳', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Finance',             href:'/finance',          detail:'Invoices · Payments · Budgets',  financeOnly:true },
-  { key:'delivery', icon:'📦', iconBg:'#fef3c7', iconColor:'#b45309', label:'Delivery Notes',      href:'/delivery-notes',   detail:'Create · Track · Export',        yaleletOnly:true },
   { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',         detail:'Milestones · Gantt · Budget',    projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents',        detail:'Upload · Folders · View',        adminOnly:true },
   { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',          detail:'Contacts · Directory · Search',  harshilOnly:true },
