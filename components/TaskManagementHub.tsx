@@ -17,14 +17,13 @@ const ALL_MODULES: Module[] = [
   { key:'dashboard',      icon:'📊', label:'Dashboard',            desc:'KPIs, overdue tasks and status summaries',               href:'/dashboard',       accent:'#3b82f6', badge:'Open dashboard'   },
   { key:'reports',        icon:'📈', label:'Reports',              desc:'Weekly reports, task analytics and export',              href:'/reports',         accent:'#8b5cf6', badge:'View reports'     },
   { key:'documents',      icon:'📁', label:'Documents',            desc:'Shared files, attachments and document management',      href:'/documents',       accent:'#f59e0b', badge:'Open documents'   },
-  { key:'finance',        icon:'💰', label:'Finance',              desc:'Invoices, petty cash, payment tracking',                 href:'/finance',         accent:'#10b981', badge:'Open finance'     },
-  { key:'delivery-notes', icon:'🚚', label:'Delivery Notes',       desc:'Delivery note management and tracking',                  href:'/delivery-notes',  accent:'#06b6d4', badge:'View notes'       },
+  { key:'tracker',        icon:'📊', label:'Project Tracker',      desc:'Gantt charts, updates, meetings and progress',           href:'/tracker',         accent:'#15803d', badge:'Open tracker'     },
   { key:'projects',       icon:'🏗️', label:'Projects',             desc:'Project tracking, milestones and progress',              href:'/projects',        accent:'#f97316', badge:'View projects'    },
   { key:'centre',         icon:'🏢', label:'Centre',               desc:'Company centre — announcements and resources',           href:'/centre',          accent:'#6366f1', badge:'Open centre'      },
 ]
 
 const MODULES_BY_TYPE: Record<string, string[]> = {
-  admin:   ['board','intelligence','connect','dashboard','reports','documents','finance','delivery-notes','projects','centre'],
+  admin:   ['board','intelligence','connect','dashboard','reports','documents','tracker','projects','centre'],
   paul:    ['board','intelligence'],
   yalelet: ['board','delivery-notes'],
 }
