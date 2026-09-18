@@ -2497,10 +2497,10 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                 }
               </div>
 
-              {/* Responsible — editable only for director/admin */}
+              {/* Responsible — editable for director/admin/Yalelet */}
               <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
                 <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0}}>Responsible</div>
-                {(currentUser.role === 'admin' || currentUser.role === 'director')
+                {(currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.email === 'yaynalem@usm.co.ke')
                   ? <select value={activeTask.responsible} onChange={async e=>{
                       const val = e.target.value
                       await fetch(`/api/tasks/${activeTask.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({responsible:val})})
@@ -2515,7 +2515,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               </div>
 
               {/* Also Assigned — co-assignees alongside the primary responsible */}
-              {(currentUser.role === 'admin' || currentUser.role === 'director') && (
+              {(currentUser.role === 'admin' || currentUser.role === 'director' || currentUser.email === 'yaynalem@usm.co.ke') && (
                 <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
                   <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:3}}>Also Assigned</div>
                   <div style={{flex:1}}>
@@ -2550,7 +2550,7 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
                   </div>
                 </div>
               )}
-              {(currentUser.role !== 'admin' && currentUser.role !== 'director') && (activeTask.co_assignees||[]).length > 0 && (
+              {(currentUser.role !== 'admin' && currentUser.role !== 'director' && currentUser.email !== 'yaynalem@usm.co.ke') && (activeTask.co_assignees||[]).length > 0 && (
                 <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
                   <div style={{fontSize:9.5,fontWeight:700,textTransform:'uppercase',color:'#9ca3af',letterSpacing:'0.4px',width:82,flexShrink:0,paddingTop:3}}>Also Assigned</div>
                   <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
