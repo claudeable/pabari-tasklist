@@ -185,11 +185,18 @@ export interface Milestone {
   created_at: string
 }
 
+export const PROJECT_CATEGORIES = [
+  'Trading', 'Aviation', 'IT', 'Property', 'Finance',
+  'Entertainment', 'Healthcare', 'Education', 'Projects', 'Other',
+] as const
+export type ProjectCategory = typeof PROJECT_CATEGORIES[number]
+
 export interface Project {
   id:          number
   name:        string
   description: string
   company:     string
+  category:    string
   owner:       string
   status:      ProjectStatus
   rag_status:  RAGStatus

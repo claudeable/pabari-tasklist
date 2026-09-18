@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.name        !== undefined) patch.name        = body.name
   if (body.description !== undefined) patch.description = body.description
   if (body.company     !== undefined) patch.company     = body.company
+  if (body.category    !== undefined) patch.category    = body.category
   if (body.owner       !== undefined) patch.owner       = body.owner
   if (body.status      !== undefined) patch.status      = body.status as ProjectStatus
   if (body.rag_status  !== undefined) patch.rag_status  = body.rag_status

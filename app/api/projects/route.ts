@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (user.role === 'staff') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, description, company, owner, status, rag_status, start_date, end_date, budget } = body
+  const { name, description, company, category, owner, status, rag_status, start_date, end_date, budget } = body
   if (!name?.trim() || !company) return NextResponse.json({ error: 'Name and company required' }, { status: 400 })
 
   const branch = cookieStore.get('pabari-branch')?.value || 'kenya'
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     name: name.trim(),
     description: description || '',
     company,
+    category: category || '',
     owner: owner || user.name,
     status: (status || 'active') as ProjectStatus,
     rag_status: rag_status || 'not-set',

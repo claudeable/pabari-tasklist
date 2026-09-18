@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport, ProjectExpense, SessionUser,
-  PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE,
+  PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE, PROJECT_CATEGORIES,
   InvoiceStatus, INVOICE_STATUS_STYLE, INVOICE_STATUS_LABELS,
   ProjectUpdate, ProjectUpdateComment, ProjectMeeting, MeetingActionTask, UpdateType, UpdateStatus,
   ProjectDecision, ProjectRisk, DecisionStatus, RiskType, RiskSeverity, RiskStatus,
@@ -28,7 +28,7 @@ const RAG_CONFIG: Record<RAGStatus, { label: string; bg: string; color: string; 
 }
 
 const BLANK_FORM = {
-  name:'', description:'', company:'BYTEWISE' as string, owner:'',
+  name:'', description:'', company:'BYTEWISE' as string, category:'' as string, owner:'',
   status:'active' as ProjectStatus, rag_status:'not-set' as RAGStatus,
   start_date:'', end_date:'', budget:'',
 }
@@ -272,9 +272,10 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [viewMode,      setViewMode]      = useState<'list'|'portfolio'>('list')
 
   // Filters
-  const [filterStatus,  setFilterStatus]  = useState<ProjectStatus|''>('')
-  const [filterCompany, setFilterCompany] = useState('')
-  const [filterRAG,     setFilterRAG]     = useState<RAGStatus|''>('')
+  const [filterStatus,   setFilterStatus]   = useState<ProjectStatus|''>('')
+  const [filterCompany,  setFilterCompany]  = useState('')
+  const [filterRAG,      setFilterRAG]      = useState<RAGStatus|''>('')
+  const [filterCategory, setFilterCategory] = useState('')
 
   // New project form
   const [showForm,  setShowForm]  = useState(false)
@@ -384,6 +385,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [updateTaskModal,  setUpdateTaskModal]  = useState<{ update: ProjectUpdate } | null>(null)
   const [updateTaskForm,   setUpdateTaskForm]   = useState<{ particulars:string; responsible:string; due_date:string; priority:'low'|'medium'|'high' }>({ particulars:'', responsible:'', due_date:'', priority:'medium' })
   const [updateTaskSaving, setUpdateTaskSaving] = useState(false)
+  const [updateTaskError,  setUpdateTaskError]  = useState('')
+
+  // Toast
+  const [toast, setToast] = useState<string | null>(null)
+  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
   // Decisions
   const [decisions,       setDecisions]       = useState<ProjectDecision[]>([])
@@ -421,11 +427,12 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
         !p.owner.toLowerCase().includes(search.toLowerCase()) &&
         !p.company.toLowerCase().includes(search.toLowerCase())) return false
-    if (filterStatus  && p.status      !== filterStatus)  return false
-    if (filterCompany && p.company     !== filterCompany) return false
-    if (filterRAG     && p.rag_status  !== filterRAG)     return false
+    if (filterStatus   && p.status     !== filterStatus)   return false
+    if (filterCompany  && p.company    !== filterCompany)  return false
+    if (filterRAG      && p.rag_status !== filterRAG)      return false
+    if (filterCategory && p.category   !== filterCategory) return false
     return true
-  }), [projects, filterStatus, filterCompany, filterRAG, search])
+  }), [projects, filterStatus, filterCompany, filterRAG, filterCategory, search])
 
   const healthMap = useMemo(() => {
     const m: Record<number, ReturnType<typeof computeHealth>> = {}
@@ -703,6 +710,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   async function submitUpdateToTask() {
     if (!updateTaskModal || !active || !updateTaskForm.particulars.trim()) return
     setUpdateTaskSaving(true)
+    setUpdateTaskError('')
     const today = new Date()
     const dateStr = `${today.getDate()}-${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][today.getMonth()]}-${String(today.getFullYear()).slice(2)}`
     const res = await fetch('/api/tasks', {
@@ -723,7 +731,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       }),
     })
     if (res.ok) {
-      // Refresh task count
+      // Refresh tasks
       const dr = await fetch(`/api/projects/${active.id}`, { credentials:'include' })
       if (dr.ok) {
         const data = await dr.json()
@@ -734,6 +742,12 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       }
       setUpdateTaskModal(null)
       setUpdateTaskForm({ particulars:'', responsible:'', due_date:'', priority:'medium' })
+      setDetailTab('overview')
+      setTaskFilter('all')
+      showToast(`Task created → ${updateTaskForm.responsible} · Check Linked Tasks below`)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setUpdateTaskError((d as Record<string,string>).error || 'Failed to create task.')
     }
     setUpdateTaskSaving(false)
   }
@@ -946,6 +960,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       name:        active.name,
       description: active.description,
       company:     active.company,
+      category:    active.category || '',
       owner:       active.owner,
       status:      active.status,
       rag_status:  active.rag_status,
@@ -965,6 +980,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
         name:        editForm.name.trim(),
         description: editForm.description,
         company:     editForm.company,
+        category:    editForm.category,
         owner:       editForm.owner,
         status:      editForm.status,
         rag_status:  editForm.rag_status,
@@ -1184,6 +1200,13 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', fontFamily:'Arial, sans-serif' }}>
 
+      {/* TOAST */}
+      {toast && (
+        <div style={{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1a3a2a', color:'white', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:600, zIndex:9999, boxShadow:'0 4px 20px rgba(0,0,0,0.25)', whiteSpace:'nowrap' }}>
+          ✓ {toast}
+        </div>
+      )}
+
       {/* NAV */}
       <div style={{ background:'#1a3a2a', padding:'0 14px', display:'flex', alignItems:'center', gap:12, height:50, flexShrink:0 }}>
         <span style={{ background:'#b5833a', color:'white', fontWeight:800, fontSize:11, padding:'4px 9px', borderRadius:4, letterSpacing:'1px' }}>PABARI</span>
@@ -1238,6 +1261,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                 {(['red','amber','green','not-set'] as RAGStatus[]).map(r=>(
                   <option key={r} value={r}>{RAG_CONFIG[r].label}</option>
                 ))}
+              </select>
+              <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}
+                style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'4px 7px', fontSize:11, background:'white' }}>
+                <option value="">All Categories</option>
+                {[...PROJECT_CATEGORIES].map(c=><option key={c} value={c}>{c}</option>)}
               </select>
               <span style={{ marginLeft:'auto', fontSize:11, color:'#9ca3af' }}>{filtered.length} project{filtered.length!==1?'s':''}</span>
             </div>
@@ -1313,14 +1341,14 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
                   <tr style={{ background:'#f3f4f6', borderBottom:'2px solid #e5e7eb' }}>
-                    {['RAG','Project','Company','Owner','Health','Tasks','End Date','Status'].map(h=>(
+                    {['RAG','Project','Company','Category','Owner','Health','Tasks','End Date','Status'].map(h=>(
                       <th key={h} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px', whiteSpace:'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={8} style={{ padding:32, textAlign:'center', color:'#9ca3af' }}>No projects match filters.</td></tr>
+                    <tr><td colSpan={9} style={{ padding:32, textAlign:'center', color:'#9ca3af' }}>No projects match filters.</td></tr>
                   )}
                   {filtered.map(p => {
                     const h = healthMap[p.id]
@@ -1334,6 +1362,9 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                         <td style={{ padding:'8px 10px' }}><RAGDot status={p.rag_status} size={10}/></td>
                         <td style={{ padding:'8px 10px', fontWeight:600, color:'#111827', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</td>
                         <td style={{ padding:'8px 10px', color:'#6b7280', whiteSpace:'nowrap' }}>{p.company}</td>
+                        <td style={{ padding:'8px 10px', whiteSpace:'nowrap' }}>
+                          {p.category ? <span style={{ background:'#eff6ff', color:'#1d4ed8', fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:10 }}>{p.category}</span> : <span style={{ color:'#d1d5db' }}>—</span>}
+                        </td>
                         <td style={{ padding:'8px 10px', color:'#6b7280', whiteSpace:'nowrap' }}>{p.owner}</td>
                         <td style={{ padding:'8px 10px', whiteSpace:'nowrap' }}>
                           <span style={{ color: h?.color, fontWeight:700 }}>{h?.score ?? 0}%</span>
@@ -1372,7 +1403,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     <span style={{ fontSize:17, fontWeight:700 }}>{active.name}</span>
                   </div>
                   <div style={{ fontSize:11, color:'rgba(255,255,255,0.65)' }}>
-                    {active.company} · Owner: {active.owner}
+                    {active.company}{active.category ? ` · ${active.category}` : ''} · Owner: {active.owner}
                     {active.start_date && ` · ${fmtDate(active.start_date)} → ${active.end_date ? fmtDate(active.end_date) : 'No end date'}`}
                   </div>
                   {/* Health score row */}
@@ -3209,14 +3240,15 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               <div><label style={lbl}>Description</label><textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={2} style={{ ...inp, resize:'vertical' }}/></div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
                 <div><label style={lbl}>Company *</label><select value={form.company} onChange={e=>setForm(f=>({...f,company:e.target.value}))} style={inp}>{[...COMPANIES].map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                <div><label style={lbl}>Owner</label><select value={form.owner} onChange={e=>setForm(f=>({...f,owner:e.target.value}))} style={inp}><option value="">—</option>{[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}</select></div>
+                <div><label style={lbl}>Category</label><select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={inp}><option value="">— select —</option>{[...PROJECT_CATEGORIES].map(c=><option key={c} value={c}>{c}</option>)}</select></div>
               </div>
+              <div><label style={lbl}>Owner</label><select value={form.owner} onChange={e=>setForm(f=>({...f,owner:e.target.value}))} style={inp}><option value="">—</option>{[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}</select></div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
                 <div><label style={lbl}>Start Date</label><input type="date" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))} style={inp}/></div>
                 <div><label style={lbl}>End Date</label><input type="date" value={form.end_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))} style={inp}/></div>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
-                <div><label style={lbl}>Budget (KES)</label><input type="number" value={form.budget} onChange={e=>setForm(f=>({...f,budget:e.target.value}))} placeholder="0" style={inp}/></div>
+                <div><label style={lbl}>Budget KES (optional)</label><input type="number" value={form.budget} onChange={e=>setForm(f=>({...f,budget:e.target.value}))} placeholder="0" style={inp}/></div>
                 <div><label style={lbl}>Initial Status</label><select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value as ProjectStatus}))} style={inp}>{(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(s=><option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}</select></div>
               </div>
             </div>
@@ -3245,13 +3277,14 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               <div><label style={lbl}>Description</label><textarea value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))} rows={2} style={{ ...inp, resize:'vertical' }}/></div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
                 <div><label style={lbl}>Company</label><select value={editForm.company} onChange={e=>setEditForm(f=>({...f,company:e.target.value}))} style={inp}>{[...COMPANIES].map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                <div><label style={lbl}>Owner</label><select value={editForm.owner} onChange={e=>setEditForm(f=>({...f,owner:e.target.value}))} style={inp}><option value="">—</option>{[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}</select></div>
+                <div><label style={lbl}>Category</label><select value={editForm.category} onChange={e=>setEditForm(f=>({...f,category:e.target.value}))} style={inp}><option value="">— select —</option>{[...PROJECT_CATEGORIES].map(c=><option key={c} value={c}>{c}</option>)}</select></div>
               </div>
+              <div><label style={lbl}>Owner</label><select value={editForm.owner} onChange={e=>setEditForm(f=>({...f,owner:e.target.value}))} style={inp}><option value="">—</option>{[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}</select></div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
                 <div><label style={lbl}>Start Date</label><input type="date" value={editForm.start_date} onChange={e=>setEditForm(f=>({...f,start_date:e.target.value}))} style={inp}/></div>
                 <div><label style={lbl}>End Date</label><input type="date" value={editForm.end_date} onChange={e=>setEditForm(f=>({...f,end_date:e.target.value}))} style={inp}/></div>
               </div>
-              <div><label style={lbl}>Budget (KES)</label><input type="number" value={editForm.budget} onChange={e=>setEditForm(f=>({...f,budget:e.target.value}))} placeholder="0" style={inp}/></div>
+              <div><label style={lbl}>Budget KES (optional)</label><input type="number" value={editForm.budget} onChange={e=>setEditForm(f=>({...f,budget:e.target.value}))} placeholder="0" style={inp}/></div>
             </div>
             <div style={{ display:'flex', gap:9, marginTop:20, justifyContent:'flex-end' }}>
               <button onClick={()=>setShowEdit(false)} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
@@ -3371,9 +3404,12 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               <div style={{ background:'#f3f4f6', borderRadius:6, padding:'7px 10px', fontSize:11, color:'#6b7280' }}>
                 Status: <strong>Action Required</strong> · Category: <strong>Projects</strong>
               </div>
+              {updateTaskError && (
+                <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, padding:'8px 11px', fontSize:12, color:'#dc2626' }}>{updateTaskError}</div>
+              )}
             </div>
             <div style={{ display:'flex', gap:9, marginTop:20, justifyContent:'flex-end' }}>
-              <button onClick={()=>setUpdateTaskModal(null)} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
+              <button onClick={()=>{ setUpdateTaskModal(null); setUpdateTaskError('') }} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
               <button onClick={submitUpdateToTask} disabled={updateTaskSaving||!updateTaskForm.particulars.trim()||!updateTaskForm.responsible}
                 style={{ background:updateTaskSaving||!updateTaskForm.particulars.trim()||!updateTaskForm.responsible?'#9ca3af':'#1a3a2a', color:'white', border:'none', padding:'8px 20px', borderRadius:6, fontSize:13, fontWeight:600, cursor:updateTaskSaving||!updateTaskForm.particulars.trim()||!updateTaskForm.responsible?'not-allowed':'pointer' }}>
                 {updateTaskSaving?'Creating…':'Create Task'}

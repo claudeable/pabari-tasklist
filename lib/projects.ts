@@ -179,6 +179,8 @@ async function ensureProjectTables() {
   `)
   // Branch isolation — existing projects belong to Kenya
   await execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch TEXT NOT NULL DEFAULT 'kenya'").catch(() => {})
+  // Project category
+  await execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''").catch(() => {})
   // Gantt + phased investment on milestones
   await execute("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS start_date DATE").catch(() => {})
   await execute("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '#2563eb'").catch(() => {})
@@ -192,6 +194,7 @@ function rowToProject(row: Record<string, unknown>, milestones: Milestone[] = []
     name:        String(row.name || ''),
     description: String(row.description || ''),
     company:     String(row.company || ''),
+    category:    String(row.category || ''),
     owner:       String(row.owner || ''),
     status:      (row.status as ProjectStatus) || 'active',
     rag_status:  (row.rag_status as RAGStatus)  || 'not-set',
@@ -382,16 +385,16 @@ export async function getProjectById(id: number): Promise<Project | null> {
 }
 
 export async function createProject(data: {
-  name: string; description: string; company: string; owner: string
+  name: string; description: string; company: string; category?: string; owner: string
   status: ProjectStatus; rag_status?: RAGStatus; start_date: string; end_date: string
   budget: number; created_by: string; branch?: string
 }): Promise<Project> {
   await ensureProjectTables()
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO projects (name, description, company, owner, status, rag_status, start_date, end_date, budget, created_by, branch)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [data.name, data.description, data.company, data.owner, data.status,
-     data.rag_status || 'not-set',
+    `INSERT INTO projects (name, description, company, category, owner, status, rag_status, start_date, end_date, budget, created_by, branch)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [data.name, data.description, data.company, data.category || '',
+     data.owner, data.status, data.rag_status || 'not-set',
      data.start_date || null, data.end_date || null, data.budget, data.created_by, data.branch || 'kenya']
   )
   if (!row) throw new Error('Failed to create project')
@@ -399,12 +402,12 @@ export async function createProject(data: {
 }
 
 export async function updateProject(id: number, data: Partial<{
-  name: string; description: string; company: string; owner: string
+  name: string; description: string; company: string; category: string; owner: string
   status: ProjectStatus; rag_status: RAGStatus; start_date: string; end_date: string
   budget: number; spent: number
 }>): Promise<Project | null> {
   await ensureProjectTables()
-  const allowed = ['name','description','company','owner','status','rag_status','start_date','end_date','budget','spent']
+  const allowed = ['name','description','company','category','owner','status','rag_status','start_date','end_date','budget','spent']
   const fields  = Object.keys(data).filter(k => allowed.includes(k) && (data as Record<string,unknown>)[k] !== undefined)
   if (!fields.length) return null
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
