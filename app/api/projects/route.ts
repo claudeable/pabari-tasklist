@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { getProjects, createProject } from '@/lib/projects'
+import { getProjectsForUser, createProject, createProjectActivity, addProjectMember } from '@/lib/projects'
 import { ProjectStatus } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,7 @@ export async function GET() {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const projects = await getProjects()
+  const projects = await getProjectsForUser(user.name, user.role)
   return NextResponse.json(projects)
 }
 
@@ -39,5 +39,17 @@ export async function POST(req: NextRequest) {
     budget: Number(budget) || 0,
     created_by: user.name,
   })
+  await addProjectMember({ project_id: project.id, user_name: project.owner, role: 'owner' })
+  if (user.name !== project.owner) {
+    await addProjectMember({ project_id: project.id, user_name: user.name, role: 'member' })
+  }
+  createProjectActivity({
+    project_id:  project.id,
+    actor:       user.name,
+    action_type: 'project.created',
+    entity_type: 'project',
+    entity_id:   project.id,
+    description: `${user.name} created project "${project.name}"`,
+  }).catch(console.error)
   return NextResponse.json(project)
 }

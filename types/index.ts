@@ -231,6 +231,108 @@ export interface ProjectExpense {
   created_at:   string
 }
 
+// ─── Project Updates & Meetings ───────────────────────────────────────────────
+
+export type UpdateType   = 'progress' | 'action' | 'decision' | 'blocker' | 'general'
+export type UpdateStatus = 'open' | 'in_progress' | 'done'
+
+export interface ProjectUpdate {
+  id:           number
+  project_id:   number
+  type:         UpdateType
+  status:       UpdateStatus
+  title:        string
+  body:         string
+  owner:        string
+  next_steps:   string
+  posted_by:    string
+  created_at:   string
+  updated_at:   string
+  comments:     ProjectUpdateComment[]
+}
+
+export interface ProjectUpdateComment {
+  id:         number
+  update_id:  number
+  user_name:  string
+  message:    string
+  created_at: string
+}
+
+export interface ProjectMeeting {
+  id:          number
+  project_id:  number
+  title:       string
+  meeting_date: string
+  attendees:   string
+  agenda:      string
+  notes:       string
+  action_points: string
+  logged_by:   string
+  created_at:  string
+  action_tasks?: MeetingActionTask[]
+}
+
+export interface MeetingActionTask {
+  id:          number
+  meeting_id:  number
+  action_text: string
+  task_id:     number
+  created_by:  string
+  created_at:  string
+}
+
+// ─── Project Decisions & Risks ────────────────────────────────────────────────
+
+export type DecisionStatus = 'pending' | 'decided' | 'deferred' | 'rejected'
+export type RiskType       = 'risk' | 'issue'
+export type RiskSeverity   = 'low' | 'medium' | 'high' | 'critical'
+export type RiskStatus     = 'open' | 'in_progress' | 'resolved' | 'closed'
+
+export interface ProjectDecision {
+  id:            number
+  project_id:    number
+  title:         string
+  description:   string
+  status:        DecisionStatus
+  owner:         string
+  decision_date: string
+  source:        string
+  created_by:    string
+  created_at:    string
+  updated_at:    string
+}
+
+export interface ProjectRisk {
+  id:          number
+  project_id:  number
+  type:        RiskType
+  title:       string
+  description: string
+  owner:       string
+  severity:    RiskSeverity
+  status:      RiskStatus
+  mitigation:  string
+  target_date: string
+  created_by:  string
+  created_at:  string
+  updated_at:  string
+}
+
+// ─── Project Activity ─────────────────────────────────────────────────────────
+
+export interface ProjectActivity {
+  id:          number
+  project_id:  number
+  actor:       string
+  action_type: string
+  entity_type: string
+  entity_id:   number | null
+  description: string
+  metadata:    Record<string, unknown> | null
+  created_at:  string
+}
+
 // ─── Finance ──────────────────────────────────────────────────────────────────
 
 export type InvoiceStatus = 'draft' | 'sent' | 'accepted' | 'paid' | 'overdue' | 'cancelled'

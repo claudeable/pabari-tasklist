@@ -17,15 +17,14 @@ const ALL_MODULES: Module[] = [
   { key:'dashboard',      icon:'📊', label:'Dashboard',            desc:'KPIs, overdue tasks and status summaries',               href:'/dashboard',       accent:'#3b82f6', badge:'Open dashboard'   },
   { key:'reports',        icon:'📈', label:'Reports',              desc:'Weekly reports, task analytics and export',              href:'/reports',         accent:'#8b5cf6', badge:'View reports'     },
   { key:'documents',      icon:'📁', label:'Documents',            desc:'Shared files, attachments and document management',      href:'/documents',       accent:'#f59e0b', badge:'Open documents'   },
-  { key:'tracker',        icon:'📊', label:'Project Tracker',      desc:'Gantt charts, updates, meetings and progress',           href:'/tracker',         accent:'#15803d', badge:'Open tracker'     },
-  { key:'projects',       icon:'🏗️', label:'Projects',             desc:'Project tracking, milestones and progress',              href:'/projects',        accent:'#f97316', badge:'View projects'    },
+  { key:'tracker',        icon:'📊', label:'Project Tracker',      desc:'Gantt charts, updates, meetings and progress',           href:'/projects',        accent:'#15803d', badge:'Open tracker'     },
   { key:'centre',         icon:'🏢', label:'Centre',               desc:'Company centre — announcements and resources',           href:'/centre',          accent:'#6366f1', badge:'Open centre'      },
 ]
 
 const MODULES_BY_TYPE: Record<string, string[]> = {
-  admin:   ['board','intelligence','connect','dashboard','reports','documents','tracker','projects','centre'],
+  admin:   ['board','intelligence','connect','dashboard','reports','documents','tracker','centre'],
   paul:    ['board','intelligence'],
-  yalelet: ['board','delivery-notes'],
+  yalelet: ['board'],
 }
 
 function logout() {

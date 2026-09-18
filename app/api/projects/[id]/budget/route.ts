@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
-import { getProjectExpenses, createProjectExpense, deleteProjectExpense, getProjectPCRs, getProjectLPOs } from '@/lib/projects'
+import { getProjectMember, getProjectExpenses, createProjectExpense, deleteProjectExpense, getProjectPCRs, getProjectLPOs } from '@/lib/projects'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const cookieStore = cookies()
-  const session = cookieStore.get('pabari-session')
+async function getAuthedUser(projectId: number) {
+  const session = cookies().get('pabari-session')
   const user = session?.value ? await verifyToken(session.value) : null
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return { user: null, err: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  if (user.role !== 'admin') {
+    const member = await getProjectMember(projectId, user.name)
+    if (!member) return { user: null, err: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  }
+  return { user, err: null }
+}
 
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const projectId = parseInt(params.id, 10)
+  const { user, err } = await getAuthedUser(projectId)
+  if (!user) return err!
+
   const [expenses, pcrs, lpos] = await Promise.all([
     getProjectExpenses(projectId),
     getProjectPCRs(projectId),
@@ -21,10 +30,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const cookieStore = cookies()
-  const session = cookieStore.get('pabari-session')
-  const user = session?.value ? await verifyToken(session.value) : null
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const projectId = parseInt(params.id, 10)
+  const { user, err } = await getAuthedUser(projectId)
+  if (!user) return err!
   if (user.role === 'staff') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { description, amount, expense_date, category } = await req.json()
@@ -32,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!amount || Number(amount) <= 0) return NextResponse.json({ error: 'amount must be > 0' }, { status: 400 })
 
   const expense = await createProjectExpense({
-    project_id:   parseInt(params.id, 10),
+    project_id:   projectId,
     description:  description.trim(),
     amount:       Number(amount),
     expense_date: expense_date || new Date().toISOString().slice(0, 10),
@@ -42,11 +50,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(expense)
 }
 
-export async function DELETE(req: NextRequest, { params: _params }: { params: { id: string } }) {
-  const cookieStore = cookies()
-  const session = cookieStore.get('pabari-session')
-  const user = session?.value ? await verifyToken(session.value) : null
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const projectId = parseInt(params.id, 10)
+  const { user, err } = await getAuthedUser(projectId)
+  if (!user) return err!
   if (user.role === 'staff') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { expense_id } = await req.json()

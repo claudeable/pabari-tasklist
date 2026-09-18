@@ -7,6 +7,7 @@ import { postDMMessage } from '@/lib/chat'
 import { getSubscriptionsForUser, sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 import { sendEmail } from '@/lib/email'
+import { createProjectActivity } from '@/lib/projects'
 
 async function notifyLegal(
   sender: { id: string | number; name: string },
@@ -244,6 +245,17 @@ export async function PATCH(
     if (body.status) {
       logActivity(user.email, user.name, 'task_status_changed',
         `[${task.company}] "${desc}" → ${body.status}`).catch(() => {})
+      if (task.project_id && prev && prev.status !== task.status) {
+        createProjectActivity({
+          project_id:  task.project_id,
+          actor:       user.name,
+          action_type: 'task.status_changed',
+          entity_type: 'task',
+          entity_id:   Number(task.id),
+          description: `${user.name} changed task "${task.particulars.slice(0, 80)}" from "${prev.status}" to "${task.status}"`,
+          metadata: { from: prev.status, to: task.status },
+        }).catch(console.error)
+      }
     } else if (body.hk_comment) {
       logActivity(user.email, user.name, 'task_commented',
         `[${task.company}] "${desc}"`).catch(() => {})

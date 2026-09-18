@@ -66,10 +66,9 @@ const ACTION_FEED: Record<string, string> = {
 
 const systems = [
   { key:'tasks',    icon:'✓',  iconBg:'#dbeafe', iconColor:'#1d4ed8', label:'Task Management',     href:'/tasks',            detail:'Pending · Assignments · Deadlines' },
-  { key:'projects', icon:'📐', iconBg:'#e0f2fe', iconColor:'#0369a1', label:'Projects',            href:'/projects',         detail:'Milestones · Gantt · Budget',    projectsOnly:true },
   { key:'docs',     icon:'📁', iconBg:'#f3e8ff', iconColor:'#7c3aed', label:'Documents',           href:'/documents',        detail:'Upload · Folders · View',        adminOnly:true },
   { key:'connect',  icon:'📇', iconBg:'#fef9ec', iconColor:'#b5833a', label:'Pabari Connect',      href:'/connect',          detail:'Contacts · Directory · Search',  harshilOnly:true },
-  { key:'tracker',  icon:'📊', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Project Tracker',     href:'/tracker',          detail:'Gantt · Updates · Meetings',     superAdminOnly:true },
+  { key:'tracker',  icon:'📊', iconBg:'#f0fdf4', iconColor:'#15803d', label:'Project Tracker',     href:'/projects',         detail:'Gantt · Updates · Meetings',     superAdminOnly:true },
   { key:'security', icon:'🛡', iconBg:'#fee2e2', iconColor:'#dc2626', label:'Security Centre',     href:'/admin/security',   detail:'Threats · IP Blocking',          superAdminOnly:true },
   { key:'users',    icon:'👥', iconBg:'#faf5ff', iconColor:'#7c3aed', label:'User Management',     href:'/admin/users',      detail:'Create · Edit · Portals',        superAdminOnly:true },
   { key:'smartops', icon:'⚡', iconBg:'#eff6ff', iconColor:'#2563eb', label:'Smart Ops',           href:'',                  detail:'Projects · Field Ops · Reports', ssoPortal:'smartops' },
@@ -193,7 +192,6 @@ export default function PortalHub({ currentUser }: { currentUser: SessionUser })
     if (s.superAdminOnly) return currentUser.role === 'admin'
     if (s.adminOnly)      return currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')
     if (s.harshilOnly)    return currentUser.role === 'admin' || firstNameLower === 'harshil'
-    if (s.projectsOnly)   return currentUser.role === 'admin' || firstNameLower === 'harshil' || firstNameLower === 'benson'
     if (s.assetsOnly)     return currentUser.role === 'admin' || ASSET_USERS.includes(firstNameLower)
     if (s.financeOnly)    return currentUser.role === 'admin' || FINANCE_USERS.includes(firstNameLower)
     if (s.yaleletOnly)    return currentUser.role === 'admin' || firstNameLower === 'yalelet'

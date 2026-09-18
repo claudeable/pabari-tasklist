@@ -5,6 +5,9 @@ import {
   Project, Milestone, ProjectStatus, RAGStatus, ProjectMember, StatusReport, ProjectExpense, SessionUser,
   PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLE, COMPANIES, PEOPLE,
   InvoiceStatus, INVOICE_STATUS_STYLE, INVOICE_STATUS_LABELS,
+  ProjectUpdate, ProjectUpdateComment, ProjectMeeting, MeetingActionTask, UpdateType, UpdateStatus,
+  ProjectDecision, ProjectRisk, DecisionStatus, RiskType, RiskSeverity, RiskStatus,
+  ProjectActivity,
 } from '@/types'
 import type { ProjectNote } from '@/lib/projects'
 
@@ -33,8 +36,47 @@ const BLANK_FORM = {
 const BLANK_TASK    = { particulars:'', responsible:'', due_date:'', priority:'medium', section:'General', category:'Other' }
 const BLANK_REPORT  = { rag:'not-set' as RAGStatus, narrative:'', blockers:'', next_steps:'' }
 const BLANK_EXPENSE = { description:'', amount:'', expense_date: new Date().toISOString().slice(0,10), category:'General' }
+const BLANK_UPDATE  = { type:'general' as UpdateType, title:'', body:'', owner:'', next_steps:'' }
+const BLANK_MEETING = { title:'', meeting_date: new Date().toISOString().slice(0,10), attendees:'', agenda:'', notes:'', action_points:'' }
+
+const UPDATE_TYPE_CONFIG: Record<UpdateType, { label:string; bg:string; color:string }> = {
+  progress:  { label:'Progress',  bg:'#dbeafe', color:'#1d4ed8' },
+  action:    { label:'Action',    bg:'#fef3c7', color:'#b45309' },
+  decision:  { label:'Decision',  bg:'#ede9fe', color:'#7c3aed' },
+  blocker:   { label:'Blocker',   bg:'#fee2e2', color:'#dc2626' },
+  general:   { label:'General',   bg:'#f3f4f6', color:'#6b7280' },
+}
+const UPDATE_STATUS_CONFIG: Record<UpdateStatus, { label:string; bg:string; color:string }> = {
+  open:        { label:'Open',        bg:'#dbeafe', color:'#1d4ed8' },
+  in_progress: { label:'In Progress', bg:'#fef3c7', color:'#b45309' },
+  done:        { label:'Done',        bg:'#dcfce7', color:'#15803d' },
+}
 
 const EXPENSE_CATEGORIES = ['General','Materials','Labour','Transport','Equipment','Utilities','Professional Fees','Other']
+
+const BLANK_DECISION = { title:'', description:'', status:'pending' as DecisionStatus, owner:'', decision_date:'', source:'' }
+const BLANK_RISK     = { type:'risk' as RiskType, title:'', description:'', owner:'', severity:'medium' as RiskSeverity, mitigation:'', target_date:'' }
+
+const DECISION_STATUS_CONFIG: Record<DecisionStatus, { label:string; bg:string; color:string }> = {
+  pending:   { label:'Pending',   bg:'#fef3c7', color:'#b45309' },
+  decided:   { label:'Decided',   bg:'#dcfce7', color:'#15803d' },
+  deferred:  { label:'Deferred',  bg:'#ede9fe', color:'#7c3aed' },
+  rejected:  { label:'Rejected',  bg:'#fee2e2', color:'#dc2626' },
+}
+
+const RISK_SEVERITY_CONFIG: Record<RiskSeverity, { label:string; bg:string; color:string }> = {
+  low:      { label:'Low',      bg:'#f0fdf4', color:'#15803d' },
+  medium:   { label:'Medium',   bg:'#fef3c7', color:'#b45309' },
+  high:     { label:'High',     bg:'#fff7ed', color:'#c2410c' },
+  critical: { label:'Critical', bg:'#fee2e2', color:'#dc2626' },
+}
+
+const RISK_STATUS_CONFIG: Record<RiskStatus, { label:string; bg:string; color:string }> = {
+  open:        { label:'Open',        bg:'#fee2e2', color:'#dc2626' },
+  in_progress: { label:'In Progress', bg:'#fef3c7', color:'#b45309' },
+  resolved:    { label:'Resolved',    bg:'#dcfce7', color:'#15803d' },
+  closed:      { label:'Closed',      bg:'#f3f4f6', color:'#6b7280' },
+}
 
 const PCR_STATUS_LABEL: Record<string,string> = {
   pending_hos:'Pending HOS', pending_hod:'Pending HOD', pending_finance:'Pending Finance',
@@ -169,7 +211,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [search, setSearch] = useState('')
 
   // Detail tab
-  const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'|'budget'>('overview')
+  const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'|'budget'|'updates'|'meetings'|'decisions'|'risks'|'activity'>('overview')
 
   // Milestones
   const [msTitle,    setMsTitle]    = useState('')
@@ -213,6 +255,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   // Task filter inside project
   const [taskFilter, setTaskFilter] = useState<'all'|'active'|'resolved'>('all')
 
+  // Task detail / remarks
+  const [expandedTaskId, setExpandedTaskId] = useState<string|null>(null)
+  const [remarkText,     setRemarkText]     = useState('')
+  const [remarkSaving,   setRemarkSaving]   = useState(false)
+
   // Budget / Expenses / PCRs / LPOs
   const [expenses,       setExpenses]       = useState<ProjectExpense[]>([])
   const [pcrs,           setPcrs]           = useState<Record<string,unknown>[]>([])
@@ -221,6 +268,56 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [expenseForm,    setExpenseForm]    = useState({ ...BLANK_EXPENSE })
   const [expenseSaving,  setExpenseSaving]  = useState(false)
+
+  // Updates
+  const [updates,       setUpdates]       = useState<ProjectUpdate[]>([])
+  const [updatesLoaded, setUpdatesLoaded] = useState(false)
+  const [showNewUpdate, setShowNewUpdate] = useState(false)
+  const [updateForm,    setUpdateForm]    = useState({ ...BLANK_UPDATE })
+  const [updateSaving,  setUpdateSaving]  = useState(false)
+  const [expandedUpdate, setExpandedUpdate] = useState<number|null>(null)
+  const [commentDraft,  setCommentDraft]  = useState<Record<number,string>>({})
+  const [commentSaving, setCommentSaving] = useState<Record<number,boolean>>({})
+
+  // Meetings
+  const [meetings,       setMeetings]       = useState<ProjectMeeting[]>([])
+  const [meetingsLoaded, setMeetingsLoaded] = useState(false)
+  const [showNewMeeting, setShowNewMeeting] = useState(false)
+  const [meetingForm,    setMeetingForm]    = useState({ ...BLANK_MEETING })
+  const [meetingSaving,  setMeetingSaving]  = useState(false)
+  const [expandedMeeting, setExpandedMeeting] = useState<number|null>(null)
+
+  // Convert action point to task
+  const [convertModal, setConvertModal] = useState<{
+    meetingId: number; actionText: string; company: string
+  } | null>(null)
+  const [convertForm, setConvertForm] = useState<{ particulars:string; responsible:string; due_date:string; priority:'low'|'medium'|'high' }>({ particulars:'', responsible:'', due_date:'', priority:'medium' })
+  const [convertSaving, setConvertSaving] = useState(false)
+  const [convertError,  setConvertError]  = useState('')
+
+  // Decisions
+  const [decisions,       setDecisions]       = useState<ProjectDecision[]>([])
+  const [decisionsLoaded, setDecisionsLoaded] = useState(false)
+  const [showNewDecision, setShowNewDecision] = useState(false)
+  const [decisionForm,    setDecisionForm]    = useState({ ...BLANK_DECISION })
+  const [decisionSaving,  setDecisionSaving]  = useState(false)
+  const [editingDecision, setEditingDecision] = useState<ProjectDecision|null>(null)
+  const [editDecisionForm, setEditDecisionForm] = useState({ ...BLANK_DECISION })
+  const [editDecisionSaving, setEditDecisionSaving] = useState(false)
+
+  // Risks & Issues
+  const [risks,       setRisks]       = useState<ProjectRisk[]>([])
+  const [risksLoaded, setRisksLoaded] = useState(false)
+  const [showNewRisk, setShowNewRisk] = useState(false)
+  const [riskForm,    setRiskForm]    = useState({ ...BLANK_RISK })
+  const [riskSaving,  setRiskSaving]  = useState(false)
+  const [editingRisk, setEditingRisk] = useState<ProjectRisk|null>(null)
+  const [editRiskForm, setEditRiskForm] = useState({ ...BLANK_RISK })
+  const [editRiskSaving, setEditRiskSaving] = useState(false)
+
+  // Activity
+  const [activityFeed,   setActivityFeed]   = useState<ProjectActivity[]>([])
+  const [activityLoaded, setActivityLoaded] = useState(false)
 
   // ── Permissions ──
   const canEdit = currentUser.role !== 'staff'
@@ -269,6 +366,51 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       .catch(() => {})
   }, [detailTab, active?.id, reportsLoaded])
 
+  // ── Load updates when tab opens ──
+  useEffect(() => {
+    if (detailTab !== 'updates' || !active || updatesLoaded) return
+    fetch(`/api/projects/${active.id}/updates`, { credentials:'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setUpdates(Array.isArray(data) ? data : []); setUpdatesLoaded(true) })
+      .catch(() => {})
+  }, [detailTab, active?.id, updatesLoaded])
+
+  // ── Load meetings when tab opens ──
+  useEffect(() => {
+    if (detailTab !== 'meetings' || !active || meetingsLoaded) return
+    fetch(`/api/projects/${active.id}/meetings`, { credentials:'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setMeetings(Array.isArray(data) ? data : []); setMeetingsLoaded(true) })
+      .catch(() => {})
+  }, [detailTab, active?.id, meetingsLoaded])
+
+  // ── Load decisions when tab opens ──
+  useEffect(() => {
+    if (detailTab !== 'decisions' || !active || decisionsLoaded) return
+    fetch(`/api/projects/${active.id}/decisions`, { credentials:'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setDecisions(Array.isArray(data) ? data : []); setDecisionsLoaded(true) })
+      .catch(() => {})
+  }, [detailTab, active?.id, decisionsLoaded])
+
+  // ── Load risks when tab opens ──
+  useEffect(() => {
+    if (detailTab !== 'risks' || !active || risksLoaded) return
+    fetch(`/api/projects/${active.id}/risks`, { credentials:'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setRisks(Array.isArray(data) ? data : []); setRisksLoaded(true) })
+      .catch(() => {})
+  }, [detailTab, active?.id, risksLoaded])
+
+  // ── Load full activity when tab opens ──
+  useEffect(() => {
+    if (detailTab !== 'activity' || !active || activityLoaded) return
+    fetch(`/api/projects/${active.id}/activity?limit=100`, { credentials:'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setActivityFeed(Array.isArray(data) ? data : []); setActivityLoaded(true) })
+      .catch(() => {})
+  }, [detailTab, active?.id, activityLoaded])
+
   // ── Load budget when tab opens ──
   useEffect(() => {
     if (detailTab !== 'budget' || !active || budgetLoaded) return
@@ -290,12 +432,20 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setNotes([]); setMembers([]); setTasks([])
     setReports([]); setReportsLoaded(false)
     setExpenses([]); setPcrs([]); setLpos([]); setBudgetLoaded(false)
+    setUpdates([]); setUpdatesLoaded(false); setShowNewUpdate(false); setExpandedUpdate(null)
+    setMeetings([]); setMeetingsLoaded(false); setShowNewMeeting(false); setExpandedMeeting(null)
+    setDecisions([]); setDecisionsLoaded(false); setShowNewDecision(false); setEditingDecision(null)
+    setRisks([]); setRisksLoaded(false); setShowNewRisk(false); setEditingRisk(null)
+    setActivityFeed([]); setActivityLoaded(false)
     setShowLinkTask(false); setTaskFilter('all')
 
-    const [res, notesRes, membersRes] = await Promise.all([
+    const [res, notesRes, membersRes, decisionsRes, risksRes, activityRes] = await Promise.all([
       fetch(`/api/projects/${p.id}`, { credentials:'include' }),
       fetch(`/api/projects/${p.id}/notes`, { credentials:'include' }),
       fetch(`/api/projects/${p.id}/members`, { credentials:'include' }),
+      fetch(`/api/projects/${p.id}/decisions`, { credentials:'include' }),
+      fetch(`/api/projects/${p.id}/risks`, { credentials:'include' }),
+      fetch(`/api/projects/${p.id}/activity?limit=10`, { credentials:'include' }),
     ])
     if (res.ok) {
       const data = await res.json()
@@ -311,6 +461,21 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       const d = await membersRes.json()
       setMembers(Array.isArray(d) ? d : [])
     }
+    if (decisionsRes.ok) {
+      const d = await decisionsRes.json()
+      setDecisions(Array.isArray(d) ? d : [])
+    }
+    setDecisionsLoaded(true)
+    if (risksRes.ok) {
+      const d = await risksRes.json()
+      setRisks(Array.isArray(d) ? d : [])
+    }
+    setRisksLoaded(true)
+    if (activityRes.ok) {
+      const d = await activityRes.json()
+      setActivityFeed(Array.isArray(d) ? d : [])
+    }
+    setActivityLoaded(true)
   }
 
   async function postNote() {
@@ -336,6 +501,200 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       body: JSON.stringify({ note_id: noteId }),
     })
     setNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  // ── Update CRUD ──
+  async function postUpdate() {
+    if (!updateForm.title.trim() || !active) return
+    setUpdateSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/updates`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...updateForm }),
+    })
+    if (res.ok) {
+      const u: ProjectUpdate = await res.json()
+      setUpdates(prev => [u, ...prev])
+      setShowNewUpdate(false)
+      setUpdateForm({ ...BLANK_UPDATE })
+    }
+    setUpdateSaving(false)
+  }
+
+  async function patchUpdateStatus(u: ProjectUpdate, status: UpdateStatus) {
+    const res = await fetch(`/api/projects/${active!.id}/updates/${u.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      const updated: ProjectUpdate = await res.json()
+      setUpdates(prev => prev.map(x => x.id === updated.id ? { ...updated, comments: x.comments } : x))
+    }
+  }
+
+  async function deleteUpdate(uid: number) {
+    if (!confirm('Delete this update?') || !active) return
+    await fetch(`/api/projects/${active.id}/updates/${uid}`, { method:'DELETE', credentials:'include' })
+    setUpdates(prev => prev.filter(u => u.id !== uid))
+  }
+
+  async function postUpdateComment(updateId: number) {
+    const msg = (commentDraft[updateId] || '').trim()
+    if (!msg || !active) return
+    setCommentSaving(p => ({ ...p, [updateId]: true }))
+    const res = await fetch(`/api/projects/${active.id}/updates/${updateId}`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ message: msg }),
+    })
+    if (res.ok) {
+      const c: ProjectUpdateComment = await res.json()
+      setUpdates(prev => prev.map(u => u.id === updateId ? { ...u, comments: [...u.comments, c] } : u))
+      setCommentDraft(p => ({ ...p, [updateId]: '' }))
+    }
+    setCommentSaving(p => ({ ...p, [updateId]: false }))
+  }
+
+  // ── Meeting CRUD ──
+  async function postMeeting() {
+    if (!meetingForm.title.trim() || !active) return
+    setMeetingSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/meetings`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...meetingForm }),
+    })
+    if (res.ok) {
+      const m: ProjectMeeting = await res.json()
+      setMeetings(prev => [m, ...prev])
+      setShowNewMeeting(false)
+      setMeetingForm({ ...BLANK_MEETING })
+    }
+    setMeetingSaving(false)
+  }
+
+  async function deleteMeeting(mid: number) {
+    if (!confirm('Delete this meeting record?') || !active) return
+    await fetch(`/api/projects/${active.id}/meetings/${mid}`, { method:'DELETE', credentials:'include' })
+    setMeetings(prev => prev.filter(m => m.id !== mid))
+  }
+
+  async function submitConvertToTask() {
+    if (!convertModal || !active || !convertForm.particulars.trim()) return
+    setConvertSaving(true)
+    setConvertError('')
+    const res = await fetch(`/api/projects/${active.id}/meetings/${convertModal.meetingId}/action-tasks`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({
+        action_text:  convertModal.actionText,
+        particulars:  convertForm.particulars.trim(),
+        responsible:  convertForm.responsible,
+        due_date:     convertForm.due_date,
+        priority:     convertForm.priority,
+        company:      convertModal.company,
+      }),
+    })
+    if (res.status === 409) {
+      setConvertError('This action point already has a task.')
+    } else if (res.ok) {
+      const { link } = await res.json() as { task: Record<string,unknown>; link: MeetingActionTask }
+      // Update the local meeting to show the badge immediately
+      setMeetings(prev => prev.map(m => {
+        if (m.id !== convertModal.meetingId) return m
+        const existing = m.action_tasks || []
+        return { ...m, action_tasks: [...existing, link] }
+      }))
+      setConvertModal(null)
+      setConvertForm({ particulars:'', responsible:'', due_date:'', priority:'medium' })
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setConvertError((d as Record<string,string>).error || 'Failed to create task.')
+    }
+    setConvertSaving(false)
+  }
+
+  // ── Decision CRUD ──
+  async function postDecision() {
+    if (!decisionForm.title.trim() || !active) return
+    setDecisionSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/decisions`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...decisionForm }),
+    })
+    if (res.ok) {
+      const d: ProjectDecision = await res.json()
+      setDecisions(prev => [d, ...prev])
+      setShowNewDecision(false)
+      setDecisionForm({ ...BLANK_DECISION })
+    }
+    setDecisionSaving(false)
+  }
+
+  async function saveDecision() {
+    if (!editingDecision || !active) return
+    setEditDecisionSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/decisions/${editingDecision.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...editDecisionForm }),
+    })
+    if (res.ok) {
+      const d: ProjectDecision = await res.json()
+      setDecisions(prev => prev.map(x => x.id === d.id ? d : x))
+      setEditingDecision(null)
+    }
+    setEditDecisionSaving(false)
+  }
+
+  async function deleteDecision(did: number) {
+    if (!confirm('Delete this decision?') || !active) return
+    await fetch(`/api/projects/${active.id}/decisions/${did}`, { method:'DELETE', credentials:'include' })
+    setDecisions(prev => prev.filter(d => d.id !== did))
+  }
+
+  // ── Risk CRUD ──
+  async function postRisk() {
+    if (!riskForm.title.trim() || !active) return
+    setRiskSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/risks`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...riskForm }),
+    })
+    if (res.ok) {
+      const r: ProjectRisk = await res.json()
+      setRisks(prev => [r, ...prev])
+      setShowNewRisk(false)
+      setRiskForm({ ...BLANK_RISK })
+    }
+    setRiskSaving(false)
+  }
+
+  async function saveRisk() {
+    if (!editingRisk || !active) return
+    setEditRiskSaving(true)
+    const res = await fetch(`/api/projects/${active.id}/risks/${editingRisk.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ ...editRiskForm }),
+    })
+    if (res.ok) {
+      const r: ProjectRisk = await res.json()
+      setRisks(prev => prev.map(x => x.id === r.id ? r : x))
+      setEditingRisk(null)
+    }
+    setEditRiskSaving(false)
+  }
+
+  async function deleteRisk(rid: number) {
+    if (!confirm('Delete this risk/issue?') || !active) return
+    await fetch(`/api/projects/${active.id}/risks/${rid}`, { method:'DELETE', credentials:'include' })
+    setRisks(prev => prev.filter(r => r.id !== rid))
+  }
+
+  async function patchRiskStatus(r: ProjectRisk, status: RiskStatus) {
+    const res = await fetch(`/api/projects/${active!.id}/risks/${r.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      const updated: ProjectRisk = await res.json()
+      setRisks(prev => prev.map(x => x.id === updated.id ? updated : x))
+    }
   }
 
   async function createProject() {
@@ -589,6 +948,28 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setProjects(prev => prev.map(p => p.id === active.id ? { ...p, task_count: Math.max(0, p.task_count - 1) } : p))
   }
 
+  async function addRemark(taskId: string) {
+    const text = remarkText.trim()
+    if (!text || remarkSaving) return
+    setRemarkSaving(true)
+    const today = new Date()
+    const dateStr = `${today.getDate()}-${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][today.getMonth()]}-${String(today.getFullYear()).slice(2)}`
+    const res = await fetch(`/api/tasks/${taskId}/updates`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ text, date: dateStr }),
+    })
+    if (res.ok) {
+      const { update } = await res.json()
+      setTasks(prev => prev.map(t =>
+        String(t.id) === taskId
+          ? { ...t, task_updates: [update, ...((t.task_updates as unknown[]) || [])] }
+          : t
+      ))
+      setRemarkText('')
+    }
+    setRemarkSaving(false)
+  }
+
   // Create task from project
   async function submitCreateTask() {
     if (!active || !createTaskForm.particulars.trim()) return
@@ -734,12 +1115,14 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
             </div>
             {/* View toggle */}
             <div style={{ display:'flex', gap:4 }}>
-              {(['list','portfolio'] as const).map(v=>(
-                <button key={v} onClick={()=>{ setViewMode(v); if(v==='portfolio') setActive(null) }}
-                  style={{ background: viewMode===v ? '#1a3a2a' : '#f3f4f6', color: viewMode===v ? 'white' : '#6b7280', border:'none', borderRadius:4, padding:'4px 10px', fontSize:11, fontWeight:600, cursor:'pointer', textTransform:'capitalize' }}>
-                  {v === 'list' ? '≡ List' : '⊞ Portfolio'}
-                </button>
-              ))}
+              <button onClick={()=>setViewMode('list')}
+                style={{ background: viewMode==='list' ? '#1a3a2a' : '#f3f4f6', color: viewMode==='list' ? 'white' : '#6b7280', border:'none', borderRadius:4, padding:'4px 10px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                ≡ List
+              </button>
+              <button onClick={()=>{ setViewMode('portfolio'); setActive(null) }}
+                style={{ background: viewMode==='portfolio' ? '#1a3a2a' : '#f3f4f6', color: viewMode==='portfolio' ? 'white' : '#6b7280', border:'none', borderRadius:4, padding:'4px 10px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                ⊞ Portfolio
+              </button>
             </div>
           </div>
 
@@ -923,11 +1306,16 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
             {/* Tab bar */}
             <div style={{ borderBottom:'1px solid #e5e7eb', display:'flex', padding:'0 18px', background:'white', flexShrink:0, overflowX:'auto' }}>
               {([
-                { key:'overview',  label:'📋 Overview' },
-                { key:'budget',    label:'💰 Budget' },
-                { key:'reports',   label:'📊 Reports' },
-                { key:'thread',    label:'💬 Thread' },
-                { key:'timeline',  label:'📅 Timeline' },
+                { key:'overview',   label:'📋 Overview' },
+                { key:'budget',     label:'💰 Budget' },
+                { key:'updates',    label:'📝 Updates' },
+                { key:'meetings',   label:'🗓 Meetings' },
+                { key:'decisions',  label:'⚖️ Decisions' },
+                { key:'risks',      label:'⚠️ Risks & Issues' },
+                { key:'activity',   label:'🕐 Activity' },
+                { key:'reports',    label:'📊 Reports' },
+                { key:'thread',     label:'💬 Thread' },
+                { key:'timeline',   label:'📅 Timeline' },
               ] as const).map(tab => (
                 <button key={tab.key} onClick={()=>setDetailTab(tab.key)}
                   style={{ border:'none', borderBottom: detailTab===tab.key ? '2px solid #1a3a2a' : '2px solid transparent', background:'transparent', padding:'9px 14px', cursor:'pointer', fontSize:12, fontWeight: detailTab===tab.key ? 700 : 400, color: detailTab===tab.key ? '#1a3a2a' : '#6b7280', whiteSpace:'nowrap' }}>
@@ -1194,18 +1582,86 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                   )}
 
                   {filteredTasks.length > 0 && (
-                    <div style={{ display:'flex', flexDirection:'column', gap:3, marginBottom:showLinkTask?10:0 }}>
+                    <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:showLinkTask?10:0 }}>
                       {filteredTasks.map((t:any)=>{
                         const dot = t.status==='resolved'?'#15803d':t.status==='action-required'?'#dc2626':'#d97706'
+                        const isExpanded = expandedTaskId === String(t.id)
+                        const priBg  = t.priority==='high'?'#fef2f2':t.priority==='low'?'#f0fdf4':'#fffbeb'
+                        const priCol = t.priority==='high'?'#dc2626':t.priority==='low'?'#15803d':'#d97706'
+                        const statusLabel: Record<string,string> = {
+                          'pending-discussion':'Pending','action-required':'Action Required',
+                          'in-review':'In Review','awaiting-hod-approval':'Awaiting HOD',
+                          'awaiting-hk-approval':'Awaiting HK','resolved':'Resolved',
+                          'expired':'Expired','archived':'Archived',
+                        }
+                        const remarks: any[] = Array.isArray(t.task_updates) ? t.task_updates : []
                         return (
-                          <div key={t.id} style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 9px', background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:5 }}>
-                            <div style={{ width:7, height:7, borderRadius:'50%', background:dot, flexShrink:0 }}/>
-                            <span style={{ flex:1, fontSize:12, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.particulars}</span>
-                            <span style={{ fontSize:10, color:'#9ca3af', whiteSpace:'nowrap', marginRight:4 }}>{t.company} · {t.responsible}</span>
-                            {t.due_date && <span style={{ fontSize:10, color: daysLeft(t.due_date)<0?'#dc2626':'#9ca3af', whiteSpace:'nowrap' }}>{fmtDateShort(t.due_date)}</span>}
-                            {canEdit && (
-                              <button onClick={()=>unlinkTask(t.id)} title="Unlink"
-                                style={{ background:'none', border:'1px solid #e5e7eb', color:'#9ca3af', borderRadius:3, padding:'1px 5px', fontSize:10, cursor:'pointer', flexShrink:0 }}>✕</button>
+                          <div key={t.id} style={{ border:'1px solid #e5e7eb', borderRadius:6, overflow:'hidden', background:'white' }}>
+                            {/* Summary row */}
+                            <div
+                              onClick={()=>{ setExpandedTaskId(isExpanded ? null : String(t.id)); setRemarkText('') }}
+                              style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 9px', background:'#f9fafb', cursor:'pointer', userSelect:'none' }}
+                            >
+                              <div style={{ width:7, height:7, borderRadius:'50%', background:dot, flexShrink:0 }}/>
+                              <span style={{ flex:1, fontSize:12, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.particulars}</span>
+                              {t.priority && (
+                                <span style={{ fontSize:9, fontWeight:700, background:priBg, color:priCol, borderRadius:3, padding:'1px 5px', whiteSpace:'nowrap', textTransform:'uppercase' }}>{t.priority}</span>
+                              )}
+                              <span style={{ fontSize:10, color:'#9ca3af', whiteSpace:'nowrap' }}>{t.responsible}</span>
+                              {t.due_date && <span style={{ fontSize:10, color: daysLeft(t.due_date)<0?'#dc2626':'#9ca3af', whiteSpace:'nowrap' }}>{fmtDateShort(t.due_date)}</span>}
+                              <span style={{ fontSize:10, color:'#9ca3af' }}>{isExpanded ? '▲' : '▼'}</span>
+                              {canEdit && (
+                                <button onClick={e=>{ e.stopPropagation(); unlinkTask(t.id) }} title="Unlink"
+                                  style={{ background:'none', border:'1px solid #e5e7eb', color:'#9ca3af', borderRadius:3, padding:'1px 5px', fontSize:10, cursor:'pointer', flexShrink:0 }}>✕</button>
+                              )}
+                            </div>
+
+                            {/* Expanded detail */}
+                            {isExpanded && (
+                              <div style={{ padding:'10px 12px', borderTop:'1px solid #e5e7eb' }}>
+                                {/* Fields row */}
+                                <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:10, fontSize:11 }}>
+                                  <div><span style={{ color:'#9ca3af' }}>Status: </span><span style={{ fontWeight:600, color:'#374151' }}>{statusLabel[t.status] || t.status}</span></div>
+                                  <div><span style={{ color:'#9ca3af' }}>Responsible: </span><span style={{ fontWeight:600, color:'#374151' }}>{t.responsible || '—'}</span></div>
+                                  <div><span style={{ color:'#9ca3af' }}>Due: </span><span style={{ fontWeight:600, color: t.due_date && daysLeft(t.due_date)<0?'#dc2626':'#374151' }}>{t.due_date ? fmtDateShort(t.due_date) : '—'}</span></div>
+                                  <div><span style={{ color:'#9ca3af' }}>Priority: </span><span style={{ fontWeight:700, color:priCol }}>{t.priority || '—'}</span></div>
+                                </div>
+
+                                {/* Remarks */}
+                                <div style={{ fontSize:11, fontWeight:700, color:'#6b7280', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.04em' }}>
+                                  Remarks {remarks.length > 0 && `(${remarks.length})`}
+                                </div>
+                                {remarks.length > 0 ? (
+                                  <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:8 }}>
+                                    {remarks.map((r:any) => (
+                                      <div key={r.id} style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:5, padding:'6px 9px' }}>
+                                        <div style={{ fontSize:12, color:'#111827', whiteSpace:'pre-wrap' }}>{r.text}</div>
+                                        <div style={{ fontSize:10, color:'#9ca3af', marginTop:3 }}>{r.added_by || 'System'} · {r.date || ''}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize:11, color:'#9ca3af', marginBottom:8 }}>No remarks yet.</div>
+                                )}
+
+                                {/* Add remark */}
+                                <div style={{ display:'flex', gap:5 }}>
+                                  <textarea
+                                    value={remarkText}
+                                    onChange={e=>setRemarkText(e.target.value)}
+                                    placeholder="Add a remark…"
+                                    rows={2}
+                                    style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'5px 8px', fontSize:12, resize:'vertical', outline:'none', fontFamily:'inherit' }}
+                                  />
+                                  <button
+                                    onClick={()=>addRemark(String(t.id))}
+                                    disabled={!remarkText.trim() || remarkSaving}
+                                    style={{ alignSelf:'flex-end', background: remarkText.trim() ? '#1a3a2a' : '#e5e7eb', color: remarkText.trim() ? 'white' : '#9ca3af', border:'none', borderRadius:5, padding:'6px 12px', fontSize:11, fontWeight:600, cursor: remarkText.trim() ? 'pointer' : 'default' }}
+                                  >
+                                    {remarkSaving ? '…' : 'Add'}
+                                  </button>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )
@@ -1259,6 +1715,61 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     </div>
                   )}
                 </div>
+
+                {/* Governance Indicators */}
+                {(() => {
+                  const openRisks     = risks.filter(r => r.type === 'risk' && (r.status === 'open' || r.status === 'in_progress')).length
+                  const critHighRisks = risks.filter(r => r.type === 'risk' && (r.severity === 'critical' || r.severity === 'high') && (r.status === 'open' || r.status === 'in_progress')).length
+                  const openIssues    = risks.filter(r => r.type === 'issue' && (r.status === 'open' || r.status === 'in_progress')).length
+                  const pendingDecs   = decisions.filter(d => d.status === 'pending').length
+                  if (!risksLoaded && !decisionsLoaded) return null
+                  return (
+                    <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:'14px 18px' }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.5px' }}>Governance</div>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+                        {[
+                          { label:'Open Risks',       val:openRisks,     color: openRisks>0 ? '#c2410c' : '#15803d',     tab:'risks' as const },
+                          { label:'Critical/High',    val:critHighRisks, color: critHighRisks>0 ? '#dc2626' : '#15803d', tab:'risks' as const },
+                          { label:'Open Issues',      val:openIssues,    color: openIssues>0 ? '#d97706' : '#15803d',    tab:'risks' as const },
+                          { label:'Pending Decisions',val:pendingDecs,   color: pendingDecs>0 ? '#7c3aed' : '#15803d',   tab:'decisions' as const },
+                        ].map(s => (
+                          <button key={s.label} onClick={()=>setDetailTab(s.tab)}
+                            style={{ textAlign:'center', padding:'10px', background:'white', borderRadius:6, border:'1px solid #e5e7eb', cursor:'pointer' }}>
+                            <div style={{ fontSize:10, color:'#9ca3af', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:3 }}>{s.label}</div>
+                            <div style={{ fontSize:20, fontWeight:800, color:s.color }}>{s.val}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Recent Activity */}
+                {activityLoaded && activityFeed.length > 0 && (
+                  <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:'14px 18px' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.5px' }}>Recent Activity</div>
+                      <button onClick={()=>setDetailTab('activity')}
+                        style={{ background:'none', border:'none', color:'#1a3a2a', fontSize:11, fontWeight:600, cursor:'pointer', textDecoration:'underline' }}>
+                        View all →
+                      </button>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                      {activityFeed.slice(0, 5).map(ev => (
+                        <div key={ev.id} style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+                          <div style={{ width:6, height:6, borderRadius:'50%', background:'#9ca3af', marginTop:5, flexShrink:0 }} />
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12, color:'#374151', lineHeight:'1.4' }}>{ev.description}</div>
+                            <div style={{ fontSize:11, color:'#9ca3af', marginTop:1 }}>
+                              {new Date(ev.created_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
@@ -1729,6 +2240,647 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               </div>
             )}
 
+            {/* ── UPDATES TAB ── */}
+            {detailTab === 'updates' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:16 }}>
+
+                {/* Header */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#0f172a' }}>
+                    Updates <span style={{ fontWeight:400, color:'#94a3b8', fontSize:12 }}>({updates.length})</span>
+                  </div>
+                  {canEdit && (
+                    <button onClick={()=>setShowNewUpdate(v=>!v)}
+                      style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                      + New Update
+                    </button>
+                  )}
+                </div>
+
+                {/* New update form */}
+                {showNewUpdate && (
+                  <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:10, padding:'16px' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Type</label>
+                        <select value={updateForm.type} onChange={e=>setUpdateForm(f=>({...f,type:e.target.value as UpdateType}))}
+                          style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'6px 8px', fontSize:12 }}>
+                          {(Object.keys(UPDATE_TYPE_CONFIG) as UpdateType[]).map(t=><option key={t} value={t}>{UPDATE_TYPE_CONFIG[t].label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Owner</label>
+                        <select value={updateForm.owner} onChange={e=>setUpdateForm(f=>({...f,owner:e.target.value}))}
+                          style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'6px 8px', fontSize:12 }}>
+                          <option value="">— none —</option>
+                          {[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Title *</label>
+                      <input value={updateForm.title} onChange={e=>setUpdateForm(f=>({...f,title:e.target.value}))}
+                        placeholder="Brief headline…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Details</label>
+                      <textarea value={updateForm.body} onChange={e=>setUpdateForm(f=>({...f,body:e.target.value}))}
+                        rows={3} placeholder="Describe the update…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, resize:'vertical', boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ marginBottom:14 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Next Steps</label>
+                      <input value={updateForm.next_steps} onChange={e=>setUpdateForm(f=>({...f,next_steps:e.target.value}))}
+                        placeholder="What happens next…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                      <button onClick={()=>{setShowNewUpdate(false);setUpdateForm({...BLANK_UPDATE})}}
+                        style={{ background:'#f3f4f6', color:'#374151', border:'none', borderRadius:6, padding:'7px 14px', fontSize:12, cursor:'pointer' }}>Cancel</button>
+                      <button onClick={postUpdate} disabled={!updateForm.title.trim()||updateSaving}
+                        style={{ background:updateForm.title.trim()?'#1a3a2a':'#9ca3af', color:'white', border:'none', borderRadius:6, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:updateForm.title.trim()?'pointer':'not-allowed' }}>
+                        {updateSaving?'Posting…':'Post Update'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Updates list */}
+                {!updatesLoaded && <div style={{ color:'#94a3b8', fontSize:13, textAlign:'center', paddingTop:20 }}>Loading…</div>}
+                {updatesLoaded && updates.length === 0 && (
+                  <div style={{ textAlign:'center', padding:'40px 20px', color:'#9ca3af', fontSize:13 }}>
+                    <div style={{ fontSize:28, marginBottom:10 }}>📝</div>
+                    No updates yet. Post the first one.
+                  </div>
+                )}
+                {updates.map(u => {
+                  const tc = UPDATE_TYPE_CONFIG[u.type]
+                  const sc = UPDATE_STATUS_CONFIG[u.status]
+                  const expanded = expandedUpdate === u.id
+                  return (
+                    <div key={u.id} style={{ border:'1px solid #e5e7eb', borderRadius:10, background:'white', overflow:'hidden' }}>
+                      <div style={{ padding:'14px 16px' }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:8 }}>
+                          <span style={{ background:tc.bg, color:tc.color, fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:10, flexShrink:0, marginTop:2 }}>{tc.label}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:14, fontWeight:700, color:'#0f172a', lineHeight:1.3 }}>{u.title}</div>
+                            {u.owner && <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>Owner: {u.owner}</div>}
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                            {canEdit && (
+                              <select value={u.status} onChange={e=>patchUpdateStatus(u,e.target.value as UpdateStatus)}
+                                style={{ border:`1px solid ${sc.color}40`, background:sc.bg, color:sc.color, borderRadius:6, padding:'2px 6px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                                {(Object.keys(UPDATE_STATUS_CONFIG) as UpdateStatus[]).map(s=><option key={s} value={s}>{UPDATE_STATUS_CONFIG[s].label}</option>)}
+                              </select>
+                            )}
+                            {!canEdit && <span style={{ background:sc.bg, color:sc.color, fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:6 }}>{sc.label}</span>}
+                            {canEdit && (
+                              <button onClick={()=>deleteUpdate(u.id)}
+                                style={{ background:'none', border:'none', color:'#ef4444', fontSize:13, cursor:'pointer', padding:'2px 4px' }}>✕</button>
+                            )}
+                          </div>
+                        </div>
+                        {u.body && <div style={{ fontSize:12, color:'#374151', lineHeight:1.6, marginBottom:6 }}>{u.body}</div>}
+                        {u.next_steps && (
+                          <div style={{ fontSize:11, color:'#64748b', background:'#f8fafc', borderRadius:6, padding:'6px 10px', marginBottom:6 }}>
+                            <strong>Next:</strong> {u.next_steps}
+                          </div>
+                        )}
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:6 }}>
+                          <span style={{ fontSize:11, color:'#94a3b8' }}>
+                            {u.posted_by} · {fmtTs(u.created_at)}
+                            {u.comments.length > 0 && <span style={{ marginLeft:8, color:'#6b7280' }}>{u.comments.length} comment{u.comments.length>1?'s':''}</span>}
+                          </span>
+                          <button onClick={()=>setExpandedUpdate(expanded?null:u.id)}
+                            style={{ background:'none', border:'none', fontSize:11, color:'#6b7280', cursor:'pointer', fontWeight:600 }}>
+                            {expanded ? 'Hide' : `Reply${u.comments.length>0?' ('+u.comments.length+')':''}`}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Comments */}
+                      {expanded && (
+                        <div style={{ borderTop:'1px solid #f3f4f6', padding:'10px 16px', background:'#fafafa' }}>
+                          {u.comments.map(c => (
+                            <div key={c.id} style={{ display:'flex', gap:8, marginBottom:8 }}>
+                              <div style={{ width:26, height:26, borderRadius:'50%', background:avatarColor(c.user_name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'white', flexShrink:0 }}>
+                                {avatarInitials(c.user_name)}
+                              </div>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:11, fontWeight:600, color:'#374151' }}>{c.user_name} <span style={{ fontWeight:400, color:'#94a3b8' }}>{fmtTs(c.created_at)}</span></div>
+                                <div style={{ fontSize:12, color:'#374151', lineHeight:1.5 }}>{c.message}</div>
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                            <input value={commentDraft[u.id]||''} onChange={e=>setCommentDraft(p=>({...p,[u.id]:e.target.value}))}
+                              onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();postUpdateComment(u.id)} }}
+                              placeholder="Add a comment…"
+                              style={{ flex:1, border:'1px solid #d1d5db', borderRadius:6, padding:'6px 10px', fontSize:12, outline:'none' }}/>
+                            <button onClick={()=>postUpdateComment(u.id)} disabled={!commentDraft[u.id]?.trim()||commentSaving[u.id]}
+                              style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:6, padding:'6px 12px', fontSize:12, cursor:'pointer' }}>
+                              {commentSaving[u.id]?'…':'Send'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── MEETINGS TAB ── */}
+            {detailTab === 'meetings' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:16 }}>
+
+                {/* Header */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#0f172a' }}>
+                    Meetings <span style={{ fontWeight:400, color:'#94a3b8', fontSize:12 }}>({meetings.length})</span>
+                  </div>
+                  {canEdit && (
+                    <button onClick={()=>setShowNewMeeting(v=>!v)}
+                      style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                      + Log Meeting
+                    </button>
+                  )}
+                </div>
+
+                {/* New meeting form */}
+                {showNewMeeting && (
+                  <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:10, padding:'16px' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Title *</label>
+                        <input value={meetingForm.title} onChange={e=>setMeetingForm(f=>({...f,title:e.target.value}))}
+                          placeholder="Meeting title…"
+                          style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, boxSizing:'border-box' }}/>
+                      </div>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Date</label>
+                        <input type="date" value={meetingForm.meeting_date} onChange={e=>setMeetingForm(f=>({...f,meeting_date:e.target.value}))}
+                          style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, boxSizing:'border-box' }}/>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Attendees</label>
+                      <input value={meetingForm.attendees} onChange={e=>setMeetingForm(f=>({...f,attendees:e.target.value}))}
+                        placeholder="Names or roles present…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Agenda</label>
+                      <textarea value={meetingForm.agenda} onChange={e=>setMeetingForm(f=>({...f,agenda:e.target.value}))}
+                        rows={2} placeholder="What was on the agenda…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, resize:'vertical', boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Notes / Minutes</label>
+                      <textarea value={meetingForm.notes} onChange={e=>setMeetingForm(f=>({...f,notes:e.target.value}))}
+                        rows={3} placeholder="Meeting notes…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, resize:'vertical', boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ marginBottom:14 }}>
+                      <label style={{ fontSize:11, fontWeight:600, color:'#64748b', display:'block', marginBottom:3 }}>Action Points</label>
+                      <textarea value={meetingForm.action_points} onChange={e=>setMeetingForm(f=>({...f,action_points:e.target.value}))}
+                        rows={2} placeholder="Agreed actions and owners…"
+                        style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:6, padding:'7px 10px', fontSize:12, resize:'vertical', boxSizing:'border-box' }}/>
+                    </div>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                      <button onClick={()=>{setShowNewMeeting(false);setMeetingForm({...BLANK_MEETING})}}
+                        style={{ background:'#f3f4f6', color:'#374151', border:'none', borderRadius:6, padding:'7px 14px', fontSize:12, cursor:'pointer' }}>Cancel</button>
+                      <button onClick={postMeeting} disabled={!meetingForm.title.trim()||meetingSaving}
+                        style={{ background:meetingForm.title.trim()?'#1a3a2a':'#9ca3af', color:'white', border:'none', borderRadius:6, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:meetingForm.title.trim()?'pointer':'not-allowed' }}>
+                        {meetingSaving?'Saving…':'Log Meeting'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Meetings list */}
+                {!meetingsLoaded && <div style={{ color:'#94a3b8', fontSize:13, textAlign:'center', paddingTop:20 }}>Loading…</div>}
+                {meetingsLoaded && meetings.length === 0 && (
+                  <div style={{ textAlign:'center', padding:'40px 20px', color:'#9ca3af', fontSize:13 }}>
+                    <div style={{ fontSize:28, marginBottom:10 }}>🗓</div>
+                    No meetings logged yet.
+                  </div>
+                )}
+                {meetings.map(m => {
+                  const expanded = expandedMeeting === m.id
+                  return (
+                    <div key={m.id} style={{ border:'1px solid #e5e7eb', borderRadius:10, background:'white', overflow:'hidden' }}>
+                      <div style={{ padding:'14px 16px', cursor:'pointer' }} onClick={()=>setExpandedMeeting(expanded?null:m.id)}>
+                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:14, fontWeight:700, color:'#0f172a' }}>{m.title}</div>
+                            <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>
+                              {m.meeting_date ? fmtDate(m.meeting_date) : '—'}
+                              {m.attendees && <span style={{ marginLeft:8 }}>· {m.attendees}</span>}
+                            </div>
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                            <span style={{ fontSize:11, color:'#94a3b8' }}>Logged by {m.logged_by}</span>
+                            {canEdit && (
+                              <button onClick={e=>{e.stopPropagation();deleteMeeting(m.id)}}
+                                style={{ background:'none', border:'none', color:'#ef4444', fontSize:13, cursor:'pointer', padding:'2px 4px' }}>✕</button>
+                            )}
+                            <span style={{ fontSize:14, color:'#94a3b8' }}>{expanded?'▲':'▼'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div style={{ borderTop:'1px solid #f3f4f6', padding:'14px 16px', background:'#fafafa', display:'flex', flexDirection:'column', gap:12 }}>
+                          {m.agenda && (
+                            <div>
+                              <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>Agenda</div>
+                              <div style={{ fontSize:12, color:'#374151', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{m.agenda}</div>
+                            </div>
+                          )}
+                          {m.notes && (
+                            <div>
+                              <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>Notes / Minutes</div>
+                              <div style={{ fontSize:12, color:'#374151', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{m.notes}</div>
+                            </div>
+                          )}
+                          {m.action_points && (() => {
+                            const lines = m.action_points.split('\n').map(l => l.trim()).filter(Boolean)
+                            const taskMap: Record<string, MeetingActionTask> = {}
+                            ;(m.action_tasks || []).forEach(at => { taskMap[at.action_text.slice(0,500)] = at })
+                            return (
+                              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:7, padding:'10px 12px' }}>
+                                <div style={{ fontSize:11, fontWeight:700, color:'#15803d', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.05em' }}>Action Points</div>
+                                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                                  {lines.map((line, i) => {
+                                    const key = line.slice(0, 500)
+                                    const linked = taskMap[key]
+                                    return (
+                                      <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                                        <span style={{ color:'#15803d', fontWeight:700, fontSize:12, flexShrink:0, marginTop:1 }}>·</span>
+                                        <span style={{ fontSize:12, color:'#166534', flex:1, lineHeight:1.5 }}>{line}</span>
+                                        {linked ? (
+                                          <a href={`/tasks?id=${linked.task_id}`} target="_blank" rel="noreferrer"
+                                            style={{ flexShrink:0, fontSize:10, fontWeight:700, background:'#dcfce7', color:'#15803d', border:'1px solid #bbf7d0', borderRadius:4, padding:'2px 7px', textDecoration:'none', whiteSpace:'nowrap' }}>
+                                            ✓ Task #{linked.task_id}
+                                          </a>
+                                        ) : canEdit ? (
+                                          <button onClick={()=>{
+                                            setConvertModal({ meetingId:m.id, actionText:line, company:active!.company })
+                                            setConvertForm({ particulars:line, responsible:'', due_date:'', priority:'medium' as const })
+                                            setConvertError('')
+                                          }}
+                                            style={{ flexShrink:0, fontSize:10, fontWeight:700, background:'white', color:'#1a3a2a', border:'1px solid #15803d', borderRadius:4, padding:'2px 7px', cursor:'pointer', whiteSpace:'nowrap' }}>
+                                            → Task
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── DECISIONS TAB ── */}
+            {detailTab === 'decisions' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                  <div style={{ fontSize:15, fontWeight:700, color:'#111827' }}>
+                    Decisions <span style={{ fontWeight:400, color:'#94a3b8', fontSize:12 }}>({decisions.length})</span>
+                  </div>
+                  {canEdit && !showNewDecision && !editingDecision && (
+                    <button onClick={()=>setShowNewDecision(true)}
+                      style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:6, padding:'6px 13px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                      + Log Decision
+                    </button>
+                  )}
+                </div>
+
+                {/* New decision form */}
+                {showNewDecision && (
+                  <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:'16px', marginBottom:16 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#111827', marginBottom:12 }}>New Decision</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <input value={decisionForm.title} onChange={e=>setDecisionForm(p=>({...p,title:e.target.value}))}
+                        placeholder="Title *" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                      <textarea value={decisionForm.description} onChange={e=>setDecisionForm(p=>({...p,description:e.target.value}))}
+                        placeholder="Description / context" rows={3}
+                        style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none', resize:'vertical' }}/>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8 }}>
+                        <select value={decisionForm.status} onChange={e=>setDecisionForm(p=>({...p,status:e.target.value as DecisionStatus}))}
+                          style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}>
+                          {(['pending','decided','deferred','rejected'] as DecisionStatus[]).map(s=>(
+                            <option key={s} value={s}>{DECISION_STATUS_CONFIG[s].label}</option>
+                          ))}
+                        </select>
+                        <input value={decisionForm.owner} onChange={e=>setDecisionForm(p=>({...p,owner:e.target.value}))}
+                          placeholder="Owner" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                        <input type="date" value={decisionForm.decision_date} onChange={e=>setDecisionForm(p=>({...p,decision_date:e.target.value}))}
+                          style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}/>
+                        <input value={decisionForm.source} onChange={e=>setDecisionForm(p=>({...p,source:e.target.value}))}
+                          placeholder="Source (meeting, email…)" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                      <button onClick={postDecision} disabled={decisionSaving || !decisionForm.title.trim()}
+                        style={{ background: decisionForm.title.trim() ? '#1a3a2a' : '#e5e7eb', color: decisionForm.title.trim() ? 'white' : '#9ca3af', border:'none', borderRadius:5, padding:'7px 14px', fontSize:12, fontWeight:600, cursor: decisionForm.title.trim() ? 'pointer' : 'default' }}>
+                        {decisionSaving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={()=>{ setShowNewDecision(false); setDecisionForm({...BLANK_DECISION}) }}
+                        style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'7px 14px', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!decisionsLoaded && <div style={{ color:'#94a3b8', fontSize:13, textAlign:'center', paddingTop:20 }}>Loading…</div>}
+                {decisionsLoaded && decisions.length === 0 && !showNewDecision && (
+                  <div style={{ color:'#9ca3af', fontSize:13, textAlign:'center', paddingTop:30 }}>No decisions logged yet.</div>
+                )}
+                {decisions.map(d => {
+                  const sc = DECISION_STATUS_CONFIG[d.status]
+                  const editing = editingDecision?.id === d.id
+                  return (
+                    <div key={d.id} style={{ background:'white', border:'1px solid #e5e7eb', borderRadius:10, padding:'14px 16px', marginBottom:10 }}>
+                      {editing ? (
+                        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                          <input value={editDecisionForm.title} onChange={e=>setEditDecisionForm(p=>({...p,title:e.target.value}))}
+                            placeholder="Title *" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                          <textarea value={editDecisionForm.description} onChange={e=>setEditDecisionForm(p=>({...p,description:e.target.value}))}
+                            placeholder="Description" rows={3}
+                            style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none', resize:'vertical' }}/>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8 }}>
+                            <select value={editDecisionForm.status} onChange={e=>setEditDecisionForm(p=>({...p,status:e.target.value as DecisionStatus}))}
+                              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}>
+                              {(['pending','decided','deferred','rejected'] as DecisionStatus[]).map(s=>(
+                                <option key={s} value={s}>{DECISION_STATUS_CONFIG[s].label}</option>
+                              ))}
+                            </select>
+                            <input value={editDecisionForm.owner} onChange={e=>setEditDecisionForm(p=>({...p,owner:e.target.value}))}
+                              placeholder="Owner" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                            <input type="date" value={editDecisionForm.decision_date} onChange={e=>setEditDecisionForm(p=>({...p,decision_date:e.target.value}))}
+                              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}/>
+                            <input value={editDecisionForm.source} onChange={e=>setEditDecisionForm(p=>({...p,source:e.target.value}))}
+                              placeholder="Source" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                          </div>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <button onClick={saveDecision} disabled={editDecisionSaving}
+                              style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:5, padding:'6px 13px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                              {editDecisionSaving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button onClick={()=>setEditingDecision(null)}
+                              style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'6px 13px', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom: d.description ? 8 : 0 }}>
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:13, fontWeight:700, color:'#111827', marginBottom:3 }}>{d.title}</div>
+                              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                                <span style={{ background:sc.bg, color:sc.color, borderRadius:4, padding:'2px 7px', fontSize:10, fontWeight:700 }}>{sc.label}</span>
+                                {d.owner && <span style={{ fontSize:11, color:'#6b7280' }}>Owner: {d.owner}</span>}
+                                {d.decision_date && <span style={{ fontSize:11, color:'#6b7280' }}>Date: {fmtDate(d.decision_date)}</span>}
+                                {d.source && <span style={{ fontSize:11, color:'#6b7280' }}>Source: {d.source}</span>}
+                                <span style={{ fontSize:10, color:'#d1d5db', marginLeft:'auto' }}>by {d.created_by} · {fmtTs(d.created_at)}</span>
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                                <button onClick={()=>{ setEditingDecision(d); setEditDecisionForm({ title:d.title, description:d.description, status:d.status, owner:d.owner, decision_date:d.decision_date||'', source:d.source }) }}
+                                  style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 9px', fontSize:11, cursor:'pointer', color:'#6b7280' }}>Edit</button>
+                                {canDelete && (
+                                  <button onClick={()=>deleteDecision(d.id)}
+                                    style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:14, padding:'0 3px' }}>✕</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {d.description && <div style={{ fontSize:12, color:'#374151', lineHeight:1.5, marginTop:4 }}>{d.description}</div>}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── RISKS & ISSUES TAB ── */}
+            {detailTab === 'risks' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                  <div style={{ fontSize:15, fontWeight:700, color:'#111827' }}>
+                    Risks &amp; Issues <span style={{ fontWeight:400, color:'#94a3b8', fontSize:12 }}>({risks.length})</span>
+                  </div>
+                  {canEdit && !showNewRisk && !editingRisk && (
+                    <button onClick={()=>setShowNewRisk(true)}
+                      style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:6, padding:'6px 13px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                      + Log Risk / Issue
+                    </button>
+                  )}
+                </div>
+
+                {/* New risk form */}
+                {showNewRisk && (
+                  <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:'16px', marginBottom:16 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#111827', marginBottom:12 }}>New Risk / Issue</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                        <select value={riskForm.type} onChange={e=>setRiskForm(p=>({...p,type:e.target.value as RiskType}))}
+                          style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}>
+                          <option value="risk">Risk</option>
+                          <option value="issue">Issue</option>
+                        </select>
+                        <select value={riskForm.severity} onChange={e=>setRiskForm(p=>({...p,severity:e.target.value as RiskSeverity}))}
+                          style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}>
+                          {(['low','medium','high','critical'] as RiskSeverity[]).map(s=>(
+                            <option key={s} value={s}>{RISK_SEVERITY_CONFIG[s].label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <input value={riskForm.title} onChange={e=>setRiskForm(p=>({...p,title:e.target.value}))}
+                        placeholder="Title *" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                      <textarea value={riskForm.description} onChange={e=>setRiskForm(p=>({...p,description:e.target.value}))}
+                        placeholder="Description / impact" rows={3}
+                        style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none', resize:'vertical' }}/>
+                      <textarea value={riskForm.mitigation} onChange={e=>setRiskForm(p=>({...p,mitigation:e.target.value}))}
+                        placeholder="Mitigation / response plan" rows={2}
+                        style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none', resize:'vertical' }}/>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                        <input value={riskForm.owner} onChange={e=>setRiskForm(p=>({...p,owner:e.target.value}))}
+                          placeholder="Owner" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                        <input type="date" value={riskForm.target_date} onChange={e=>setRiskForm(p=>({...p,target_date:e.target.value}))}
+                          placeholder="Target date"
+                          style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}/>
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                      <button onClick={postRisk} disabled={riskSaving || !riskForm.title.trim()}
+                        style={{ background: riskForm.title.trim() ? '#1a3a2a' : '#e5e7eb', color: riskForm.title.trim() ? 'white' : '#9ca3af', border:'none', borderRadius:5, padding:'7px 14px', fontSize:12, fontWeight:600, cursor: riskForm.title.trim() ? 'pointer' : 'default' }}>
+                        {riskSaving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={()=>{ setShowNewRisk(false); setRiskForm({...BLANK_RISK}) }}
+                        style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'7px 14px', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!risksLoaded && <div style={{ color:'#94a3b8', fontSize:13, textAlign:'center', paddingTop:20 }}>Loading…</div>}
+                {risksLoaded && risks.length === 0 && !showNewRisk && (
+                  <div style={{ color:'#9ca3af', fontSize:13, textAlign:'center', paddingTop:30 }}>No risks or issues logged yet.</div>
+                )}
+                {risks.map(r => {
+                  const sevc = RISK_SEVERITY_CONFIG[r.severity]
+                  const stac = RISK_STATUS_CONFIG[r.status]
+                  const editing = editingRisk?.id === r.id
+                  return (
+                    <div key={r.id} style={{ background:'white', border:`1px solid ${r.severity==='critical'?'#fecaca':r.severity==='high'?'#fed7aa':'#e5e7eb'}`, borderLeft:`3px solid ${sevc.color}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }}>
+                      {editing ? (
+                        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                            <select value={editRiskForm.type} onChange={e=>setEditRiskForm(p=>({...p,type:e.target.value as RiskType}))}
+                              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}>
+                              <option value="risk">Risk</option>
+                              <option value="issue">Issue</option>
+                            </select>
+                            <select value={editRiskForm.severity} onChange={e=>setEditRiskForm(p=>({...p,severity:e.target.value as RiskSeverity}))}
+                              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}>
+                              {(['low','medium','high','critical'] as RiskSeverity[]).map(s=>(
+                                <option key={s} value={s}>{RISK_SEVERITY_CONFIG[s].label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <input value={editRiskForm.title} onChange={e=>setEditRiskForm(p=>({...p,title:e.target.value}))}
+                            placeholder="Title *" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                          <textarea value={editRiskForm.description} onChange={e=>setEditRiskForm(p=>({...p,description:e.target.value}))}
+                            placeholder="Description" rows={3}
+                            style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none', resize:'vertical' }}/>
+                          <textarea value={editRiskForm.mitigation} onChange={e=>setEditRiskForm(p=>({...p,mitigation:e.target.value}))}
+                            placeholder="Mitigation" rows={2}
+                            style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none', resize:'vertical' }}/>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                            <input value={editRiskForm.owner} onChange={e=>setEditRiskForm(p=>({...p,owner:e.target.value}))}
+                              placeholder="Owner" style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 10px', fontSize:12, outline:'none' }}/>
+                            <input type="date" value={editRiskForm.target_date} onChange={e=>setEditRiskForm(p=>({...p,target_date:e.target.value}))}
+                              style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'7px 8px', fontSize:12, outline:'none' }}/>
+                          </div>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <button onClick={saveRisk} disabled={editRiskSaving}
+                              style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:5, padding:'6px 13px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                              {editRiskSaving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button onClick={()=>setEditingRisk(null)}
+                              style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'6px 13px', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom: r.description ? 6 : 0 }}>
+                            <div style={{ flex:1 }}>
+                              <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:4 }}>
+                                <span style={{ fontSize:10, fontWeight:700, background: r.type==='issue'?'#dbeafe':'#f3e8ff', color: r.type==='issue'?'#1d4ed8':'#7c3aed', borderRadius:3, padding:'1px 6px', textTransform:'uppercase', letterSpacing:'0.3px' }}>
+                                  {r.type}
+                                </span>
+                                <span style={{ background:sevc.bg, color:sevc.color, borderRadius:4, padding:'2px 7px', fontSize:10, fontWeight:700 }}>{sevc.label}</span>
+                                <span style={{ background:stac.bg, color:stac.color, borderRadius:4, padding:'2px 7px', fontSize:10, fontWeight:700 }}>{stac.label}</span>
+                                {canEdit && (
+                                  <select value={r.status} onChange={e=>patchRiskStatus(r, e.target.value as RiskStatus)}
+                                    style={{ border:'1px solid #e5e7eb', borderRadius:4, padding:'2px 5px', fontSize:10, background:'white', cursor:'pointer', color:'#374151', marginLeft:2 }}>
+                                    {(['open','in_progress','resolved','closed'] as RiskStatus[]).map(s=>(
+                                      <option key={s} value={s}>{RISK_STATUS_CONFIG[s].label}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                              <div style={{ fontSize:13, fontWeight:700, color:'#111827', marginBottom:2 }}>{r.title}</div>
+                              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                                {r.owner && <span style={{ fontSize:11, color:'#6b7280' }}>Owner: {r.owner}</span>}
+                                {r.target_date && <span style={{ fontSize:11, color:'#6b7280' }}>Target: {fmtDate(r.target_date)}</span>}
+                                <span style={{ fontSize:10, color:'#d1d5db', marginLeft:'auto' }}>by {r.created_by} · {fmtTs(r.created_at)}</span>
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                                <button onClick={()=>{ setEditingRisk(r); setEditRiskForm({ type:r.type, title:r.title, description:r.description, owner:r.owner, severity:r.severity, mitigation:r.mitigation, target_date:r.target_date||'' }) }}
+                                  style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 9px', fontSize:11, cursor:'pointer', color:'#6b7280' }}>Edit</button>
+                                {canDelete && (
+                                  <button onClick={()=>deleteRisk(r.id)}
+                                    style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:14, padding:'0 3px' }}>✕</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {r.description && <div style={{ fontSize:12, color:'#374151', lineHeight:1.5, marginTop:4 }}>{r.description}</div>}
+                          {r.mitigation && (
+                            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:6, padding:'7px 10px', marginTop:8, fontSize:12, color:'#15803d' }}>
+                              <span style={{ fontWeight:700 }}>Mitigation: </span>{r.mitigation}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── ACTIVITY TAB ── */}
+            {detailTab === 'activity' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto' }}>
+                <div style={{ fontSize:15, fontWeight:700, color:'#111827', marginBottom:16 }}>Project Activity</div>
+                {!activityLoaded && <div style={{ color:'#94a3b8', fontSize:13, textAlign:'center', paddingTop:20 }}>Loading…</div>}
+                {activityLoaded && activityFeed.length === 0 && (
+                  <div style={{ color:'#9ca3af', fontSize:13, textAlign:'center', paddingTop:30 }}>No activity recorded yet.</div>
+                )}
+                {activityLoaded && activityFeed.length > 0 && (() => {
+                  const groups: { date: string; events: ProjectActivity[] }[] = []
+                  activityFeed.forEach(ev => {
+                    const d = new Date(ev.created_at).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+                    const last = groups[groups.length - 1]
+                    if (last && last.date === d) last.events.push(ev)
+                    else groups.push({ date: d, events: [ev] })
+                  })
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
+                      {groups.map(g => (
+                        <div key={g.date}>
+                          <div style={{ fontSize:11, fontWeight:700, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:10, paddingBottom:6, borderBottom:'1px solid #f3f4f6' }}>{g.date}</div>
+                          <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
+                            {g.events.map(ev => (
+                              <div key={ev.id} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'8px 10px', borderRadius:7, background:'white', border:'1px solid #f3f4f6' }}>
+                                <div style={{ width:7, height:7, borderRadius:'50%', background:'#d1d5db', marginTop:5, flexShrink:0 }} />
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontSize:13, color:'#374151', lineHeight:'1.4' }}>{ev.description}</div>
+                                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>
+                                    {new Date(ev.created_at).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
             {/* ── TIMELINE TAB ── */}
             {detailTab === 'timeline' && (() => {
               const today = new Date(); today.setHours(0,0,0,0)
@@ -1964,6 +3116,68 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               <button onClick={()=>setShowCreateTask(false)} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
               <button onClick={submitCreateTask} disabled={createTaskSaving||!createTaskForm.particulars.trim()} style={{ background:createTaskSaving||!createTaskForm.particulars.trim()?'#9ca3af':'#b5833a', color:'white', border:'none', padding:'8px 20px', borderRadius:6, fontSize:13, fontWeight:600, cursor:createTaskSaving||!createTaskForm.particulars.trim()?'not-allowed':'pointer' }}>
                 {createTaskSaving?'Creating…':'Create Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONVERT ACTION POINT → TASK MODAL ── */}
+      {convertModal && active && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+          onClick={()=>setConvertModal(null)}>
+          <div style={{ background:'white', borderRadius:12, padding:26, maxWidth:500, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', maxHeight:'90vh', overflowY:'auto' }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+              <div style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Convert to Task</div>
+              <button onClick={()=>setConvertModal(null)} style={{ background:'none', border:'none', fontSize:20, color:'#9ca3af', cursor:'pointer' }}>✕</button>
+            </div>
+
+            {/* Source action point */}
+            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:7, padding:'8px 11px', fontSize:12, color:'#166534', marginBottom:16, lineHeight:1.5 }}>
+              <strong>Action point:</strong> {convertModal.actionText}
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div>
+                <label style={lbl}>Task Description *</label>
+                <textarea value={convertForm.particulars} onChange={e=>setConvertForm(f=>({...f,particulars:e.target.value}))}
+                  rows={3} autoFocus
+                  style={{ ...inp, resize:'vertical' }}/>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+                <div>
+                  <label style={lbl}>Assignee</label>
+                  <select value={convertForm.responsible} onChange={e=>setConvertForm(f=>({...f,responsible:e.target.value}))} style={inp}>
+                    <option value="">— none —</option>
+                    {[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Priority</label>
+                  <select value={convertForm.priority} onChange={e=>setConvertForm(f=>({...f,priority:e.target.value as 'low'|'medium'|'high'}))} style={inp}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Due Date</label>
+                <input type="date" value={convertForm.due_date} onChange={e=>setConvertForm(f=>({...f,due_date:e.target.value}))} style={inp}/>
+              </div>
+              <div style={{ background:'#f3f4f6', borderRadius:6, padding:'7px 10px', fontSize:11, color:'#6b7280' }}>
+                Project: <strong>{active.name}</strong> · Company: <strong>{active.company}</strong> · Category: Projects
+              </div>
+              {convertError && (
+                <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, padding:'8px 11px', fontSize:12, color:'#dc2626' }}>{convertError}</div>
+              )}
+            </div>
+            <div style={{ display:'flex', gap:9, marginTop:20, justifyContent:'flex-end' }}>
+              <button onClick={()=>setConvertModal(null)} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
+              <button onClick={submitConvertToTask} disabled={convertSaving||!convertForm.particulars.trim()}
+                style={{ background:convertSaving||!convertForm.particulars.trim()?'#9ca3af':'#1a3a2a', color:'white', border:'none', padding:'8px 20px', borderRadius:6, fontSize:13, fontWeight:600, cursor:convertSaving||!convertForm.particulars.trim()?'not-allowed':'pointer' }}>
+                {convertSaving?'Creating…':'Create Task'}
               </button>
             </div>
           </div>

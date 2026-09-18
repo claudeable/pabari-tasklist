@@ -1461,6 +1461,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
   const uploadAttachment = useUploadProjectUpdateAttachment(projectId);
   const canDelete = canDeleteUpdate(currentUser);
 
+  const [showPostForm, setShowPostForm] = useState(false);
   const [body, setBody] = useState("");
   const [source, setSource] = useState("internal");
   const [emailFrom, setEmailFrom] = useState("");
@@ -1512,6 +1513,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
       setPendingFiles([]);
       setParentUpdateId("");
       setShowLinkPanel(false);
+      setShowPostForm(false);
       toast.success("Update posted");
     } catch {
       toast.error("Failed to post update");
@@ -1534,26 +1536,46 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Post form */}
-      <div className="rounded-xl border border-border p-4 space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Post form — collapsed by default */}
+      <div className="rounded-xl border border-border space-y-0">
+        {/* Header / toggle */}
+        <div
+          className="flex items-center justify-between p-4 cursor-pointer select-none"
+          onClick={() => setShowPostForm((v) => !v)}
+        >
           <p className="text-sm font-semibold text-foreground">Post an update</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSource("internal")}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "internal" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-            >
-              Internal
-            </button>
-            <button
-              onClick={() => setSource("email")}
-              className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-            >
-              <Mail className="h-3 w-3" />
-              Email
-            </button>
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            {!showPostForm && (
+              <Button size="sm" className="gap-1.5" onClick={() => setShowPostForm(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Add update
+              </Button>
+            )}
+            {showPostForm && (
+              <>
+                <button
+                  onClick={() => setSource("internal")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "internal" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                >
+                  Internal
+                </button>
+                <button
+                  onClick={() => setSource("email")}
+                  className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${source === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                >
+                  <Mail className="h-3 w-3" />
+                  Email
+                </button>
+                <Button size="sm" variant="ghost" onClick={() => setShowPostForm(false)}>
+                  Cancel
+                </Button>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Expanded form body */}
+        {showPostForm && <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
 
         {/* Row 1: Date */}
         <div className="space-y-1">
@@ -1707,6 +1729,7 @@ function ProjectUpdatesTab({ projectId }: { projectId: string }) {
             {posting ? "Posting…" : "Post update"}
           </Button>
         </div>
+        </div>}
       </div>
 
       {/* Feed — table view */}

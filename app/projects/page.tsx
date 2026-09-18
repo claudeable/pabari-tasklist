@@ -1,12 +1,10 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
-import { getProjects } from '@/lib/projects'
+import { getProjectsForUser } from '@/lib/projects'
 import ProjectsBoard from '@/components/ProjectsBoard'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_NAMES = ['harshil', 'benson']
 
 export default async function ProjectsPage() {
   const cookieStore = cookies()
@@ -14,12 +12,7 @@ export default async function ProjectsPage() {
   const currentUser = session?.value ? await verifyToken(session.value) : null
   if (!currentUser) redirect('/login')
 
-  const isAllowed = currentUser.role === 'admin' ||
-    ALLOWED_NAMES.includes(currentUser.name.toLowerCase().split(' ')[0])
-
-  if (!isAllowed) redirect('/')
-
-  const projects = await getProjects()
+  const projects = await getProjectsForUser(currentUser.name, currentUser.role)
 
   return <ProjectsBoard initialProjects={projects} currentUser={currentUser} />
 }
