@@ -36,11 +36,10 @@ const NAV = [
   { key: 'dashboard',    label: 'Dashboard',          href: '/core/dashboard',     icon: 'dashboard' },
   { key: 'tasks',        label: 'Tasks',               href: '/core/tasks',         icon: 'tasks' },
   { key: 'projects',     label: 'Project Tracker',     href: '/core/projects',      icon: 'projects' },
-  { key: 'reports',      label: 'Reports',             href: '/core/reports',       icon: 'reports' },
   { key: 'intelligence', label: 'Pabari Intelligence', href: '/core/intelligence',  icon: 'intelligence' },
   { key: 'connect',      label: 'Pabari Connect',      href: '/core/connect',       icon: 'connect' },
   { key: 'centre',       label: 'Pabari Centre',       href: '/core/centre',        icon: 'centre' },
-  { key: 'documents',    label: 'Documents',           href: '/core/documents',     icon: 'documents' },
+  { key: 'shelf',        label: 'Pabari Shelf',        href: '/core/shelf',         icon: 'documents' },
 ]
 
 export default function CoreShell({ currentUser, children }: Props) {
@@ -207,8 +206,8 @@ export default function CoreShell({ currentUser, children }: Props) {
           </div>
         </header>
 
-        {/* Page content */}
-        <main style={{ flex: 1, padding: isMobile ? '20px 16px' : '28px 32px', maxWidth: 1200, width: '100%' }}>
+        {/* Page content — no padding here; each page adds its own */}
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {children}
         </main>
       </div>

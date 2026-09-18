@@ -42,11 +42,10 @@ function getGreeting() {
 const MODULES = [
   { label: 'Tasks',               href: '/core/tasks',        icon: '✓', color: '#22c55e', bg: '#f0fdf4', desc: 'Manage and track all tasks' },
   { label: 'Project Tracker',     href: '/core/projects',     icon: '📁', color: '#6366f1', bg: '#eef2ff', desc: 'Projects and milestones' },
-  { label: 'Reports',             href: '/core/reports',      icon: '📊', color: '#f59e0b', bg: '#fffbeb', desc: 'Analytics and reporting' },
   { label: 'Pabari Intelligence', href: '/core/intelligence', icon: '💡', color: '#8b5cf6', bg: '#f5f3ff', desc: 'Executive intelligence' },
   { label: 'Pabari Connect',      href: '/core/connect',      icon: '💬', color: '#0ea5e9', bg: '#f0f9ff', desc: 'Team communication hub' },
   { label: 'Pabari Centre',       href: '/core/centre',       icon: '🏛️', color: '#ef4444', bg: '#fef2f2', desc: 'Company forms and requests' },
-  { label: 'Documents',           href: '/core/documents',    icon: '📄', color: '#64748b', bg: '#f8fafc', desc: 'Files and document library' },
+  { label: 'Pabari Shelf',        href: '/core/shelf',        icon: '📄', color: '#64748b', bg: '#f8fafc', desc: 'Cloud document library' },
 ]
 
 export default function CoreDashboard({ stats, activity, userName }: Props) {
@@ -61,7 +60,7 @@ export default function CoreDashboard({ stats, activity, userName }: Props) {
   )
 
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div style={{ maxWidth: 1100, padding: '28px 32px', overflowY: 'auto', flex: 1 }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>

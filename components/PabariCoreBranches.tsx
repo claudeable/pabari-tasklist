@@ -37,9 +37,9 @@ const BRANCHES = [
     flag:   '🇮🇳',
     desc:   'Tasks · Projects · Documents · Connect · Centre',
     accent: '#f97316',
-    href:   null,
-    active: false,
-    stat:   'Coming soon',
+    href:   '/india',
+    active: true,
+    stat:   'Open workspace',
   },
   {
     key:    'dubai',
@@ -47,9 +47,9 @@ const BRANCHES = [
     flag:   '🇦🇪',
     desc:   'Tasks · Projects · Documents · Connect · Centre',
     accent: '#38bdf8',
-    href:   null,
-    active: false,
-    stat:   'Coming soon',
+    href:   '/dubai',
+    active: true,
+    stat:   'Open workspace',
   },
 ]
 

@@ -16,7 +16,7 @@ import { SessionUser } from '@/types'
 import InactivityGuard from './InactivityGuard'
 import NotificationBell from './NotificationBell'
 
-interface Props { currentUser: SessionUser; mustChangePassword?: boolean }
+interface Props { currentUser: SessionUser; mustChangePassword?: boolean; branch?: 'kenya' | 'india' | 'dubai' }
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -29,7 +29,14 @@ function fmtDate() {
   return new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
 }
 
-export default function UnifiedHub({ currentUser, mustChangePassword = false }: Props) {
+const BRANCH_META = {
+  kenya: { label: 'Pabari Kenya', flag: '🇰🇪', back: '/kenya' },
+  india: { label: 'Pabari India', flag: '🇮🇳', back: '/india' },
+  dubai: { label: 'Pabari Dubai', flag: '🇦🇪', back: '/dubai' },
+}
+
+export default function UnifiedHub({ currentUser, mustChangePassword = false, branch = 'kenya' }: Props) {
+  const branchMeta = BRANCH_META[branch]
   const [isMobile,    setIsMobile]    = useState(false)
   const [openTasks,   setOpenTasks]   = useState<number | null>(null)
   const [ssoLoading,  setSsoLoading]  = useState<string | null>(null)
@@ -195,13 +202,13 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false }: 
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:14 }}>
             <a href="/" style={{ fontSize:12, color:'#4a7055', textDecoration:'none', fontWeight:600 }}>Workspace</a>
             <span style={{ color:'#2d4a35', fontSize:12 }}>›</span>
-            <span style={{ fontSize:12, color:'#a3c4ae', fontWeight:600 }}>🇰🇪 Pabari Kenya</span>
+            <span style={{ fontSize:12, color:'#a3c4ae', fontWeight:600 }}>{branchMeta.flag} {branchMeta.label}</span>
           </div>
           <div style={{ fontSize: isMobile ? 11 : 12, fontWeight:700, color:'#4a7055', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>
             {getGreeting()}, {firstName}
           </div>
           <h1 style={{ margin:0, fontSize: isMobile ? 26 : 38, fontWeight:900, color:'#e2ede7', lineHeight:1.1, letterSpacing:'-0.02em' }}>
-            Pabari Kenya
+            {branchMeta.label}
           </h1>
           <p style={{ margin:'8px 0 0', color:'#4a7055', fontSize: isMobile ? 12 : 13 }}>{fmtDate()}</p>
         </div>

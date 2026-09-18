@@ -16,7 +16,7 @@ interface Props {
 
 export default function CoreModulePage({ title, description, icon, fullPageHref, fullPageLabel, secondaryHref, secondaryLabel, secondaryExternal, color = '#22c55e', bg = '#f0fdf4', features }: Props) {
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div style={{ maxWidth: 800, padding: '28px 32px', overflowY: 'auto', flex: 1 }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>{title}</h1>
         <p style={{ margin: '5px 0 0', fontSize: 13, color: '#64748b' }}>{description}</p>
