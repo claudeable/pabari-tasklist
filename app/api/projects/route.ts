@@ -12,7 +12,8 @@ export async function GET() {
   const user = session?.value ? await verifyToken(session.value) : null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const projects = await getProjectsForUser(user.name, user.role)
+  const branch = cookieStore.get('pabari-branch')?.value || 'kenya'
+  const projects = await getProjectsForUser(user.name, user.role, branch)
   return NextResponse.json(projects)
 }
 
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
   const { name, description, company, owner, status, rag_status, start_date, end_date, budget } = body
   if (!name?.trim() || !company) return NextResponse.json({ error: 'Name and company required' }, { status: 400 })
 
+  const branch = cookieStore.get('pabari-branch')?.value || 'kenya'
   const project = await createProject({
     name: name.trim(),
     description: description || '',
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
     end_date: end_date || '',
     budget: Number(budget) || 0,
     created_by: user.name,
+    branch,
   })
   await addProjectMember({ project_id: project.id, user_name: project.owner, role: 'owner' })
   if (user.name !== project.owner) {

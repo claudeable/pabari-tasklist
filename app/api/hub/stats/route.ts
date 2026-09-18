@@ -15,16 +15,17 @@ export async function GET() {
   const isAdmin    = user.role === 'admin'
   const isDirector = user.role === 'director' || user.role === 'ceo'
   const canFinance = isAdmin || isDirector || FINANCE_VISIBLE_EMAILS.has(user.email ?? '')
+  const branch     = cookieStore.get('pabari-branch')?.value || 'kenya'
 
   const safe = (rows: { count: string }[]) => parseInt(rows[0]?.count ?? '0', 10)
 
   const [tasks, finance, projects, docs, invoices, deliveries] = await Promise.all([
-    // Tasks: open tasks visible to the user
+    // Tasks: open tasks visible to the user, scoped to branch
     query<{ count: string }>(
       isAdmin || isDirector
-        ? `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired','archived')`
-        : `SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired','archived') AND responsible ILIKE $1`,
-      isAdmin || isDirector ? [] : [`%${(user.name ?? '').split(' ')[0]}%`]
+        ? `SELECT COUNT(*)::text AS count FROM tasks WHERE branch = $1 AND status NOT IN ('resolved','expired','archived')`
+        : `SELECT COUNT(*)::text AS count FROM tasks WHERE branch = $1 AND status NOT IN ('resolved','expired','archived') AND responsible ILIKE $2`,
+      isAdmin || isDirector ? [branch] : [branch, `%${(user.name ?? '').split(' ')[0]}%`]
     ).catch(() => []),
 
     // Finance: active invoices
@@ -32,8 +33,8 @@ export async function GET() {
       ? query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM invoices WHERE status NOT IN ('paid','cancelled')`).catch(() => [])
       : Promise.resolve([{ count: '0' }]),
 
-    // Projects: active projects
-    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM projects WHERE status IN ('active','planning')`).catch(() => []),
+    // Projects: active projects, scoped to branch
+    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM projects WHERE branch = $1 AND status IN ('active','planning')`, [branch]).catch(() => []),
 
     // Documents
     query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM documents`).catch(() => []),

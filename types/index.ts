@@ -433,6 +433,7 @@ export interface Task {
   legal_review:    boolean  // HOD flagged this task as needing legal review
   legal_comment:   string   // Legal counsel's response/notes
   co_assignees:    string[] // additional people assigned alongside the primary responsible
+  branch:          string   // 'kenya' | 'india' | 'dubai'
   created_by:      string
   created_at:      string
   updated_at:      string

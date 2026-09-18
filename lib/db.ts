@@ -58,6 +58,8 @@ async function ensureParentId() {
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hk_escalation_type TEXT NOT NULL DEFAULT 'none'").catch(() => {})
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hk_escalation_note TEXT NOT NULL DEFAULT ''").catch(() => {})
   await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hk_escalation_by   TEXT NOT NULL DEFAULT ''").catch(() => {})
+  // Branch isolation — existing tasks belong to Kenya
+  await execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS branch TEXT NOT NULL DEFAULT 'kenya'").catch(() => {})
   // ─────────────────────────────────────────────────────────────────────────
 
   parentColReady = true
@@ -94,6 +96,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     legal_review:    Boolean(row.legal_review),
     legal_comment:   String(row.legal_comment || ''),
     co_assignees:    Array.isArray(row.co_assignees) ? (row.co_assignees as string[]) : [],
+    branch:          String(row.branch || 'kenya'),
     created_by:      String(row.created_by || ''),
     created_at:   String(row.created_at || ''),
     updated_at:   String(row.updated_at || ''),
@@ -121,11 +124,11 @@ const TASK_SELECT = `
   LEFT JOIN task_updates tu ON tu.task_id = t.id
 `
 
-export async function getTasks(): Promise<Task[]> {
+export async function getTasks(branch?: string): Promise<Task[]> {
   await ensureParentId()
-  const rows = await query<Record<string, unknown>>(
-    `${TASK_SELECT} GROUP BY t.id ORDER BY t.id`
-  )
+  const rows = branch
+    ? await query<Record<string, unknown>>(`${TASK_SELECT} WHERE t.branch = $1 GROUP BY t.id ORDER BY t.id`, [branch])
+    : await query<Record<string, unknown>>(`${TASK_SELECT} GROUP BY t.id ORDER BY t.id`)
   return rows.map(rowToTask)
 }
 
@@ -145,8 +148,8 @@ export async function createTask(
   const row = await queryOne<Record<string, unknown>>(
     `INSERT INTO tasks (sno, date, company, category, section, particulars, updates,
        responsible, payment, status, priority, approval_type, status_wk, hk_comment,
-       due_date, recurrence, parent_id, legal_review, project_id, created_at, updated_at, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       due_date, recurrence, parent_id, legal_review, project_id, created_at, updated_at, created_by, branch)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
      RETURNING *`,
     [data.sno, data.date, data.company, data.category, data.section, data.particulars,
      data.updates, data.responsible, data.payment, data.status, data.priority ?? 'medium',
@@ -155,7 +158,7 @@ export async function createTask(
      data.parent_id ? Number(data.parent_id) : null,
      data.legal_review ?? false,
      data.project_id ? Number(data.project_id) : null,
-     now, now, data.created_by ?? '']
+     now, now, data.created_by ?? '', data.branch || 'kenya']
   )
   if (!row) throw new Error('Failed to create task')
   return rowToTask({ ...row, task_updates: [] })

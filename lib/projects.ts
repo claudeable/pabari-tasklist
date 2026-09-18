@@ -177,6 +177,8 @@ async function ensureProjectTables() {
       UNIQUE(meeting_id, action_text)
     )
   `)
+  // Branch isolation — existing projects belong to Kenya
+  await execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch TEXT NOT NULL DEFAULT 'kenya'").catch(() => {})
   tablesReady = true
 }
 
@@ -283,11 +285,13 @@ export async function getProjectSpend(projectId: number): Promise<number> {
   return Number(row?.total || 0)
 }
 
-export async function getProjects(): Promise<Project[]> {
+export async function getProjects(branch?: string): Promise<Project[]> {
   await ensureProjectTables()
 
   const [projectRows, milestoneRows, taskCounts, pcrSpendRows, manualSpendRows, lpoSpendRows] = await Promise.all([
-    query<Record<string, unknown>>('SELECT * FROM projects ORDER BY created_at DESC'),
+    branch
+      ? query<Record<string, unknown>>('SELECT * FROM projects WHERE branch = $1 ORDER BY created_at DESC', [branch])
+      : query<Record<string, unknown>>('SELECT * FROM projects ORDER BY created_at DESC'),
     query<Record<string, unknown>>('SELECT * FROM milestones ORDER BY due_date ASC NULLS LAST, created_at ASC'),
     query<Record<string, unknown>>(`
       SELECT project_id,
@@ -372,15 +376,15 @@ export async function getProjectById(id: number): Promise<Project | null> {
 export async function createProject(data: {
   name: string; description: string; company: string; owner: string
   status: ProjectStatus; rag_status?: RAGStatus; start_date: string; end_date: string
-  budget: number; created_by: string
+  budget: number; created_by: string; branch?: string
 }): Promise<Project> {
   await ensureProjectTables()
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO projects (name, description, company, owner, status, rag_status, start_date, end_date, budget, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    `INSERT INTO projects (name, description, company, owner, status, rag_status, start_date, end_date, budget, created_by, branch)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [data.name, data.description, data.company, data.owner, data.status,
      data.rag_status || 'not-set',
-     data.start_date || null, data.end_date || null, data.budget, data.created_by]
+     data.start_date || null, data.end_date || null, data.budget, data.created_by, data.branch || 'kenya']
   )
   if (!row) throw new Error('Failed to create project')
   return rowToProject(row)
@@ -608,23 +612,39 @@ export async function getProjectMember(projectId: number, userName: string): Pro
   return row ? rowToMember(row) : null
 }
 
-export async function getProjectsForUser(userName: string, role: string): Promise<Project[]> {
+export async function getProjectsForUser(userName: string, role: string, branch?: string): Promise<Project[]> {
   await ensureProjectTables()
-  if (role === 'admin') return getProjects()
+  if (role === 'admin') return getProjects(branch)
 
   const [projectRows, milestoneRows, taskCounts, pcrSpendRows, manualSpendRows, lpoSpendRows] = await Promise.all([
-    query<Record<string, unknown>>(
-      `SELECT p.* FROM projects p
-       INNER JOIN project_members pm ON pm.project_id = p.id AND pm.user_name = $1
-       ORDER BY p.created_at DESC`,
-      [userName]
-    ),
-    query<Record<string, unknown>>(
-      `SELECT m.* FROM milestones m
-       INNER JOIN project_members pm ON pm.project_id = m.project_id AND pm.user_name = $1
-       ORDER BY m.due_date ASC NULLS LAST, m.created_at ASC`,
-      [userName]
-    ),
+    branch
+      ? query<Record<string, unknown>>(
+          `SELECT p.* FROM projects p
+           INNER JOIN project_members pm ON pm.project_id = p.id AND pm.user_name = $1
+           WHERE p.branch = $2
+           ORDER BY p.created_at DESC`,
+          [userName, branch]
+        )
+      : query<Record<string, unknown>>(
+          `SELECT p.* FROM projects p
+           INNER JOIN project_members pm ON pm.project_id = p.id AND pm.user_name = $1
+           ORDER BY p.created_at DESC`,
+          [userName]
+        ),
+    branch
+      ? query<Record<string, unknown>>(
+          `SELECT m.* FROM milestones m
+           INNER JOIN project_members pm ON pm.project_id = m.project_id AND pm.user_name = $1
+           INNER JOIN projects p ON p.id = m.project_id AND p.branch = $2
+           ORDER BY m.due_date ASC NULLS LAST, m.created_at ASC`,
+          [userName, branch]
+        )
+      : query<Record<string, unknown>>(
+          `SELECT m.* FROM milestones m
+           INNER JOIN project_members pm ON pm.project_id = m.project_id AND pm.user_name = $1
+           ORDER BY m.due_date ASC NULLS LAST, m.created_at ASC`,
+          [userName]
+        ),
     query<Record<string, unknown>>(
       `SELECT t.project_id,
               COUNT(*)                                    AS total,

@@ -43,6 +43,23 @@ async function verifyHS256(token: string): Promise<{ valid: boolean; mustChangeP
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
+  // Set pabari-branch cookie when user enters a branch hub so all subsequent
+  // data fetches (tasks, projects, dashboard) are scoped to that branch.
+  const branchMatch = (['kenya', 'india', 'dubai'] as const).find(
+    b => pathname === `/${b}` || pathname.startsWith(`/${b}/`)
+  )
+  if (branchMatch) {
+    const res = NextResponse.next()
+    res.cookies.set('pabari-branch', branchMatch, {
+      httpOnly: false,
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    })
+    return res
+  }
+
   const isProtected =
     pathname.startsWith('/tasks')              ||
     pathname.startsWith('/api/tasks')          ||
@@ -96,6 +113,9 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    '/kenya', '/kenya/:path*',
+    '/india', '/india/:path*',
+    '/dubai', '/dubai/:path*',
     '/tasks/:path*', '/api/tasks/:path*',
     '/dashboard/:path*', '/dashboard',
     '/reports/:path*', '/reports', '/api/reports/:path*',

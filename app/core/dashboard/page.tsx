@@ -9,14 +9,15 @@ export default async function CoreDashboardPage() {
   const cookieStore = cookies()
   const session     = cookieStore.get('pabari-session')
   const user        = session?.value ? await verifyToken(session.value) : null
+  const branch      = cookieStore.get('pabari-branch')?.value || 'kenya'
 
   const safe = (rows: { count: string }[]) => parseInt(rows[0]?.count ?? '0', 10)
 
   const [openTasks, activeTasks, resolvedTasks, projects, docs, users, recentActivity] = await Promise.all([
-    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM tasks WHERE status NOT IN ('resolved','expired','archived')`).catch(() => []),
-    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM tasks WHERE status IN ('in-progress','in-review','awaiting-hk-approval','action-required')`).catch(() => []),
-    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM tasks WHERE status = 'resolved' AND updated_at >= NOW() - INTERVAL '30 days'`).catch(() => []),
-    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM projects WHERE status IN ('active','planning')`).catch(() => []),
+    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM tasks WHERE branch = $1 AND status NOT IN ('resolved','expired','archived')`, [branch]).catch(() => []),
+    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM tasks WHERE branch = $1 AND status IN ('in-progress','in-review','awaiting-hk-approval','action-required')`, [branch]).catch(() => []),
+    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM tasks WHERE branch = $1 AND status = 'resolved' AND updated_at >= NOW() - INTERVAL '30 days'`, [branch]).catch(() => []),
+    query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM projects WHERE branch = $1 AND status IN ('active','planning')`, [branch]).catch(() => []),
     query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM documents`).catch(() => []),
     query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM users WHERE is_active = true`).catch(() => []),
     query<{ actor: string; description: string; created_at: string; action_type: string }>(

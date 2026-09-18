@@ -28,9 +28,10 @@ async function notifyLegal(
 }
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get('pabari-session')?.value
-  const user  = token ? await verifyToken(token) : null
-  let tasks = await getTasks()
+  const token  = req.cookies.get('pabari-session')?.value
+  const user   = token ? await verifyToken(token) : null
+  const branch = req.cookies.get('pabari-branch')?.value || 'kenya'
+  let tasks = await getTasks(branch)
   // Finance tasks restricted to whitelist — but always show tasks the user is responsible for
   if (!user || !FINANCE_VISIBLE_EMAILS.has((user.email || '').toLowerCase())) {
     const userName  = (user?.name || '').toLowerCase()
@@ -46,9 +47,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body  = await req.json()
-  const token = req.cookies.get('pabari-session')?.value
-  const user  = token ? await verifyToken(token) : null
+  const body   = await req.json()
+  const token  = req.cookies.get('pabari-session')?.value
+  const user   = token ? await verifyToken(token) : null
+  const branch = req.cookies.get('pabari-branch')?.value || 'kenya'
 
   const task = await createTask({
     sno:             body.sno ?? 0,
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
     hk_escalation_note:  '',
     hk_escalation_by:    '',
     project_id:          body.project_id ? Number(body.project_id) : undefined,
+    branch,
     created_by:          user?.name ?? '',
   })
 
