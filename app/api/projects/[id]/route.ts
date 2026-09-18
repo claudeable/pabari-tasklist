@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json()
 
   if (body.add_milestone) {
-    const ms = await createMilestone({ project_id: id, title: body.title, due_date: body.due_date || '' })
+    const ms = await createMilestone({ project_id: id, title: body.title, due_date: body.due_date || '', start_date: body.start_date || '', color: body.color || '#2563eb', amount: Number(body.amount) || 0 })
     createProjectActivity({
       project_id:  id,
       actor:       user.name,

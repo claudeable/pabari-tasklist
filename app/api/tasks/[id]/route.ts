@@ -84,6 +84,7 @@ export async function PATCH(
         hk_escalation_type:  'none',
         hk_escalation_note:  '',
         hk_escalation_by:    '',
+        branch:              task.branch || 'kenya',
         created_by:          '',
       })
     }

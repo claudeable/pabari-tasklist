@@ -90,6 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
     hk_escalation_note: '',
     hk_escalation_by:   '',
     project_id:      projectId,
+    branch:          'kenya',
     created_by:      user.name,
   })
 

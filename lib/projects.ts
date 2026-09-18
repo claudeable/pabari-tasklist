@@ -179,6 +179,10 @@ async function ensureProjectTables() {
   `)
   // Branch isolation — existing projects belong to Kenya
   await execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch TEXT NOT NULL DEFAULT 'kenya'").catch(() => {})
+  // Gantt + phased investment on milestones
+  await execute("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS start_date DATE").catch(() => {})
+  await execute("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '#2563eb'").catch(() => {})
+  await execute("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS amount NUMERIC(14,2) NOT NULL DEFAULT 0").catch(() => {})
   tablesReady = true
 }
 
@@ -227,12 +231,16 @@ function rowToReport(row: Record<string, unknown>): StatusReport {
 }
 
 function rowToMilestone(row: Record<string, unknown>): Milestone {
+  const toDate = (v: unknown) => v ? (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10) : ''
   return {
     id:         Number(row.id),
     project_id: Number(row.project_id),
     title:      String(row.title || ''),
-    due_date:   row.due_date ? (row.due_date instanceof Date ? row.due_date.toISOString() : String(row.due_date)).slice(0, 10) : '',
-    status:     (row.status as 'pending' | 'completed') || 'pending',
+    start_date: toDate(row.start_date),
+    due_date:   toDate(row.due_date),
+    status:     (row.status as Milestone['status']) || 'pending',
+    color:      String(row.color || '#2563eb'),
+    amount:     Number(row.amount || 0),
     created_at: String(row.created_at || ''),
   }
 }
@@ -425,19 +433,22 @@ export async function getMilestoneById(id: number): Promise<Milestone | null> {
 
 export async function createMilestone(data: {
   project_id: number; title: string; due_date: string
+  start_date?: string; color?: string; amount?: number
 }): Promise<Milestone> {
   await ensureProjectTables()
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO milestones (project_id, title, due_date) VALUES ($1,$2,$3) RETURNING *`,
-    [data.project_id, data.title, data.due_date || null]
+    `INSERT INTO milestones (project_id, title, due_date, start_date, color, amount)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [data.project_id, data.title, data.due_date || null,
+     data.start_date || null, data.color || '#2563eb', data.amount || 0]
   )
   if (!row) throw new Error('Failed to create milestone')
   return rowToMilestone(row)
 }
 
-export async function updateMilestone(id: number, data: { status?: 'pending' | 'completed'; title?: string; due_date?: string }): Promise<Milestone | null> {
+export async function updateMilestone(id: number, data: { status?: Milestone['status']; title?: string; due_date?: string; start_date?: string; color?: string; amount?: number }): Promise<Milestone | null> {
   await ensureProjectTables()
-  const allowed = ['status', 'title', 'due_date']
+  const allowed = ['status', 'title', 'due_date', 'start_date', 'color', 'amount']
   const fields  = Object.keys(data).filter(k => allowed.includes(k) && (data as Record<string,unknown>)[k] !== undefined)
   if (!fields.length) return null
   const set    = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')

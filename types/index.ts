@@ -177,8 +177,11 @@ export interface Milestone {
   id:         number
   project_id: number
   title:      string
-  due_date:   string
-  status:     'pending' | 'completed'
+  start_date: string   // Gantt bar start
+  due_date:   string   // Gantt bar end / deadline
+  status:     'pending' | 'in_progress' | 'completed'
+  color:      string   // Gantt bar color
+  amount:     number   // investment amount per phase (0 = not set)
   created_at: string
 }
 

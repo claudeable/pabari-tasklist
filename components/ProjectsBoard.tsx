@@ -92,6 +92,85 @@ const PCR_STATUS_COLOR: Record<string,string> = {
 function avatarColor(name: string) { return AVATAR_COLORS[name.toLowerCase().split(/[\s&./]+/)[0]] || '#2d6a4f' }
 function avatarInitials(name: string) { return name.split(/[\s&./]+/).map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2) }
 
+const MS_COLORS = ['#2563eb','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d']
+
+function GanttChart({ milestones, projectStart, projectEnd }: { milestones: Milestone[]; projectStart: string; projectEnd: string }) {
+  const s0 = projectStart ? new Date(projectStart + 'T00:00:00').getTime() : Date.now() - 30 * 86400000
+  const e0 = projectEnd   ? new Date(projectEnd   + 'T00:00:00').getTime() : Date.now() + 90 * 86400000
+  const span = Math.max(e0 - s0, 1)
+  const todayPct = Math.max(0, Math.min(100, ((Date.now() - s0) / span) * 100))
+
+  if (!milestones.length) return (
+    <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+      No milestones yet — add milestones with start &amp; end dates to see the Gantt.
+    </div>
+  )
+  const withDates = milestones.filter(m => m.start_date || m.due_date)
+  if (!withDates.length) return (
+    <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+      Milestones need a start date to appear on the Gantt.
+    </div>
+  )
+
+  const months: string[] = []
+  let cur = new Date(s0); cur.setDate(1)
+  const end = new Date(e0)
+  while (cur <= end) {
+    months.push(cur.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }))
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
+  }
+
+  return (
+    <div style={{ overflowX: 'auto', padding: '16px 0' }}>
+      <div style={{ minWidth: 600, position: 'relative' }}>
+        <div style={{ display: 'flex', marginBottom: 8, paddingLeft: 172 }}>
+          {months.map((m, i) => (
+            <div key={i} style={{ flex: 1, fontSize: 10, color: '#9ca3af', fontWeight: 700, whiteSpace: 'nowrap' }}>{m}</div>
+          ))}
+        </div>
+        <div style={{ position: 'absolute', left: `calc(172px + ${todayPct / 100} * (100% - 172px))`, top: 24, bottom: 0, width: 2, background: '#ef4444', zIndex: 2, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', top: -16, left: -14, fontSize: 9, fontWeight: 800, color: '#ef4444', background: '#fee2e2', padding: '2px 5px', borderRadius: 4, whiteSpace: 'nowrap' }}>TODAY</div>
+        </div>
+        {milestones.map(ms => {
+          const msStart = ms.start_date ? new Date(ms.start_date + 'T00:00:00').getTime() : (ms.due_date ? new Date(ms.due_date + 'T00:00:00').getTime() - 7 * 86400000 : s0)
+          const msEnd   = ms.due_date   ? new Date(ms.due_date   + 'T00:00:00').getTime() : msStart + 7 * 86400000
+          const left    = Math.max(0, ((msStart - s0) / span) * 100)
+          const width   = Math.max(0.5, ((msEnd - msStart) / span) * 100)
+          const done    = ms.status === 'completed'
+          const barColor = done ? '#16a34a' : (ms.color || '#2563eb')
+          return (
+            <div key={ms.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ width: 164, flexShrink: 0, paddingRight: 8 }}>
+                <div style={{ fontSize: 12, color: '#374151', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ms.title}>{ms.title}</div>
+                {ms.amount > 0 && <div style={{ fontSize: 10, color: '#6b7280' }}>KES {ms.amount.toLocaleString()}</div>}
+              </div>
+              <div style={{ flex: 1, background: '#f3f4f6', borderRadius: 4, height: 26, position: 'relative' }}>
+                <div style={{ position: 'absolute', left: `${left}%`, width: `${Math.min(width, 100 - left)}%`, height: '100%', background: barColor, borderRadius: 4, opacity: done ? 1 : 0.85, display: 'flex', alignItems: 'center', paddingLeft: 6, minWidth: 4 }}>
+                  <span style={{ fontSize: 9, color: 'white', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    {done ? '✓ ' : ''}{ms.start_date ? ms.start_date.slice(5) : ''}{ms.start_date && ms.due_date ? ' – ' : ''}{ms.due_date ? ms.due_date.slice(5) : ''}
+                  </span>
+                </div>
+              </div>
+              <div style={{ width: 70, flexShrink: 0, paddingLeft: 8 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, background: done ? '#dcfce7' : ms.status === 'in_progress' ? '#fef3c7' : '#f3f4f6', color: done ? '#15803d' : ms.status === 'in_progress' ? '#b45309' : '#6b7280', borderRadius: 10, padding: '2px 7px' }}>
+                  {done ? 'Done' : ms.status === 'in_progress' ? 'Active' : 'Pending'}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+        {milestones.some(m => m.amount > 0) && (
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb', paddingLeft: 172, fontSize: 12, color: '#374151' }}>
+            <span style={{ fontWeight: 700 }}>Total Investment: </span>
+            KES {milestones.reduce((s, m) => s + (m.amount || 0), 0).toLocaleString()}
+            {' · '}{milestones.filter(m => m.status === 'completed').length}/{milestones.length} phases complete
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function parseDate(d: string): Date {
   if (!d) return new Date('invalid')
   // Already a full ISO timestamp — parse directly
@@ -211,16 +290,22 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [search, setSearch] = useState('')
 
   // Detail tab
-  const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'|'budget'|'updates'|'meetings'|'decisions'|'risks'|'activity'>('overview')
+  const [detailTab, setDetailTab] = useState<'overview'|'reports'|'thread'|'timeline'|'budget'|'updates'|'meetings'|'decisions'|'risks'|'activity'|'gantt'>('overview')
 
   // Milestones
-  const [msTitle,    setMsTitle]    = useState('')
-  const [msDate,     setMsDate]     = useState('')
-  const [msAdding,   setMsAdding]   = useState(false)
-  const [editingMsId,   setEditingMsId]   = useState<number|null>(null)
-  const [editingMsTitle,setEditingMsTitle] = useState('')
-  const [editingMsDate, setEditingMsDate]  = useState('')
-  const [msSaving,   setMsSaving]   = useState(false)
+  const [msTitle,       setMsTitle]       = useState('')
+  const [msDate,        setMsDate]        = useState('')
+  const [msStartDate,   setMsStartDate]   = useState('')
+  const [msColor,       setMsColor]       = useState('#2563eb')
+  const [msAmount,      setMsAmount]      = useState('')
+  const [msAdding,      setMsAdding]      = useState(false)
+  const [editingMsId,      setEditingMsId]      = useState<number|null>(null)
+  const [editingMsTitle,   setEditingMsTitle]   = useState('')
+  const [editingMsDate,    setEditingMsDate]     = useState('')
+  const [editingMsStartDate, setEditingMsStartDate] = useState('')
+  const [editingMsColor,   setEditingMsColor]   = useState('#2563eb')
+  const [editingMsAmount,  setEditingMsAmount]  = useState('')
+  const [msSaving,      setMsSaving]      = useState(false)
 
   // Thread
   const [notes,      setNotes]      = useState<ProjectNote[]>([])
@@ -749,14 +834,14 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setMsAdding(true)
     const res = await fetch(`/api/projects/${active.id}`, {
       method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ add_milestone: true, title: msTitle.trim(), due_date: msDate }),
+      body: JSON.stringify({ add_milestone: true, title: msTitle.trim(), due_date: msDate, start_date: msStartDate, color: msColor, amount: Number(msAmount) || 0 }),
     })
     if (res.ok) {
       const ms: Milestone = await res.json()
       const updated = { ...active, milestones: [...active.milestones, ms] }
       setActive(updated)
       setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))
-      setMsTitle(''); setMsDate('')
+      setMsTitle(''); setMsDate(''); setMsStartDate(''); setMsColor('#2563eb'); setMsAmount('')
     }
     setMsAdding(false)
   }
@@ -765,7 +850,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, milestones: newMs } : p))
   }
 
-  async function setMilestoneStatus(ms: Milestone, newStatus: 'pending' | 'completed') {
+  async function setMilestoneStatus(ms: Milestone, newStatus: 'pending' | 'in_progress' | 'completed') {
     if (!active) return
     const pid = active.id
     const res = await fetch(`/api/milestones/${ms.id}`, {
@@ -791,7 +876,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
     setMsSaving(true)
     const res = await fetch(`/api/milestones/${ms.id}`, {
       method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ title: editingMsTitle.trim() || ms.title, due_date: editingMsDate }),
+      body: JSON.stringify({ title: editingMsTitle.trim() || ms.title, due_date: editingMsDate, start_date: editingMsStartDate, color: editingMsColor, amount: Number(editingMsAmount) || 0 }),
     })
     if (res.ok) {
       const updated: Milestone = await res.json()
@@ -1313,6 +1398,7 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                 { key:'decisions',  label:'⚖️ Decisions' },
                 { key:'risks',      label:'⚠️ Risks & Issues' },
                 { key:'activity',   label:'🕐 Activity' },
+                { key:'gantt',      label:'📊 Gantt' },
                 { key:'reports',    label:'📊 Reports' },
                 { key:'thread',     label:'💬 Thread' },
                 { key:'timeline',   label:'📅 Timeline' },
@@ -1473,50 +1559,69 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                             <select
                               value={ms.status}
                               disabled={!canEdit}
-                              onChange={e=>setMilestoneStatus(ms, e.target.value as 'pending'|'completed')}
+                              onChange={e=>setMilestoneStatus(ms, e.target.value as 'pending'|'in_progress'|'completed')}
                               style={{
                                 border:'none', borderRadius:20, padding:'4px 10px', fontSize:11, fontWeight:700,
                                 cursor: canEdit ? 'pointer' : 'default',
-                                background: done ? '#15803d' : overdue ? '#ef4444' : '#e5e7eb',
-                                color: done ? 'white' : overdue ? 'white' : '#374151',
+                                background: done ? '#15803d' : ms.status==='in_progress' ? '#b45309' : overdue ? '#ef4444' : '#e5e7eb',
+                                color: done || ms.status==='in_progress' || overdue ? 'white' : '#374151',
                                 appearance:'none', WebkitAppearance:'none',
                                 outline:'none', minWidth:90, textAlign:'center',
                               }}
                             >
                               <option value="pending">⏳ Pending</option>
+                              <option value="in_progress">🔄 Active</option>
                               <option value="completed">✅ Done</option>
                             </select>
 
                             {/* Title / edit input */}
                             {isEditing ? (
-                              <>
-                                <input value={editingMsTitle} onChange={e=>setEditingMsTitle(e.target.value)}
-                                  onKeyDown={e=>{ if(e.key==='Enter') saveMilestoneEdit(ms); if(e.key==='Escape') setEditingMsId(null) }}
-                                  autoFocus
-                                  style={{ flex:1, border:'1px solid #1a3a2a', borderRadius:5, padding:'4px 8px', fontSize:12, outline:'none' }} />
-                                <input type="date" value={editingMsDate} onChange={e=>setEditingMsDate(e.target.value)}
-                                  style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'4px 7px', fontSize:12 }} />
-                                <button onClick={()=>saveMilestoneEdit(ms)} disabled={msSaving}
-                                  style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:5, padding:'4px 12px', fontSize:12, cursor:'pointer', fontWeight:600 }}>
-                                  {msSaving?'…':'Save'}
-                                </button>
-                                <button onClick={()=>setEditingMsId(null)}
-                                  style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 10px', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
-                                  Cancel
-                                </button>
-                              </>
+                              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:5 }}>
+                                <div style={{ display:'flex', gap:5 }}>
+                                  <input value={editingMsTitle} onChange={e=>setEditingMsTitle(e.target.value)}
+                                    onKeyDown={e=>{ if(e.key==='Enter') saveMilestoneEdit(ms); if(e.key==='Escape') setEditingMsId(null) }}
+                                    autoFocus
+                                    style={{ flex:2, border:'1px solid #1a3a2a', borderRadius:5, padding:'4px 8px', fontSize:12, outline:'none' }} />
+                                  <input type="date" title="Start date" value={editingMsStartDate} onChange={e=>setEditingMsStartDate(e.target.value)}
+                                    style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'4px 7px', fontSize:12 }} />
+                                  <input type="date" title="End date" value={editingMsDate} onChange={e=>setEditingMsDate(e.target.value)}
+                                    style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'4px 7px', fontSize:12 }} />
+                                </div>
+                                <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+                                  <input type="number" value={editingMsAmount} onChange={e=>setEditingMsAmount(e.target.value)} placeholder="Amount KES (optional)"
+                                    style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'4px 8px', fontSize:12, outline:'none' }} />
+                                  <div style={{ display:'flex', gap:3 }}>
+                                    {MS_COLORS.map(c => (
+                                      <div key={c} onClick={()=>setEditingMsColor(c)} style={{ width:16, height:16, borderRadius:'50%', background:c, cursor:'pointer', border: editingMsColor===c ? '2px solid #111827' : '2px solid transparent', boxSizing:'border-box' }} />
+                                    ))}
+                                  </div>
+                                  <button onClick={()=>saveMilestoneEdit(ms)} disabled={msSaving}
+                                    style={{ background:'#1a3a2a', color:'white', border:'none', borderRadius:5, padding:'4px 12px', fontSize:12, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+                                    {msSaving?'…':'Save'}
+                                  </button>
+                                  <button onClick={()=>setEditingMsId(null)}
+                                    style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 10px', fontSize:12, cursor:'pointer', color:'#6b7280', whiteSpace:'nowrap' }}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
                             ) : (
                               <>
+                                {ms.color && <div style={{ width:4, height:'100%', minHeight:28, borderRadius:2, background:done?'#9ca3af':ms.color, flexShrink:0, alignSelf:'stretch' }} />}
                                 <div style={{ flex:1 }}>
                                   <div style={{ fontSize:13, color:done?'#6b7280':'#111827', textDecoration:done?'line-through':'none', fontWeight:500 }}>{ms.title}</div>
-                                  {ms.due_date && (
-                                    <div style={{ fontSize:11, marginTop:1, color:done?'#9ca3af':overdue?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight:overdue?700:400 }}>
-                                      Due {fmtDate(ms.due_date)}{overdue?` · ${Math.abs(dl)}d overdue`:dl===0&&!done?' · today':''}
-                                    </div>
-                                  )}
+                                  <div style={{ fontSize:11, marginTop:1, display:'flex', gap:8, flexWrap:'wrap' }}>
+                                    {ms.start_date && <span style={{ color:'#9ca3af' }}>{fmtDate(ms.start_date)}</span>}
+                                    {ms.due_date && (
+                                      <span style={{ color:done?'#9ca3af':overdue?'#dc2626':dl<=3?'#d97706':'#9ca3af', fontWeight:overdue?700:400 }}>
+                                        {ms.start_date ? '→ ' : 'Due '}{fmtDate(ms.due_date)}{overdue?` · ${Math.abs(dl)}d overdue`:dl===0&&!done?' · today':''}
+                                      </span>
+                                    )}
+                                    {ms.amount > 0 && <span style={{ color:'#6b7280', fontWeight:600 }}>KES {ms.amount.toLocaleString()}</span>}
+                                  </div>
                                 </div>
                                 {canEdit && (
-                                  <button onClick={()=>{ setEditingMsId(ms.id); setEditingMsTitle(ms.title); setEditingMsDate(ms.due_date||'') }}
+                                  <button onClick={()=>{ setEditingMsId(ms.id); setEditingMsTitle(ms.title); setEditingMsDate(ms.due_date||''); setEditingMsStartDate(ms.start_date||''); setEditingMsColor(ms.color||'#2563eb'); setEditingMsAmount(ms.amount ? String(ms.amount) : '') }}
                                     title="Edit title / date"
                                     style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:5, color:'#6b7280', cursor:'pointer', fontSize:11, padding:'3px 8px' }}>
                                     Edit
@@ -1534,16 +1639,29 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     })}
                   </div>
                   {canEdit && (
-                    <div style={{ display:'flex', gap:6, marginTop:8 }}>
-                      <input value={msTitle} onChange={e=>setMsTitle(e.target.value)} placeholder="Add milestone…"
-                        onKeyDown={e=>{ if(e.key==='Enter') addMilestone() }}
-                        style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 9px', fontSize:12, outline:'none' }}/>
-                      <input type="date" value={msDate} onChange={e=>setMsDate(e.target.value)}
-                        style={{ border:'1px solid #d1d5db', borderRadius:5, padding:'6px 7px', fontSize:12, outline:'none' }}/>
-                      <button onClick={addMilestone} disabled={!msTitle.trim()||msAdding}
-                        style={{ background:msTitle.trim()?'#1a3a2a':'#e5e7eb', color:msTitle.trim()?'white':'#9ca3af', border:'none', borderRadius:5, padding:'6px 12px', fontSize:12, fontWeight:600, cursor:msTitle.trim()?'pointer':'default' }}>
-                        {msAdding?'…':'Add'}
-                      </button>
+                    <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:6 }}>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input value={msTitle} onChange={e=>setMsTitle(e.target.value)} placeholder="Phase / milestone name…"
+                          onKeyDown={e=>{ if(e.key==='Enter') addMilestone() }}
+                          style={{ flex:2, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 9px', fontSize:12, outline:'none' }}/>
+                        <input type="date" title="Start date" value={msStartDate} onChange={e=>setMsStartDate(e.target.value)}
+                          style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 7px', fontSize:12, outline:'none' }}/>
+                        <input type="date" title="End date" value={msDate} onChange={e=>setMsDate(e.target.value)}
+                          style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 7px', fontSize:12, outline:'none' }}/>
+                      </div>
+                      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                        <input type="number" value={msAmount} onChange={e=>setMsAmount(e.target.value)} placeholder="Amount KES (optional)"
+                          style={{ flex:1, border:'1px solid #d1d5db', borderRadius:5, padding:'6px 9px', fontSize:12, outline:'none' }}/>
+                        <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+                          {MS_COLORS.map(c => (
+                            <div key={c} onClick={()=>setMsColor(c)} style={{ width:18, height:18, borderRadius:'50%', background:c, cursor:'pointer', border: msColor===c ? '2px solid #111827' : '2px solid transparent', boxSizing:'border-box' }} />
+                          ))}
+                        </div>
+                        <button onClick={addMilestone} disabled={!msTitle.trim()||msAdding}
+                          style={{ background:msTitle.trim()?'#1a3a2a':'#e5e7eb', color:msTitle.trim()?'white':'#9ca3af', border:'none', borderRadius:5, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:msTitle.trim()?'pointer':'default', whiteSpace:'nowrap' }}>
+                          {msAdding?'…':'Add'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2878,6 +2996,24 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                     </div>
                   )
                 })()}
+              </div>
+            )}
+
+            {/* ── GANTT TAB ── */}
+            {detailTab === 'gantt' && (
+              <div style={{ padding:'18px 22px', flex:1, overflowY:'auto' }}>
+                <div style={{ fontSize:15, fontWeight:700, color:'#111827', marginBottom:4 }}>Gantt Chart</div>
+                {active.milestones.some(m => m.amount > 0) && (
+                  <div style={{ fontSize:12, color:'#6b7280', marginBottom:16 }}>
+                    Total Investment: <strong>KES {active.milestones.reduce((s,m)=>s+(m.amount||0),0).toLocaleString()}</strong>
+                    {' · '}{active.milestones.filter(m=>m.status==='completed').length}/{active.milestones.length} phases complete
+                  </div>
+                )}
+                <GanttChart
+                  milestones={active.milestones}
+                  projectStart={active.start_date}
+                  projectEnd={active.end_date}
+                />
               </div>
             )}
 

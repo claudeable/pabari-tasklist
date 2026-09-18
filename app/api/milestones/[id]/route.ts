@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const body = await req.json()
-  const ms   = await updateMilestone(id, { status: body.status, title: body.title, due_date: body.due_date })
+  const ms   = await updateMilestone(id, { status: body.status, title: body.title, due_date: body.due_date, start_date: body.start_date, color: body.color, amount: body.amount !== undefined ? Number(body.amount) : undefined })
   if (!ms) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (body.status !== undefined) {
     createProjectActivity({
