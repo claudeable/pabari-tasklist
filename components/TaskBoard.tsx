@@ -958,24 +958,13 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
         {!isMobile && <>
           <span style={{fontSize:13,fontWeight:700,color:'white',letterSpacing:'0.2px'}}>PABARI GROUP</span>
           <div style={{width:1,height:20,background:'rgba(255,255,255,0.15)',margin:'0 4px'}}/>
-          <a href="/" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>← Portal</a>
+          <a href="/core" style={{color:'rgba(255,255,255,0.55)',textDecoration:'none',fontSize:12,fontWeight:400}}>← Pabari Core</a>
+          <a href="/kenya" style={{color:'rgba(255,255,255,0.55)',textDecoration:'none',fontSize:12,fontWeight:400}}>← Workspace</a>
           <div style={{width:1,height:14,background:'rgba(255,255,255,0.2)',margin:'0 2px'}}/>
           <a href="/tasks" style={{color:'white',textDecoration:'none',fontSize:12,fontWeight:600,borderBottom:'2px solid #b5833a',paddingBottom:2}}>Task Board</a>
-          <a href="/projects" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Projects</a>
-          {currentUser.role !== 'staff' && (
-            <a href="/dashboard" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Dashboard</a>
-          )}
+          <a href="/forms/leave" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Leave</a>
           {(currentUser.role !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke') && (
             <a href="/reports" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Reports</a>
-          )}
-          {(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director')) && (
-            <a href="/documents" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Documents</a>
-          )}
-          {(currentUser.role === 'admin' || ['harshil','benson'].includes(currentUser.name.toLowerCase().split(' ')[0]) || ['rkrishnan@usm.co.ke','yaynalem@usm.co.ke'].includes(currentUser.email)) && (
-            <a href="/delivery-notes" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Delivery Notes</a>
-          )}
-          {currentUser.role === 'admin' && (
-            <a href="/admin/users" style={{color:'rgba(255,255,255,0.6)',textDecoration:'none',fontSize:12,fontWeight:400}}>Users</a>
           )}
         </>}
 
@@ -1060,13 +1049,11 @@ export default function TaskBoard({ initialTasks, currentUser, allUsers: initial
               <button onClick={()=>setShowMobileMenu(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:22,cursor:'pointer',lineHeight:1}}>✕</button>
             </div>
             {[
-              {label:'← Portal',href:'/'},
+              {label:'← Pabari Core',href:'/core'},
+              {label:'← Workspace',href:'/kenya'},
               {label:'Task Board',href:'/tasks'},
-              ...(currentUser.role !== 'staff' ? [{label:'Dashboard',href:'/dashboard'}] : []),
+              {label:'Leave',href:'/forms/leave'},
               ...((currentUser.role !== 'staff' || currentUser.email === 'yaynalem@usm.co.ke') ? [{label:'Reports',href:'/reports'}] : []),
-              ...(currentUser.role === 'admin' || (currentUser.role === 'director' && currentUser.department === 'Director') ? [{label:'Documents',href:'/documents'}] : []),
-              ...(currentUser.role === 'admin' || ['harshil','benson'].includes(currentUser.name.toLowerCase().split(' ')[0]) || ['rkrishnan@usm.co.ke','yaynalem@usm.co.ke'].includes(currentUser.email) ? [{label:'Delivery Notes',href:'/delivery-notes'}] : []),
-              ...(currentUser.role === 'admin' ? [{label:'User Management',href:'/admin/users'}] : []),
             ].map(item=>(
               <a key={item.href} href={item.href}
                 style={{display:'block',padding:'13px 16px',color:'rgba(255,255,255,0.85)',textDecoration:'none',fontSize:14,fontWeight:500,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
