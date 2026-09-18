@@ -103,7 +103,7 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false }: 
   const internalCard = {
     key:    'tasks',
     label:  'Pabari Core',
-    href:   '/tasks/hub',
+    href:   '/core',
     icon:   '📋',
     accent: '#22c55e',
     desc:   'Tasks · Projects · Connect · Centre',
