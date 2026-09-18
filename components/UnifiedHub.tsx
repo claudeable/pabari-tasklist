@@ -103,7 +103,7 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false }: 
   const internalCard = {
     key:    'tasks',
     label:  'Pabari Core',
-    href:   '/core',
+    href:   '/tasks/hub',
     icon:   '📋',
     accent: '#22c55e',
     desc:   'Tasks · Projects · Connect · Centre',
@@ -192,11 +192,16 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false }: 
       {/* HERO */}
       <div style={{ background:'linear-gradient(135deg, #0f1a12 0%, #1a2d1f 100%)', padding: isMobile ? '28px 16px 32px' : '40px 32px 44px', borderBottom:'1px solid #1e2e1a' }}>
         <div style={{ maxWidth:900, margin:'0 auto' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:14 }}>
+            <a href="/" style={{ fontSize:12, color:'#4a7055', textDecoration:'none', fontWeight:600 }}>Workspace</a>
+            <span style={{ color:'#2d4a35', fontSize:12 }}>›</span>
+            <span style={{ fontSize:12, color:'#a3c4ae', fontWeight:600 }}>🇰🇪 Pabari Kenya</span>
+          </div>
           <div style={{ fontSize: isMobile ? 11 : 12, fontWeight:700, color:'#4a7055', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>
             {getGreeting()}, {firstName}
           </div>
           <h1 style={{ margin:0, fontSize: isMobile ? 26 : 38, fontWeight:900, color:'#e2ede7', lineHeight:1.1, letterSpacing:'-0.02em' }}>
-            Pabari Workspace
+            Pabari Kenya
           </h1>
           <p style={{ margin:'8px 0 0', color:'#4a7055', fontSize: isMobile ? 12 : 13 }}>{fmtDate()}</p>
         </div>

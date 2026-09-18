@@ -2,11 +2,11 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { getUserByEmail } from '@/lib/users'
-import PabariCoreBranches from '@/components/PabariCoreBranches'
+import UnifiedHub from '@/components/UnifiedHub'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Home() {
+export default async function KenyaPage() {
   const cookieStore = cookies()
   const session = cookieStore.get('pabari-session')
   const tokenUser = session?.value ? await verifyToken(session.value) : null
@@ -18,5 +18,5 @@ export default async function Home() {
     ? { ...tokenUser, portals: dbUser.portals, companies: dbUser.companies }
     : tokenUser
 
-  return <PabariCoreBranches currentUser={currentUser} mustChangePassword={dbUser?.must_change_password ?? false} />
+  return <UnifiedHub currentUser={currentUser} mustChangePassword={dbUser?.must_change_password ?? false} />
 }
