@@ -116,7 +116,7 @@ export default function CoreShell({ currentUser, children }: Props) {
       {/* Back to workspace */}
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '10px 8px', flexShrink: 0 }}>
         <a
-          href="/kenya"
+          href="/"
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: collapsed && !isMobile ? '9px 14px' : '9px 12px', borderRadius: 8, textDecoration: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 12.5, justifyContent: collapsed && !isMobile ? 'center' : 'flex-start' }}
           onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.color = '#e2ede7'}
           onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.35)'}
