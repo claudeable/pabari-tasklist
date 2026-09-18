@@ -14,8 +14,8 @@ export async function createSession(user: ShelfUser): Promise<void> {
 
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,      // required for SameSite=None
+    sameSite: "none",  // allow cookie to be set in cross-origin iframes
     maxAge: 60 * 60 * 12,
     path: "/",
   });

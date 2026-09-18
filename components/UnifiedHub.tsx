@@ -145,15 +145,6 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false, br
       url:     'https://pabari-property-production.up.railway.app',
       visible: isAdmin || portals.includes('property'),
     },
-    {
-      key:     'shelf',
-      label:   'Pabari Shelf',
-      icon:    '📁',
-      accent:  '#6366f1',
-      desc:    'Central document library',
-      url:     'https://pabari-shelf-production.up.railway.app',
-      visible: isAdmin,
-    },
   ].filter(p => p.visible && branch === 'kenya')
   // ────────────────────────────────────────────────────────────────────────────
 
