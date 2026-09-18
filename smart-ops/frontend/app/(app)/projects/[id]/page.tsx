@@ -1900,8 +1900,8 @@ function UpdateTableRow({
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label="Add remark"
-              title={update.comments.length > 0 ? `${update.comments.length} remark${update.comments.length !== 1 ? "s" : ""}` : "Add remark"}
+              aria-label="Add comment"
+              title={update.comments.length > 0 ? `${update.comments.length} comment${update.comments.length !== 1 ? "s" : ""}` : "Add comment"}
               onClick={() => setExpanded(true)}
               className="relative"
             >
@@ -2097,12 +2097,15 @@ function UpdateTableRow({
                   </div>
                 )}
 
-                {/* Remarks / comments — always visible */}
+                {/* Comments thread */}
                 <div className="pt-2 border-t border-border/50 space-y-2">
                   <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     <MessageCircle className="h-3.5 w-3.5" />
-                    Remarks {update.comments.length > 0 && `(${update.comments.length})`}
+                    Comments {update.comments.length > 0 && `(${update.comments.length})`}
                   </p>
+                  {update.comments.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No comments yet.</p>
+                  )}
                   {update.comments.map((c) => (
                     <div key={c.id} className="flex gap-2">
                       <Avatar className="h-5 w-5 shrink-0 mt-0.5">
@@ -2119,7 +2122,7 @@ function UpdateTableRow({
                   ))}
                   <div className="flex gap-2 items-start">
                     <Textarea
-                      placeholder="Add a remark…"
+                      placeholder="Add a comment…"
                       value={commentBody}
                       onChange={(e) => setCommentBody(e.target.value)}
                       className="min-h-[60px] text-sm flex-1"
@@ -2127,7 +2130,7 @@ function UpdateTableRow({
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && commentBody.trim()) {
                           e.preventDefault();
                           addComment.mutate({ updateId: update.id, body: commentBody.trim() },
-                            { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") });
+                            { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add comment") });
                         }
                       }}
                     />
@@ -2135,9 +2138,9 @@ function UpdateTableRow({
                       size="icon-sm"
                       disabled={addComment.isPending || !commentBody.trim()}
                       onClick={() => addComment.mutate({ updateId: update.id, body: commentBody.trim() },
-                        { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add remark") })}
+                        { onSuccess: () => setCommentBody(""), onError: () => toast.error("Failed to add comment") })}
                       className="mt-1 shrink-0"
-                      aria-label="Post remark"
+                      aria-label="Post comment"
                     >
                       <Send className="h-3.5 w-3.5" />
                     </Button>
