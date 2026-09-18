@@ -380,6 +380,11 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
   const [convertSaving, setConvertSaving] = useState(false)
   const [convertError,  setConvertError]  = useState('')
 
+  // Update → Task modal
+  const [updateTaskModal,  setUpdateTaskModal]  = useState<{ update: ProjectUpdate } | null>(null)
+  const [updateTaskForm,   setUpdateTaskForm]   = useState<{ particulars:string; responsible:string; due_date:string; priority:'low'|'medium'|'high' }>({ particulars:'', responsible:'', due_date:'', priority:'medium' })
+  const [updateTaskSaving, setUpdateTaskSaving] = useState(false)
+
   // Decisions
   const [decisions,       setDecisions]       = useState<ProjectDecision[]>([])
   const [decisionsLoaded, setDecisionsLoaded] = useState(false)
@@ -693,6 +698,44 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
       setConvertError((d as Record<string,string>).error || 'Failed to create task.')
     }
     setConvertSaving(false)
+  }
+
+  async function submitUpdateToTask() {
+    if (!updateTaskModal || !active || !updateTaskForm.particulars.trim()) return
+    setUpdateTaskSaving(true)
+    const today = new Date()
+    const dateStr = `${today.getDate()}-${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][today.getMonth()]}-${String(today.getFullYear()).slice(2)}`
+    const res = await fetch('/api/tasks', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({
+        date:        dateStr,
+        company:     active.company,
+        section:     'General',
+        category:    'Projects',
+        particulars: updateTaskForm.particulars.trim(),
+        responsible: updateTaskForm.responsible,
+        payment:     'Non-Payment',
+        status:      'action-required',
+        priority:    updateTaskForm.priority,
+        due_date:    updateTaskForm.due_date,
+        recurrence:  'none',
+        project_id:  active.id,
+      }),
+    })
+    if (res.ok) {
+      // Refresh task count
+      const dr = await fetch(`/api/projects/${active.id}`, { credentials:'include' })
+      if (dr.ok) {
+        const data = await dr.json()
+        setTasks(data.tasks || [])
+        const tc = data.project.task_count, dc = data.project.done_count
+        setActive(a => a ? { ...a, task_count: tc, done_count: dc } : a)
+        setProjects(prev => prev.map(p => p.id === active.id ? { ...p, task_count: tc, done_count: dc } : p))
+      }
+      setUpdateTaskModal(null)
+      setUpdateTaskForm({ particulars:'', responsible:'', due_date:'', priority:'medium' })
+    }
+    setUpdateTaskSaving(false)
   }
 
   // ── Decision CRUD ──
@@ -2470,10 +2513,27 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
                             {u.posted_by} · {fmtTs(u.created_at)}
                             {u.comments.length > 0 && <span style={{ marginLeft:8, color:'#6b7280' }}>{u.comments.length} comment{u.comments.length>1?'s':''}</span>}
                           </span>
-                          <button onClick={()=>setExpandedUpdate(expanded?null:u.id)}
-                            style={{ background:'none', border:'none', fontSize:11, color:'#6b7280', cursor:'pointer', fontWeight:600 }}>
-                            {expanded ? 'Hide' : `Reply${u.comments.length>0?' ('+u.comments.length+')':''}`}
-                          </button>
+                          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                            {canEdit && (
+                              <button
+                                onClick={()=>{
+                                  setUpdateTaskModal({ update: u })
+                                  setUpdateTaskForm({
+                                    particulars: u.next_steps?.trim() || u.title,
+                                    responsible: u.owner || '',
+                                    due_date:    '',
+                                    priority:    'medium',
+                                  })
+                                }}
+                                style={{ background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:5, fontSize:11, fontWeight:600, padding:'2px 9px', cursor:'pointer' }}>
+                                → Task
+                              </button>
+                            )}
+                            <button onClick={()=>setExpandedUpdate(expanded?null:u.id)}
+                              style={{ background:'none', border:'none', fontSize:11, color:'#6b7280', cursor:'pointer', fontWeight:600 }}>
+                              {expanded ? 'Hide' : `Reply${u.comments.length>0?' ('+u.comments.length+')':''}`}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -3252,6 +3312,71 @@ export default function ProjectsBoard({ initialProjects, currentUser }: Props) {
               <button onClick={()=>setShowCreateTask(false)} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
               <button onClick={submitCreateTask} disabled={createTaskSaving||!createTaskForm.particulars.trim()} style={{ background:createTaskSaving||!createTaskForm.particulars.trim()?'#9ca3af':'#b5833a', color:'white', border:'none', padding:'8px 20px', borderRadius:6, fontSize:13, fontWeight:600, cursor:createTaskSaving||!createTaskForm.particulars.trim()?'not-allowed':'pointer' }}>
                 {createTaskSaving?'Creating…':'Create Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── UPDATE → TASK MODAL ── */}
+      {updateTaskModal && active && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+          onClick={()=>setUpdateTaskModal(null)}>
+          <div style={{ background:'white', borderRadius:12, padding:26, maxWidth:500, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Convert Update to Task</div>
+                <div style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>Linked to <strong>{active.name}</strong></div>
+              </div>
+              <button onClick={()=>setUpdateTaskModal(null)} style={{ background:'none', border:'none', fontSize:20, color:'#9ca3af', cursor:'pointer' }}>✕</button>
+            </div>
+
+            {/* Source update context */}
+            <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:7, padding:'8px 11px', fontSize:12, color:'#1e40af', marginBottom:16, lineHeight:1.5 }}>
+              <div style={{ fontWeight:700, marginBottom:2 }}>{updateTaskModal.update.title}</div>
+              {updateTaskModal.update.next_steps && (
+                <div style={{ color:'#3b82f6' }}><strong>Next:</strong> {updateTaskModal.update.next_steps}</div>
+              )}
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div>
+                <label style={lbl}>Task Description *</label>
+                <textarea value={updateTaskForm.particulars} onChange={e=>setUpdateTaskForm(f=>({...f,particulars:e.target.value}))}
+                  rows={3} autoFocus
+                  style={{ ...inp, resize:'vertical' }}/>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+                <div>
+                  <label style={lbl}>Assign To</label>
+                  <select value={updateTaskForm.responsible} onChange={e=>setUpdateTaskForm(f=>({...f,responsible:e.target.value}))} style={inp}>
+                    <option value="">— select person —</option>
+                    {[...PEOPLE].map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Priority</label>
+                  <select value={updateTaskForm.priority} onChange={e=>setUpdateTaskForm(f=>({...f,priority:e.target.value as 'low'|'medium'|'high'}))} style={inp}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Due Date</label>
+                <input type="date" value={updateTaskForm.due_date} onChange={e=>setUpdateTaskForm(f=>({...f,due_date:e.target.value}))} style={inp}/>
+              </div>
+              <div style={{ background:'#f3f4f6', borderRadius:6, padding:'7px 10px', fontSize:11, color:'#6b7280' }}>
+                Status: <strong>Action Required</strong> · Category: <strong>Projects</strong>
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:9, marginTop:20, justifyContent:'flex-end' }}>
+              <button onClick={()=>setUpdateTaskModal(null)} style={{ background:'#f3f4f6', color:'#374151', border:'none', padding:'8px 16px', borderRadius:6, fontSize:13, cursor:'pointer' }}>Cancel</button>
+              <button onClick={submitUpdateToTask} disabled={updateTaskSaving||!updateTaskForm.particulars.trim()||!updateTaskForm.responsible}
+                style={{ background:updateTaskSaving||!updateTaskForm.particulars.trim()||!updateTaskForm.responsible?'#9ca3af':'#1a3a2a', color:'white', border:'none', padding:'8px 20px', borderRadius:6, fontSize:13, fontWeight:600, cursor:updateTaskSaving||!updateTaskForm.particulars.trim()||!updateTaskForm.responsible?'not-allowed':'pointer' }}>
+                {updateTaskSaving?'Creating…':'Create Task'}
               </button>
             </div>
           </div>
