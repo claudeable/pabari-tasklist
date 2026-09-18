@@ -154,7 +154,7 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false, br
       url:     'https://pabari-shelf-production.up.railway.app',
       visible: isAdmin,
     },
-  ].filter(p => p.visible)
+  ].filter(p => p.visible && branch === 'kenya')
   // ────────────────────────────────────────────────────────────────────────────
 
   const totalCards  = (showTasks ? 1 : 0) + externalCards.length + (isAdmin ? 1 : 0)
