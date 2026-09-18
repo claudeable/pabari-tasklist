@@ -6,7 +6,7 @@ export default function CoreTasksPage() {
       title="Tasks"
       description="Create, assign, track and resolve tasks across all companies and departments."
       icon="✓"
-      fullPageHref="/tasks/hub"
+      fullPageHref="/tasks"
       fullPageLabel="Open Task Board"
       color="#22c55e"
       bg="#f0fdf4"
