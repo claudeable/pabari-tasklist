@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.audit import log_activity
 from app.core.deps import get_current_user, get_db, require_permission
 from app.models.project_participant import ProjectParticipant
+from app.models.project import Project
+from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.project_participant import ProjectParticipantCreate, ProjectParticipantRead
 
@@ -31,7 +33,22 @@ def create_project_participant(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("projects.edit")),
 ) -> ProjectParticipant:
-    participant = ProjectParticipant(**payload.model_dump())
+    if not db.get(Project, payload.project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    data = payload.model_dump()
+    if payload.user_id:
+        user = db.get(User, payload.user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not user.is_active:
+            raise HTTPException(status_code=400, detail="User account is inactive")
+        if data["organization_id"] is None:
+            data["organization_id"] = user.organization_id
+    if data["organization_id"] is None:
+        raise HTTPException(status_code=400, detail="Select an organization or a user")
+    if not db.get(Organization, data["organization_id"]):
+        raise HTTPException(status_code=404, detail="Organization not found")
+    participant = ProjectParticipant(**data)
     db.add(participant)
     db.flush()
     log_activity(

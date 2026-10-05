@@ -10,7 +10,7 @@ class ProjectParticipantBase(BaseModel):
 
 class ProjectParticipantCreate(ProjectParticipantBase):
     project_id: uuid.UUID
-    organization_id: uuid.UUID
+    organization_id: Optional[uuid.UUID] = None
     user_id: Optional[uuid.UUID] = None
 
 
