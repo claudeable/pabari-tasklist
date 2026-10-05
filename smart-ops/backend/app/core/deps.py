@@ -1,6 +1,6 @@
 from typing import Callable, Generator, Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -15,8 +15,9 @@ from app.models.user import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db(background_tasks: BackgroundTasks) -> Generator[Session, None, None]:
     db = SessionLocal()
+    db.info["background_tasks"] = background_tasks
     try:
         yield db
     finally:

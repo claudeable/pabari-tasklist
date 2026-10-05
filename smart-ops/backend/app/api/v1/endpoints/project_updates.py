@@ -6,6 +6,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
+from app.core.audit import log_activity
 from app.models.project import Project
 from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment, ProjectUpdateComment
 from app.models.user import User
@@ -92,6 +93,10 @@ def create_project_update(
         action_items=payload.action_items or None,
     )
     db.add(update)
+    db.flush()
+    log_activity(db, user_id=current_user.id, action="create", entity_type="project_update",
+                 entity_id=str(update.id), project_id=project_id,
+                 description="Posted a project update: " + update.body[:500])
     db.commit()
     db.refresh(update)
 
@@ -134,6 +139,10 @@ def edit_project_update(
     if payload.action_items is not None:
         update.action_items = payload.action_items or None
 
+    if db.is_modified(update):
+        log_activity(db, user_id=current_user.id, action="update", entity_type="project_update",
+                     entity_id=str(update.id), project_id=project_id,
+                     description="Edited a project update: " + update.body[:500])
     db.commit()
     db.refresh(update)
     return _build_read(update)
@@ -169,6 +178,8 @@ def upload_project_update_attachment(
         file_size=len(data),
     )
     db.add(attachment)
+    log_activity(db, user_id=current_user.id, action="create", entity_type="project_update_attachment",
+                 project_id=project_id, description="Added an attachment: " + attachment.filename)
     db.commit()
     db.refresh(update)
     return _build_read(update)
@@ -199,6 +210,8 @@ def delete_project_update(
     if not update or update.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
 
+    log_activity(db, user_id=current_user.id, action="delete", entity_type="project_update",
+                 project_id=project_id, description="Deleted a project update")
     db.delete(update)
     db.commit()
 
@@ -243,6 +256,9 @@ def set_project_update_status(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
     if payload.status is not None:
         update.status = payload.status
+    if db.is_modified(update):
+        log_activity(db, user_id=current_user.id, action="update", entity_type="project_update",
+                     project_id=project_id, description="Changed project update status to " + update.status)
     db.commit()
     db.refresh(update)
     return _build_read(update)
@@ -272,6 +288,8 @@ def add_project_update_comment(
         body=payload.body.strip(),
     )
     db.add(comment)
+    log_activity(db, user_id=current_user.id, action="create", entity_type="project_update_comment",
+                 project_id=project_id, description="Commented on a project update: " + comment.body[:500])
     db.commit()
     db.refresh(update)
     return _build_read(update)

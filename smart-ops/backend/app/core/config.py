@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "Smart Ops <notifications@pabarigroup.com>"
     RESEND_ENABLED: bool = True
+    SMART_OPS_URL: str = "https://smart-ops-frontend-production.up.railway.app"
 
     @property
     def cors_origins_list(self) -> List[str]:

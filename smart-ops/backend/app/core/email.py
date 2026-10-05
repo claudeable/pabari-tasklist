@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 
 import httpx
 
@@ -17,7 +18,7 @@ _EMAIL_TEMPLATE = """
   </div>
   <div style="padding:24px">
     <p style="margin:0 0 16px;font-size:15px;color:#111827">{body}</p>
-    <a href="https://smart-ops.up.railway.app" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px">Open Smart Ops</a>
+    <a href="{portal_url}" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px">Open Smart Ops</a>
   </div>
   <div style="padding:12px 24px;background:#f9fafb;border-top:1px solid #e5e7eb">
     <p style="margin:0;font-size:12px;color:#6b7280">Pabari Group &mdash; Smart Operations Portal</p>
@@ -31,16 +32,17 @@ def send_notification_email(to: str, subject: str, body: str) -> None:
     if not settings.RESEND_ENABLED or not settings.RESEND_API_KEY:
         return
     try:
-        httpx.post(
+        response = httpx.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
             json={
                 "from": settings.EMAIL_FROM,
                 "to": [to],
                 "subject": subject,
-                "html": _EMAIL_TEMPLATE.format(body=body),
+                "html": _EMAIL_TEMPLATE.format(body=body, portal_url=escape(settings.SMART_OPS_URL, quote=True)),
             },
             timeout=10.0,
         )
+        response.raise_for_status()
     except Exception as exc:
         logger.warning("Email send failed to %s: %s", to, exc)

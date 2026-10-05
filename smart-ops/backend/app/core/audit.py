@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.activity_log import ActivityLog
 from app.models.notification import Notification
+from app.core.project_emails import queue_project_email
 
 
 def log_activity(
@@ -29,6 +30,9 @@ def log_activity(
         description=description,
     )
     db.add(log)
+    queue_project_email(
+        db, project_id=project_id, user_id=user_id, description=description
+    )
 
 
 def notify_user(
