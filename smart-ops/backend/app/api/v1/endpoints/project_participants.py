@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import log_activity
 from app.core.deps import get_current_user, get_db, require_permission
@@ -22,6 +22,7 @@ def list_project_participants(
 ) -> list[ProjectParticipant]:
     return (
         db.query(ProjectParticipant)
+        .options(joinedload(ProjectParticipant.user), joinedload(ProjectParticipant.organization))
         .filter(ProjectParticipant.project_id == project_id)
         .all()
     )

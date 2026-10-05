@@ -7,10 +7,31 @@ from fastapi import HTTPException
 import app.db.base  # Register all related models, as the application does.
 
 from app.api.v1.endpoints.project_participants import create_project_participant
-from app.schemas.project_participant import ProjectParticipantCreate
+from app.schemas.project_participant import ProjectParticipantCreate, ProjectParticipantRead
 
 
 class ParticipantTests(unittest.TestCase):
+    def test_read_response_includes_names_and_avatar(self):
+        participant = SimpleNamespace(
+            id=uuid.uuid4(), project_id=uuid.uuid4(), organization_id=uuid.uuid4(),
+            user_id=uuid.uuid4(), role_on_project="Engineer",
+            user=SimpleNamespace(full_name="Test User", avatar_url="https://example.com/avatar.png"),
+            organization=SimpleNamespace(name="Test Organization"),
+        )
+        result = ProjectParticipantRead.model_validate(participant).model_dump()
+        self.assertEqual(result["user_name"], "Test User")
+        self.assertEqual(result["organization_name"], "Test Organization")
+        self.assertEqual(result["avatar_url"], "https://example.com/avatar.png")
+
+    def test_read_response_handles_participant_without_user(self):
+        participant = SimpleNamespace(
+            id=uuid.uuid4(), project_id=uuid.uuid4(), organization_id=uuid.uuid4(),
+            user_id=None, user=None, organization=SimpleNamespace(name="Organization"),
+        )
+        result = ProjectParticipantRead.model_validate(participant)
+        self.assertIsNone(result.user_name)
+        self.assertEqual(result.organization_name, "Organization")
+
     def test_user_organization_is_used_when_omitted(self):
         organization_id = uuid.uuid4()
         user = SimpleNamespace(organization_id=organization_id, is_active=True)
