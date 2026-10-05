@@ -1889,7 +1889,20 @@ function UpdateTableRow({
           <p className="line-clamp-2 whitespace-pre-wrap">{update.body}</p>
         </td>
         <td className="px-3 py-2.5 align-top text-xs text-foreground">
-          <p className="line-clamp-2 whitespace-pre-wrap">{update.internal_notes || <span className="text-muted-foreground">—</span>}</p>
+          <div className="max-h-24 space-y-2 overflow-y-auto">
+            {update.internal_notes && (
+              <p className="whitespace-pre-wrap break-words">{update.internal_notes}</p>
+            )}
+            {update.comments.map((comment) => (
+              <div key={comment.id}>
+                <p className="text-[10px] font-medium text-muted-foreground">{comment.user_name || "Unknown user"}</p>
+                <p className="whitespace-pre-wrap break-words">{comment.body}</p>
+              </div>
+            ))}
+            {!update.internal_notes && update.comments.length === 0 && (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </div>
         </td>
         <td className="px-3 py-2.5 align-top text-xs text-foreground">
           <p className="line-clamp-2 whitespace-pre-wrap">{update.action_items || <span className="text-muted-foreground">—</span>}</p>
