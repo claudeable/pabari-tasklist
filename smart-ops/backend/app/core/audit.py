@@ -31,7 +31,8 @@ def log_activity(
     )
     db.add(log)
     queue_project_email(
-        db, project_id=project_id, user_id=user_id, description=description
+        db, project_id=project_id, user_id=user_id, description=description,
+        action=action, entity_type=entity_type,
     )
 
 
