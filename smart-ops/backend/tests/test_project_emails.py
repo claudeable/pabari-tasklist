@@ -11,13 +11,14 @@ from app.core.project_emails import queue_project_email
 
 
 class ProjectEmailTests(unittest.TestCase):
-    def test_participant_addition_notifies_only_pedro(self):
+    def test_participant_addition_sends_no_emails(self):
         db = Mock()
         db.info = {"background_tasks": BackgroundTasks()}
         db.get.side_effect = [SimpleNamespace(name="Naivasha Water"), SimpleNamespace(full_name="Admin")]
         queue_project_email(db, project_id=1, user_id=2, description="Added a participant",
                             action="create", entity_type="project_participant")
-        self.assertEqual([message[0] for message in db.info["project_emails"]], ["hpedro@usm.co.ke"])
+        self.assertNotIn("project_emails", db.info)
+        db.get.assert_not_called()
         db.query.assert_not_called()
 
     def test_project_update_notifies_all_project_recipients(self):
