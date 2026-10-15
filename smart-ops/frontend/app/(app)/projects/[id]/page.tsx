@@ -54,6 +54,8 @@ import {
 import { useDeleteProject, useProject, useUpdateProject } from "@/lib/hooks/use-projects";
 import {
   useAddProjectUpdateComment,
+  useEditProjectUpdateComment,
+  useDeleteProjectUpdateComment,
   useCreateProjectUpdate,
   useDeleteProjectUpdate,
   useDeleteProjectUpdateAttachment,
@@ -1438,13 +1440,13 @@ function ParticipantsTab({ projectId }: { projectId: string }) {
 
 // --- Project Updates ---
 
-const CAN_DELETE_EMAILS = new Set(["pmureithi@usm.co.ke", "hkotecha@kwale-group.com"]);
+const CAN_DELETE_EMAILS = new Set(["hkotecha@kwale-group.com"]);
 
 function canDeleteUpdate(user: { email?: string; role?: string | { name?: string } } | undefined): boolean {
   if (!user) return false;
-  if (user.email && CAN_DELETE_EMAILS.has(user.email)) return true;
-  if (typeof user.role === "string") return user.role.toLowerCase().includes("admin");
-  return (user.role as { name?: string })?.name?.toLowerCase().includes("admin") ?? false;
+  if (user.email && CAN_DELETE_EMAILS.has(user.email.trim().toLowerCase())) return true;
+  if (typeof user.role === "string") return ["admin", "administrator", "super admin", "superadmin"].includes(user.role.trim().toLowerCase());
+  return ["admin", "administrator", "super admin", "superadmin"].includes(user.role?.name?.trim().toLowerCase() ?? "");
 }
 
 function formatBytes(bytes?: number) {
@@ -1784,6 +1786,11 @@ function UpdateTableRow({
   const deleteAttachment = useDeleteProjectUpdateAttachment(projectId);
   const setStatus = useSetProjectUpdateStatus(projectId);
   const addComment = useAddProjectUpdateComment(projectId);
+  const editComment = useEditProjectUpdateComment(projectId);
+  const deleteComment = useDeleteProjectUpdateComment(projectId);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentBody, setEditingCommentBody] = useState("");
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
 
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1831,8 +1838,8 @@ function UpdateTableRow({
           email_subject: editEmailSubject || undefined,
           current_capacity: editCurrentCapacity || undefined,
           project_requirement: editProjectRequirement || undefined,
-          internal_notes: editInternalNotes || undefined,
-          action_items: editActionItems || undefined,
+          internal_notes: editInternalNotes,
+          action_items: editActionItems,
         },
       },
       {
@@ -1867,7 +1874,7 @@ function UpdateTableRow({
           <Select
             value={currentStatus}
             onValueChange={(val) => setStatus.mutate({ updateId: update.id, status: val })}
-            disabled={setStatus.isPending}
+            disabled={!canDelete || setStatus.isPending}
           >
             <SelectTrigger className={`h-6 rounded-full border-0 px-2.5 py-0 text-[10px] font-semibold w-auto min-w-[84px] focus:ring-0 ${STATUS_CLASS[currentStatus] ?? STATUS_CLASS.open}`}>
               <SelectValue />
@@ -1933,7 +1940,7 @@ function UpdateTableRow({
             {update.source === "email" && (
               <Mail className="h-3 w-3 text-blue-500" aria-label="Email source" />
             )}
-            {!confirmDelete && (
+            {canDelete && !confirmDelete && (
               <Button size="icon-sm" variant="ghost" onClick={startEdit} aria-label="Edit">
                 <Pencil className="h-3 w-3 text-muted-foreground" />
               </Button>
@@ -2110,6 +2117,10 @@ function UpdateTableRow({
                   </div>
                 )}
 
+                <ConfirmDeleteDialog open={Boolean(deletingCommentId)} onOpenChange={(open) => { if (!open) setDeletingCommentId(null); }}
+                  title="Delete this comment?" description="This cannot be undone." isPending={deleteComment.isPending}
+                  onConfirm={() => { if (deletingCommentId) deleteComment.mutate({ updateId: update.id, commentId: deletingCommentId },
+                    { onSuccess: () => setDeletingCommentId(null), onError: () => toast.error("Failed to delete comment") }); }} />
                 {/* Comments thread */}
                 <div className="pt-2 border-t border-border/50 space-y-2">
                   <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -2128,7 +2139,22 @@ function UpdateTableRow({
                       </Avatar>
                       <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-1.5">
                         <p className="text-[10px] font-medium text-foreground">{c.user_name || "Unknown"}</p>
-                        <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>
+                        {editingCommentId === c.id ? (
+                          <div className="space-y-2">
+                            <Textarea aria-label="Edit comment" value={editingCommentBody} onChange={(e) => setEditingCommentBody(e.target.value)} />
+                            <Button size="sm" disabled={editComment.isPending || !editingCommentBody.trim()} onClick={() => editComment.mutate(
+                              { updateId: update.id, commentId: c.id, body: editingCommentBody.trim() },
+                              { onSuccess: () => setEditingCommentId(null), onError: () => toast.error("Failed to edit comment") },
+                            )}>Save</Button>
+                            <Button size="sm" variant="ghost" disabled={editComment.isPending} onClick={() => setEditingCommentId(null)}>Cancel</Button>
+                          </div>
+                        ) : <p className="text-xs text-foreground whitespace-pre-wrap">{c.body}</p>}
+                        {canDelete && editingCommentId !== c.id && (
+                          <div className="flex gap-1">
+                            <Button size="icon-sm" variant="ghost" aria-label="Edit comment" onClick={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}><Pencil className="h-3 w-3" /></Button>
+                            <Button size="icon-sm" variant="ghost" aria-label="Delete comment" onClick={() => setDeletingCommentId(c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                          </div>
+                        )}
                         <p className="text-[10px] text-muted-foreground mt-0.5">{formatTimestamp(c.created_at)}</p>
                       </div>
                     </div>

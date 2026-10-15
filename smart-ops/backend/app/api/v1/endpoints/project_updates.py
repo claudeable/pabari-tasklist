@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
 from app.core.audit import log_activity
+from app.core.update_permissions import require_update_moderator
 from app.models.project import Project
 from app.models.project_update import ProjectUpdate, ProjectUpdateAttachment, ProjectUpdateComment
 from app.models.user import User
@@ -114,6 +115,7 @@ def edit_project_update(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProjectUpdateRead:
+    require_update_moderator(current_user)
     update = db.get(ProjectUpdate, update_id)
     if not update or update.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
@@ -185,9 +187,6 @@ def upload_project_update_attachment(
     return _build_read(update)
 
 
-ALLOWED_DELETE_EMAILS = {"pmureithi@usm.co.ke", "hkotecha@kwale-group.com"}
-
-
 @router.delete(
     "/projects/{project_id}/updates/{update_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -198,13 +197,7 @@ def delete_project_update(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    role = current_user.role
-    is_admin = role and (
-        any(p.code == "admin" for p in role.permissions)
-        or "admin" in (role.name or "").lower()
-    )
-    if current_user.email not in ALLOWED_DELETE_EMAILS and not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete updates")
+    require_update_moderator(current_user)
 
     update = db.get(ProjectUpdate, update_id)
     if not update or update.project_id != project_id:
@@ -225,13 +218,7 @@ def delete_project_update_attachment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    role = current_user.role
-    is_admin = role and (
-        any(p.code == "admin" for p in role.permissions)
-        or "admin" in (role.name or "").lower()
-    )
-    if current_user.email not in ALLOWED_DELETE_EMAILS and not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete attachments")
+    require_update_moderator(current_user)
 
     attachment = db.get(ProjectUpdateAttachment, attachment_id)
     if not attachment:
@@ -251,6 +238,7 @@ def set_project_update_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProjectUpdateRead:
+    require_update_moderator(current_user)
     update = db.get(ProjectUpdate, update_id)
     if not update or update.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update not found")
@@ -312,3 +300,40 @@ def serve_project_update_attachment(
             "Content-Length": str(attachment.file_size or len(attachment.file_data)),
         },
     )
+
+
+@router.put("/projects/{project_id}/updates/{update_id}/comments/{comment_id}", response_model=ProjectUpdateRead)
+def edit_project_update_comment(
+    project_id: uuid.UUID, update_id: uuid.UUID, comment_id: uuid.UUID,
+    payload: ProjectUpdateCommentCreate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    require_update_moderator(current_user)
+    update = db.get(ProjectUpdate, update_id)
+    comment = db.get(ProjectUpdateComment, comment_id)
+    if not update or update.project_id != project_id or not comment or comment.update_id != update_id:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if not payload.body.strip():
+        raise HTTPException(status_code=400, detail="Comment body required")
+    comment.body = payload.body.strip()
+    log_activity(db, user_id=current_user.id, action="update", entity_type="project_update_comment",
+                 project_id=project_id, description="Edited a project update comment: " + comment.body[:500])
+    db.commit()
+    db.refresh(update)
+    return _build_read(update)
+
+
+@router.delete("/projects/{project_id}/updates/{update_id}/comments/{comment_id}", status_code=204)
+def delete_project_update_comment(
+    project_id: uuid.UUID, update_id: uuid.UUID, comment_id: uuid.UUID,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    require_update_moderator(current_user)
+    update = db.get(ProjectUpdate, update_id)
+    comment = db.get(ProjectUpdateComment, comment_id)
+    if not update or update.project_id != project_id or not comment or comment.update_id != update_id:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    log_activity(db, user_id=current_user.id, action="delete", entity_type="project_update_comment",
+                 project_id=project_id, description="Deleted a project update comment")
+    db.delete(comment)
+    db.commit()

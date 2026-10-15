@@ -416,6 +416,11 @@ export const api = {
       body: { body },
     }),
 
+  editProjectUpdateComment: (projectId: string, updateId: string, commentId: string, body: string) =>
+    request<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}/comments/${commentId}`, { method: "PUT", body: { body } }),
+  deleteProjectUpdateComment: (projectId: string, updateId: string, commentId: string) =>
+    request<void>(`/projects/${projectId}/updates/${updateId}/comments/${commentId}`, { method: "DELETE" }),
+
   // Reports
   projectProgressReport: () => request<ProjectProgressReport>("/reports/project-progress"),
   tasksSummaryReport: () => request<TasksSummaryReport>("/reports/tasks-summary"),
