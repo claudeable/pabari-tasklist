@@ -15,6 +15,7 @@ import { useState, useEffect } from 'react'
 import { SessionUser } from '@/types'
 import InactivityGuard from './InactivityGuard'
 import NotificationBell from './NotificationBell'
+import { canAccessCore } from '@/lib/core-access'
 
 interface Props { currentUser: SessionUser; mustChangePassword?: boolean; branch?: 'kenya' | 'india' | 'dubai' }
 
@@ -52,8 +53,10 @@ export default function UnifiedHub({ currentUser, mustChangePassword = false, br
   const role         = currentUser.role
   const isAdmin      = role === 'admin'
   const portals      = currentUser.portals ?? []
-  // Show Task Management only if: admin, regular staff (no portals assigned), or explicitly granted tasks portal
-  const showTasks    = isAdmin || portals.length === 0 || portals.includes('tasks')
+  // Kenya Core follows the company email policy; other branch launchers keep
+  // their existing portal assignments.
+  const showTasks    = branch === 'kenya' ? canAccessCore(currentUser, branch)
+    : isAdmin || portals.length === 0 || portals.includes('tasks')
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)

@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { query } from '@/lib/database'
 import CoreDashboard from '@/components/core/CoreDashboard'
@@ -9,6 +10,10 @@ export default async function CoreDashboardPage() {
   const cookieStore = cookies()
   const session     = cookieStore.get('pabari-session')
   const user        = session?.value ? await verifyToken(session.value) : null
+  if (!user) redirect('/login')
+  // The Core doorway is shared; this organization-wide administrative
+  // dashboard retains its previous administrator-only audience.
+  if (user.role !== 'admin') redirect('/core/tasks')
   const branch      = cookieStore.get('pabari-branch')?.value || 'kenya'
 
   const safe = (rows: { count: string }[]) => parseInt(rows[0]?.count ?? '0', 10)

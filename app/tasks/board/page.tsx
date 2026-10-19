@@ -1,3 +1,4 @@
+import { canAccessTaskPortal } from '@/lib/core-access'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
@@ -21,7 +22,7 @@ export default async function TaskBoardPage() {
     : tokenUser
 
   const portals: string[] = dbUser?.portals ?? []
-  const hasTasksAccess = currentUser.role === 'admin' || portals.length === 0 || portals.includes('tasks')
+  const hasTasksAccess = canAccessTaskPortal({ ...currentUser, portals }, cookieStore.get('pabari-branch')?.value || 'kenya')
   if (!hasTasksAccess) redirect('/')
 
   const [tasks, allUsers, subordinates, teamMembers] = await Promise.all([

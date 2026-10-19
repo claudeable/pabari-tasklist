@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
 import { getUserByEmail } from '@/lib/users'
 import CoreShell from '@/components/core/CoreShell'
+import { canAccessCore } from '@/lib/core-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,13 +13,13 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
   const tokenUser   = session?.value ? await verifyToken(session.value) : null
   if (!tokenUser) redirect('/login')
 
-  // Admin only for now
-  if (tokenUser.role !== 'admin') redirect('/kenya')
-
   const dbUser      = await getUserByEmail(tokenUser.email).catch(() => null)
   const currentUser = dbUser
-    ? { ...tokenUser, portals: dbUser.portals, companies: dbUser.companies }
+    ? { ...tokenUser, email: dbUser.email, role: dbUser.role, portals: dbUser.portals, companies: dbUser.companies }
     : tokenUser
+
+  const branch = cookieStore.get('pabari-branch')?.value || 'kenya'
+  if (!canAccessCore(currentUser, branch)) redirect('/kenya')
 
   return <CoreShell currentUser={currentUser}>{children}</CoreShell>
 }

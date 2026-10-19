@@ -1,3 +1,4 @@
+import { canAccessTaskPortal } from '@/lib/core-access'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyToken } from '@/lib/auth'
@@ -98,7 +99,7 @@ export default async function TaskDashboardPage() {
 
   const dbUser = await getUserByEmail(tokenUser.email)
   const portals: string[] = dbUser?.portals ?? []
-  if (tokenUser.role !== 'admin' && portals.length > 0 && !portals.includes('tasks')) redirect('/')
+  if (!canAccessTaskPortal({ ...tokenUser, portals }, cookieStore.get('pabari-branch')?.value || 'kenya')) redirect('/')
 
   const currentUser: SessionUser = dbUser
     ? { ...tokenUser, companies: dbUser.companies, reports_to: dbUser.reports_to, hod_email: dbUser.hod_email }
