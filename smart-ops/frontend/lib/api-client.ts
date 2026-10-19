@@ -48,6 +48,7 @@ export class ApiError extends Error {
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   auth?: boolean;
+  responseType?: "blob";
 }
 
 const PABARI_URL = "https://pabari-workspace.up.railway.app";
@@ -85,7 +86,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   // but no longer changes behavior: authorization is carried by the
   // httpOnly cookie the backend sets on login, which the browser attaches
   // automatically to every credentialed request below.
-  const { body, headers, ...rest } = options;
+  const { body, headers, responseType, ...rest } = options;
 
   const finalHeaders: Record<string, string> = {
     Accept: "application/json",
@@ -145,6 +146,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return undefined as T;
   }
 
+  if (responseType === "blob") return (await response.blob()) as T;
   return (await response.json()) as T;
 }
 
@@ -422,6 +424,8 @@ export const api = {
     request<void>(`/projects/${projectId}/updates/${updateId}/comments/${commentId}`, { method: "DELETE" }),
 
   // Reports
+  projectUpdatesReport: (query: string) => request<import("@/lib/project-report").ProjectUpdatesReport>(`/reports/project-updates${query ? `?${query}` : ""}`),
+  exportProjectUpdatesReport: (query: string) => request<Blob>(`/reports/project-updates?${query ? `${query}&` : ""}export=xlsx`, { responseType: "blob" }),
   projectProgressReport: () => request<ProjectProgressReport>("/reports/project-progress"),
   tasksSummaryReport: () => request<TasksSummaryReport>("/reports/tasks-summary"),
   risksSummaryReport: () => request<RisksSummaryReport>("/reports/risks-summary"),

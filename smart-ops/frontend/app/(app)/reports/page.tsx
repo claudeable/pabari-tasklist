@@ -1,12 +1,12 @@
 "use client";
 
 import { BarChart3 } from "lucide-react";
+import { ProjectUpdatesReportPanel } from "@/components/project-updates-report";
 import { PageHeader } from "@/components/ui-custom/page-header";
 import { EmptyState } from "@/components/ui-custom/empty-state";
 import { ErrorState } from "@/components/ui-custom/error-state";
 import { StatTile } from "@/components/ui-custom/stat-tile";
 import { ActivityRow } from "@/components/ui-custom/activity-row";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ActivityItem } from "@/lib/types";
@@ -22,17 +22,19 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Reports"
-        description="Cross-module reports for stakeholders across both organizations."
+        description="Generate project update reports, review summaries, and export for sharing."
       />
 
-      <Tabs defaultValue="progress">
+      <Tabs defaultValue="updates">
         <TabsList className="mb-4 flex-wrap">
+          <TabsTrigger value="updates">Project Updates</TabsTrigger>
           <TabsTrigger value="progress">Project Progress</TabsTrigger>
           <TabsTrigger value="tasks">Tasks Summary</TabsTrigger>
           <TabsTrigger value="risks">Risks Summary</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="updates"><ProjectUpdatesReportPanel /></TabsContent>
         <TabsContent value="progress">
           <ReportSection useReport={useProjectProgressReport} />
         </TabsContent>
@@ -54,7 +56,7 @@ function ReportSection({
   useReport,
 }: {
   useReport: () => {
-    data: Record<string, unknown> | undefined;
+    data: unknown;
     isLoading: boolean;
     isError: boolean;
     refetch: () => void;
@@ -76,13 +78,14 @@ function ReportSection({
     return <ErrorState onRetry={() => refetch()} />;
   }
 
-  if (!data || Object.keys(data).length === 0) {
+  if (!data || Object.keys(data as object).length === 0) {
     return (
       <EmptyState icon={BarChart3} title="No report data available" description="Check back once reporting data has been generated." />
     );
   }
 
-  const entries = Object.entries(data);
+  if (Array.isArray(data)) return <ComplexReportSection label="Report results" value={data} />;
+  const entries = Object.entries(data as Record<string, unknown>);
   const scalarEntries = entries.filter(([, v]) => typeof v === "number" || typeof v === "string");
   const complexEntries = entries.filter(([, v]) => typeof v === "object" && v !== null);
 
@@ -135,7 +138,10 @@ function ComplexReportSection({ label, value }: { label: string; value: unknown 
         </div>
       );
     }
-    if (value.length === 0) return null;
+    if (value.length === 0) return <p className="text-sm text-muted-foreground">No report data available.</p>;
+    const rows = value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object");
+    const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row)))).filter(key => key !== "id" && !key.endsWith("_id") && rows.some(row => typeof row[key] === "string" || typeof row[key] === "number"));
+    if (columns.length) return <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead><tr>{columns.map(key => <th key={key} className="bg-muted p-3 text-left font-semibold capitalize">{key.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id || row.project_id || index)} className="border-t border-border">{columns.map(key => <td key={key} className="p-3">{typeof row[key] === "string" ? String(row[key]).replaceAll("_", " ") : typeof row[key] === "number" ? String(row[key]) : "?"}</td>)}</tr>)}</tbody></table></div>;
   }
 
   // Plain object breakdown (e.g. by_status / by_priority counts) — render
@@ -158,15 +164,5 @@ function ComplexReportSection({ label, value }: { label: string; value: unknown 
     }
   }
 
-  // Fallback for shapes that don't fit the above (nested objects, etc.)
-  return (
-    <Card className="glass-panel">
-      <CardContent>
-        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
-        <pre className="overflow-x-auto text-xs text-foreground">
-          {JSON.stringify(value, null, 2)}
-        </pre>
-      </CardContent>
-    </Card>
-  );
+  return <p className="text-sm text-muted-foreground">No summary data available for {label}.</p>;
 }
